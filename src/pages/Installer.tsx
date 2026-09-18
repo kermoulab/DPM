@@ -35,7 +35,6 @@ export const Installer: React.FC<InstallerProps> = ({ onInstallComplete, onInsta
   const [baseCurrency, setBaseCurrency] = React.useState('USD');
   const [currencySymbol, setCurrencySymbol] = React.useState('$');
   const [supportPhone, setSupportPhone] = React.useState('');
-  const [seedSampleData, setSeedSampleData] = React.useState(false);
 
   const [installing, setInstalling] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -75,8 +74,7 @@ export const Installer: React.FC<InstallerProps> = ({ onInstallComplete, onInsta
         admin_username: adminUsername,
         admin_email: adminEmail,
         admin_password: adminPassword,
-        admin_name: adminName,
-        seed_sample_data: seedSampleData
+        admin_name: adminName
       };
 
       const res = await api.runInstall(payload);
@@ -310,23 +308,6 @@ export const Installer: React.FC<InstallerProps> = ({ onInstallComplete, onInsta
                   />
                 </div>
               </div>
-
-              <label className="p-4 rounded-2xl border border-slate-200 bg-slate-50 flex items-start gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={seedSampleData}
-                  onChange={(e) => setSeedSampleData(e.target.checked)}
-                  className="mt-0.5 accent-blue-600 rounded"
-                />
-                <div className="text-xs">
-                  <span className="font-bold text-slate-800 block">
-                    Preload Professional Reseller Catalog & Orders
-                  </span>
-                  <span className="text-slate-500">
-                    Seeds realistic catalog items (Netflix 4K profiles, ChatGPT Plus, CapCut Pro license keys, Merch mockups, active orders, and multi-language WhatsApp templates).
-                  </span>
-                </div>
-              </label>
             </div>
           )}
 
@@ -355,8 +336,8 @@ export const Installer: React.FC<InstallerProps> = ({ onInstallComplete, onInsta
                   <span className="font-semibold text-slate-800">{companyName}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Sample Catalog:</span>
-                  <span className="font-semibold text-emerald-600">{seedSampleData ? 'Included' : 'Clean'}</span>
+                  <span className="text-slate-400">Database State:</span>
+                  <span className="font-semibold text-emerald-600">Clean Production Baseline</span>
                 </div>
               </div>
             </div>

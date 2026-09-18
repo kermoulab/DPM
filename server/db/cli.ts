@@ -2,6 +2,7 @@ import 'dotenv/config';
 import pg from 'pg';
 import { runMigrations } from './migrator.js';
 import { importSqliteToPostgres } from './import-sqlite.js';
+import { seedDevelopmentData } from './seed.js';
 
 const { Pool } = pg;
 
@@ -51,6 +52,11 @@ async function main() {
           console.log('SUCCESS: All 17 tables migrated with 100% record count match!');
         }
       }
+    }
+
+    if (command === 'seed') {
+      console.log('\n--- SEEDING DEVELOPMENT DATA TO POSTGRESQL ---');
+      await seedDevelopmentData(pool);
     }
   } catch (err: any) {
     console.error('Database operation failed:', err);

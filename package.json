@@ -12,7 +12,8 @@
     "lint": "tsc --noEmit",
     "db:migrate": "tsx server/db/cli.ts migrate",
     "db:import": "tsx server/db/cli.ts import",
-    "db:setup": "tsx server/db/cli.ts setup"
+    "db:setup": "tsx server/db/cli.ts setup",
+    "db:seed": "tsx server/db/cli.ts seed"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.14",
