@@ -67,8 +67,8 @@ ordersRouter.post('/', requireAuth, async (req: AuthenticatedRequest, res, next)
 
     await auditRepo.log(req.user || null, 'CREATE_ORDER', 'order', order.id, { order_number: order.order_number });
     res.status(201).json({ success: true, order });
-  } catch (err: any) {
-    res.status(err.statusCode || 400).json({ error: err.message });
+  } catch (err) {
+    next(err);
   }
 });
 
@@ -79,8 +79,8 @@ ordersRouter.post('/:id/cancel', requireAuth, requireRole('manager'), async (req
     const { reason } = req.body;
     await orderService.cancelOrder(id, reason, req.user);
     res.json({ success: true, message: 'Order cancelled and allocated inventory restored to available.' });
-  } catch (err: any) {
-    res.status(err.statusCode || 400).json({ error: err.message });
+  } catch (err) {
+    next(err);
   }
 });
 

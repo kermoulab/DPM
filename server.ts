@@ -5,7 +5,7 @@ import { createServer as createViteServer } from 'vite';
 import { config } from './server/config/index.js';
 import { getPool, testConnection } from './server/db/connection/pool.js';
 import { runMigrations } from './server/db/migrator.js';
-import { errorHandler } from './server/middleware/error.middleware.js';
+import { errorHandler, NotFoundError } from './server/middleware/error.middleware.js';
 
 // Import route handlers
 import { installRouter } from './server/routes/install.js';
@@ -101,8 +101,8 @@ async function startServer() {
   });
 
   // 404 Handler for all API routes (prevents fallback to index.html)
-  app.use('/api', (req, res) => {
-    res.status(404).json({ error: `API endpoint ${req.method} ${req.originalUrl} not found` });
+  app.use('/api', (req, res, next) => {
+    next(new NotFoundError(`API endpoint ${req.method} ${req.originalUrl} not found`));
   });
 
   // Global Error Handler for API routes

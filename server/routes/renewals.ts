@@ -11,7 +11,7 @@ renewalsRouter.post('/:orderId', requireAuth, async (req: AuthenticatedRequest, 
     const { custom_price, notes } = req.body;
     const result = await orderService.renewOrder(orderId, custom_price, notes, req.user);
     res.json(result);
-  } catch (err: any) {
-    res.status(err.statusCode || 400).json({ error: err.message });
+  } catch (err) {
+    next(err);
   }
 });

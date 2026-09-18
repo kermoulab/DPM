@@ -68,13 +68,17 @@ authRouter.get('/me', requireAuth, async (req: AuthenticatedRequest, res, next) 
 });
 
 // POST /api/auth/logout
-authRouter.post('/logout', requireAuth, async (req: AuthenticatedRequest, res) => {
-  const authHeader = req.headers.authorization;
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    revokeToken(authHeader.split(' ')[1]);
+authRouter.post('/logout', requireAuth, async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      revokeToken(authHeader.split(' ')[1]);
+    }
+    await auditRepo.log(req.user || null, 'LOGOUT', 'user', req.user?.id || null, {}, req.ip || '127.0.0.1');
+    res.json({ success: true, message: 'Logged out successfully.' });
+  } catch (err) {
+    next(err);
   }
-  await auditRepo.log(req.user || null, 'LOGOUT', 'user', req.user?.id || null, {}, req.ip || '127.0.0.1');
-  res.json({ success: true, message: 'Logged out successfully.' });
 });
 
 // PUT /api/auth/profile
