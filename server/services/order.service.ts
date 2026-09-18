@@ -80,14 +80,14 @@ export class OrderService {
 
       if (product.fulfillment_type === 'service_account') {
         if (!assignedProfileId) {
-          // Find and lock available profile
+          // Find and lock available profile (explicitly locking only the profile row)
           const profileRes = await client.query<{ id: string; service_account_id: string; profile_name: string; pin: string }>(
             `SELECT sp.id, sp.service_account_id, sp.profile_name, sp.pin
              FROM service_profiles sp
              JOIN service_accounts sa ON sa.id = sp.service_account_id
              WHERE sa.product_id = $1 AND sa.status = 'active' AND sp.status = 'available'
              LIMIT 1
-             FOR UPDATE SKIP LOCKED`,
+             FOR UPDATE OF sp SKIP LOCKED`,
             [product.id]
           );
 
@@ -99,6 +99,18 @@ export class OrderService {
 
           assignedProfileId = profileRes.rows[0].id;
           assignedAccountId = profileRes.rows[0].service_account_id;
+        } else {
+          // Atomically lock and verify availability of requested profile
+          const profCheck = await client.query<{ id: string; service_account_id: string; status: string }>(
+            'SELECT id, service_account_id, status FROM service_profiles WHERE id = $1 FOR UPDATE',
+            [assignedProfileId]
+          );
+          if (!profCheck.rows[0] || profCheck.rows[0].status !== 'available') {
+            const err = new Error('The selected service profile is not available.');
+            (err as any).statusCode = 400;
+            throw err;
+          }
+          assignedAccountId = profCheck.rows[0].service_account_id;
         }
 
         // Fetch account credentials for fulfillment receipt
@@ -145,6 +157,18 @@ export class OrderService {
 
           assignedLicenseKeyId = licRes.rows[0].id;
           fulfillmentData.license_key = licRes.rows[0].license_key;
+        } else {
+          // Atomically lock and verify availability of requested license key
+          const licCheck = await client.query<{ id: string; status: string; license_key: string }>(
+            'SELECT id, status, license_key FROM license_keys WHERE id = $1 FOR UPDATE',
+            [assignedLicenseKeyId]
+          );
+          if (!licCheck.rows[0] || licCheck.rows[0].status !== 'available') {
+            const err = new Error('The selected license key is not available.');
+            (err as any).statusCode = 400;
+            throw err;
+          }
+          fulfillmentData.license_key = licCheck.rows[0].license_key;
         }
 
         await client.query(
@@ -179,14 +203,23 @@ export class OrderService {
   }
 
   async cancelOrder(orderId: string, reason?: string, user?: any): Promise<void> {
-    const order = await ordersRepo.findById(orderId);
-    if (!order) {
-      const err = new Error('Order not found.');
-      (err as any).statusCode = 404;
-      throw err;
-    }
-
     await transaction(async (client) => {
+      // Row-level lock on the target order to prevent concurrent cancellations
+      const orderRes = await client.query<OrderRow>(
+        'SELECT * FROM orders WHERE id = $1 FOR UPDATE',
+        [orderId]
+      );
+      const order = orderRes.rows[0];
+      if (!order) {
+        const err = new Error('Order not found.');
+        (err as any).statusCode = 404;
+        throw err;
+      }
+
+      if (order.status === 'cancelled') {
+        return; // Idempotent: already cancelled
+      }
+
       // Release assigned profile if any
       if (order.assigned_profile_id) {
         await client.query(
@@ -215,30 +248,35 @@ export class OrderService {
   }
 
   async renewOrder(orderId: string, customPrice?: number, notes?: string, user?: any): Promise<any> {
-    const order = await ordersRepo.findById(orderId);
-    if (!order) {
-      const err = new Error('Order not found.');
-      (err as any).statusCode = 404;
-      throw err;
-    }
+    const result = await transaction(async (client) => {
+      // Row-level lock on the order being renewed
+      const orderRes = await client.query<OrderRow>(
+        'SELECT * FROM orders WHERE id = $1 FOR UPDATE',
+        [orderId]
+      );
+      const order = orderRes.rows[0];
+      if (!order) {
+        const err = new Error('Order not found.');
+        (err as any).statusCode = 404;
+        throw err;
+      }
 
-    const plan = await plansRepo.findById(order.plan_id);
-    if (!plan) {
-      const err = new Error('Subscription plan not found.');
-      (err as any).statusCode = 404;
-      throw err;
-    }
+      const plan = await plansRepo.findById(order.plan_id);
+      if (!plan) {
+        const err = new Error('Subscription plan not found.');
+        (err as any).statusCode = 404;
+        throw err;
+      }
 
-    // New end date calculated from previous end date or today, whichever is later
-    const previousEnd = new Date(order.end_date);
-    const today = new Date();
-    const baseDate = previousEnd > today ? order.end_date : today.toISOString().split('T')[0];
-    const newEndDate = calculateEndDate(baseDate, plan.duration, plan.duration_unit);
+      // New end date calculated from previous end date or today, whichever is later
+      const previousEnd = new Date(order.end_date);
+      const today = new Date();
+      const baseDate = previousEnd > today ? order.end_date : today.toISOString().split('T')[0];
+      const newEndDate = calculateEndDate(baseDate, plan.duration, plan.duration_unit);
 
-    const renewalPrice = customPrice !== undefined ? customPrice : Number(plan.price);
-    const renewalId = 'ren-' + crypto.randomUUID().slice(0, 8);
+      const renewalPrice = customPrice !== undefined ? customPrice : Number(plan.price);
+      const renewalId = 'ren-' + crypto.randomUUID().slice(0, 8);
 
-    await transaction(async (client) => {
       await client.query(
         `INSERT INTO order_renewals (id, order_id, previous_end_date, new_end_date, price, cost, currency, created_by_user_id, notes, created_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP)`,
@@ -255,18 +293,19 @@ export class OrderService {
          WHERE id = $2`,
         [newEndDate, orderId]
       );
+
+      return {
+        success: true,
+        previous_end_date: order.end_date,
+        new_end_date: newEndDate,
+        price: renewalPrice,
+        duration: plan.duration,
+        duration_unit: plan.duration_unit
+      };
     });
 
-    await auditRepo.log(user || null, 'RENEW_ORDER', 'order', orderId, { newEndDate, price: renewalPrice });
-
-    return {
-      success: true,
-      previous_end_date: order.end_date,
-      new_end_date: newEndDate,
-      price: renewalPrice,
-      duration: plan.duration,
-      duration_unit: plan.duration_unit
-    };
+    await auditRepo.log(user || null, 'RENEW_ORDER', 'order', orderId, { newEndDate: result.new_end_date, price: result.price });
+    return result;
   }
 }
 
