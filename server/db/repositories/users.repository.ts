@@ -52,12 +52,17 @@ export class UsersRepository {
   }
 
   async update(id: string, updates: Partial<UserRow>): Promise<UserRow | null> {
+    const ALLOWED_COLUMNS = new Set([
+      'username', 'email', 'name', 'password_hash', 'password_salt',
+      'role', 'status', 'avatar', 'preferred_currency'
+    ]);
+
     const fields: string[] = [];
     const values: any[] = [];
     let idx = 1;
 
     for (const [k, v] of Object.entries(updates)) {
-      if (v !== undefined && k !== 'id' && k !== 'created_at') {
+      if (v !== undefined && ALLOWED_COLUMNS.has(k)) {
         fields.push(`${k} = $${idx++}`);
         values.push(v);
       }
