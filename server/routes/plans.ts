@@ -4,6 +4,7 @@ import { plansRepo } from '../db/repositories/plans.repository.js';
 import { auditRepo } from '../db/repositories/audit.repository.js';
 import { calculateEndDate } from '../services/order.service.js';
 import { requireAuth, requireRole, type AuthenticatedRequest } from '../middleware/auth.middleware.js';
+import { validateBody, v } from '../middleware/validation.middleware.js';
 
 export const plansRouter = Router();
 
@@ -46,13 +47,15 @@ plansRouter.post('/calculate-dates', requireAuth, async (req, res, next) => {
 });
 
 // POST /api/plans
-plansRouter.post('/', requireAuth, requireRole('manager'), async (req: AuthenticatedRequest, res, next) => {
+plansRouter.post('/', requireAuth, requireRole('manager'), validateBody({
+  product_id: v.required('Product ID is required.'),
+  name: [v.required('Plan name is required.'), v.string({ min: 1, max: 100 })],
+  duration: [v.required('Duration is required.'), v.number({ min: 1, integer: true, message: 'Duration must be a positive whole number.' })],
+  price: [v.required('Price is required.'), v.number({ min: 0, message: 'Price cannot be negative.' })],
+  duration_unit: v.enum(['hours', 'days', 'weeks', 'months', 'years'] as const)
+}), async (req: AuthenticatedRequest, res, next) => {
   try {
     const { product_id, name, duration, duration_unit, price, cost, currency, stock_limit } = req.body;
-    if (!product_id || !name || !duration || price === undefined) {
-      res.status(400).json({ error: 'Product ID, plan name, duration, and price are required.' });
-      return;
-    }
 
     const id = 'plan-' + crypto.randomUUID().slice(0, 8);
     const plan = await plansRepo.create({

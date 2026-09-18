@@ -3,6 +3,7 @@ import { authService } from '../services/auth.service.js';
 import { requireAuth, revokeToken, type AuthenticatedRequest } from '../middleware/auth.middleware.js';
 import { auditRepo } from '../db/repositories/audit.repository.js';
 import { usersRepo } from '../db/repositories/users.repository.js';
+import { validateBody, v } from '../middleware/validation.middleware.js';
 
 export const authRouter = Router();
 
@@ -12,7 +13,10 @@ const LOGIN_MAX_ATTEMPTS = 5;
 const LOGIN_WINDOW_MS = 60 * 1000;
 
 // POST /api/auth/login
-authRouter.post('/login', async (req, res, next) => {
+authRouter.post('/login', validateBody({
+  username: v.required('Username is required.'),
+  password: v.required('Password is required.')
+}), async (req, res, next) => {
   const ip = req.ip || '127.0.0.1';
   const now = Date.now();
   const attempt = loginAttempts[ip] || { count: 0, lastAttempt: now };
@@ -27,10 +31,6 @@ authRouter.post('/login', async (req, res, next) => {
   }
 
   const { username, password } = req.body;
-  if (!username || !password) {
-    res.status(400).json({ error: 'Username and password are required.' });
-    return;
-  }
 
   try {
     const result = await authService.login(username, password, ip);
@@ -92,13 +92,11 @@ authRouter.put('/profile', requireAuth, async (req: AuthenticatedRequest, res, n
 });
 
 // PUT /api/auth/currency
-authRouter.put('/currency', requireAuth, async (req: AuthenticatedRequest, res, next) => {
+authRouter.put('/currency', requireAuth, validateBody({
+  currency: [v.required('Currency code is required.'), v.currencyCode()]
+}), async (req: AuthenticatedRequest, res, next) => {
   try {
     const { currency } = req.body;
-    if (!currency || typeof currency !== 'string' || !/^[A-Z]{3}$/.test(currency.trim().toUpperCase())) {
-      res.status(400).json({ error: 'Valid 3-letter currency code is required.' });
-      return;
-    }
     const code = await authService.updateCurrency(req.user!.id, currency);
     await auditRepo.log(req.user || null, 'UPDATE_CURRENCY', 'user', req.user!.id, { currency: code });
     res.json({ success: true, preferred_currency: code, message: `Currency preference updated to ${code}.` });
@@ -108,13 +106,15 @@ authRouter.put('/currency', requireAuth, async (req: AuthenticatedRequest, res, 
 });
 
 // POST /api/auth/change-password
-authRouter.post('/change-password', requireAuth, async (req: AuthenticatedRequest, res, next) => {
+authRouter.post('/change-password', requireAuth, validateBody({
+  currentPassword: v.required('Current password is required.'),
+  newPassword: [
+    v.required('New password is required.'),
+    v.string({ min: 8, message: 'New password must be at least 8 characters.' })
+  ]
+}), async (req: AuthenticatedRequest, res, next) => {
   try {
     const { currentPassword, newPassword } = req.body;
-    if (!currentPassword || !newPassword) {
-      res.status(400).json({ error: 'Current password and new password are required.' });
-      return;
-    }
     await authService.changePassword(req.user!.id, currentPassword, newPassword, req.ip || '127.0.0.1');
     res.json({ success: true, message: 'Password changed successfully.' });
   } catch (err: any) {

@@ -4,6 +4,7 @@ import { inventoryRepo } from '../db/repositories/inventory.repository.js';
 import { inventoryService } from '../services/inventory.service.js';
 import { auditRepo } from '../db/repositories/audit.repository.js';
 import { requireAuth, requireRole, type AuthenticatedRequest } from '../middleware/auth.middleware.js';
+import { validateBody, v } from '../middleware/validation.middleware.js';
 import { maskSecret } from '../utils/crypto.js';
 
 export const inventoryRouter = Router();
@@ -45,13 +46,14 @@ inventoryRouter.post('/accounts/:id/reveal-credentials', requireAuth, requireRol
 });
 
 // POST /api/inventory/accounts
-inventoryRouter.post('/accounts', requireAuth, requireRole('manager'), async (req: AuthenticatedRequest, res, next) => {
+inventoryRouter.post('/accounts', requireAuth, requireRole('manager'), validateBody({
+  product_id: v.required('Product ID is required.'),
+  provider: v.required('Provider name is required.'),
+  login: v.required('Login username/email is required.'),
+  password: v.required('Password/credential is required.')
+}), async (req: AuthenticatedRequest, res, next) => {
   try {
     const { product_id, provider, login, password, capacity, expiry_date, notes, create_profiles, profile_names } = req.body;
-    if (!product_id || !provider || !login || !password) {
-      res.status(400).json({ error: 'Product, provider, login email/user, and password are required.' });
-      return;
-    }
 
     const account = await inventoryService.createAccount(
       { product_id, provider, login, password, capacity, expiry_date, notes, create_profiles, profile_names },
@@ -115,13 +117,12 @@ inventoryRouter.get('/licenses', requireAuth, async (req, res, next) => {
 });
 
 // POST /api/inventory/licenses
-inventoryRouter.post('/licenses', requireAuth, requireRole('manager'), async (req: AuthenticatedRequest, res, next) => {
+inventoryRouter.post('/licenses', requireAuth, requireRole('manager'), validateBody({
+  product_id: v.required('Product ID is required.'),
+  keys: v.required('At least one license key is required.')
+}), async (req: AuthenticatedRequest, res, next) => {
   try {
     const { product_id, keys, expiry_date, notes } = req.body;
-    if (!product_id || !keys) {
-      res.status(400).json({ error: 'Product ID and at least one license key are required.' });
-      return;
-    }
 
     const result = await inventoryService.addLicenses({ product_id, keys, expiry_date, notes }, req.user);
     res.status(201).json({ success: true, ...result });

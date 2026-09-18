@@ -4,6 +4,7 @@ import { categoriesRepo } from '../db/repositories/categories.repository.js';
 import { plansRepo } from '../db/repositories/plans.repository.js';
 import { auditRepo } from '../db/repositories/audit.repository.js';
 import { requireAuth, requireRole, type AuthenticatedRequest } from '../middleware/auth.middleware.js';
+import { validateBody, v } from '../middleware/validation.middleware.js';
 
 export const categoriesRouter = Router();
 
@@ -18,13 +19,11 @@ categoriesRouter.get('/', requireAuth, async (req, res, next) => {
 });
 
 // POST /api/categories
-categoriesRouter.post('/', requireAuth, requireRole('manager'), async (req: AuthenticatedRequest, res, next) => {
+categoriesRouter.post('/', requireAuth, requireRole('manager'), validateBody({
+  name: [v.required('Category name is required.'), v.string({ min: 1, max: 100 })]
+}), async (req: AuthenticatedRequest, res, next) => {
   try {
     const { name, icon, description } = req.body;
-    if (!name || !name.trim()) {
-      res.status(400).json({ error: 'Category name is required.' });
-      return;
-    }
 
     const id = 'cat-' + crypto.randomUUID().slice(0, 8);
     const slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');

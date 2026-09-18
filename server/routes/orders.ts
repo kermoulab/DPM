@@ -3,6 +3,7 @@ import { ordersRepo } from '../db/repositories/orders.repository.js';
 import { orderService } from '../services/order.service.js';
 import { auditRepo } from '../db/repositories/audit.repository.js';
 import { requireAuth, requireRole, type AuthenticatedRequest } from '../middleware/auth.middleware.js';
+import { validateBody, v } from '../middleware/validation.middleware.js';
 
 export const ordersRouter = Router();
 
@@ -40,14 +41,13 @@ ordersRouter.get('/:id', requireAuth, async (req, res, next) => {
 });
 
 // POST /api/orders
-ordersRouter.post('/', requireAuth, async (req: AuthenticatedRequest, res, next) => {
+ordersRouter.post('/', requireAuth, validateBody({
+  customer_id: v.required('Customer is required.'),
+  product_id: v.required('Product is required.'),
+  plan_id: v.required('Subscription plan is required.')
+}), async (req: AuthenticatedRequest, res, next) => {
   try {
     const { customer_id, product_id, plan_id, start_date, custom_price, custom_cost, payment_method, payment_status, notes, assigned_service_account_id, assigned_profile_id, assigned_license_key_id } = req.body;
-
-    if (!customer_id || !product_id || !plan_id) {
-      res.status(400).json({ error: 'Customer, product, and subscription plan are required.' });
-      return;
-    }
 
     const order = await orderService.createOrder({
       customer_id,

@@ -6,6 +6,7 @@ import { usersRepo } from '../db/repositories/users.repository.js';
 import { hashPassword } from '../utils/crypto.js';
 import { createSessionToken } from '../middleware/auth.middleware.js';
 import { auditRepo } from '../db/repositories/audit.repository.js';
+import { validateBody, v } from '../middleware/validation.middleware.js';
 
 export const installRouter = Router();
 
@@ -53,7 +54,11 @@ installRouter.post('/test-db', async (req, res, next) => {
 });
 
 // POST /api/install/setup
-installRouter.post('/setup', async (req, res, next) => {
+installRouter.post('/setup', validateBody({
+  adminUsername: [v.required('Administrator username is required.'), v.string({ min: 3, max: 50 })],
+  adminEmail: [v.required('Administrator email is required.'), v.email('Invalid administrator email address format.')],
+  adminPassword: [v.required('Administrator password is required.'), v.string({ min: 8, message: 'Administrator password must be at least 8 characters.' })]
+}), async (req, res, next) => {
   try {
     const alreadyInstalled = await systemSettingsRepo.isInstalled();
     if (alreadyInstalled) {
@@ -71,16 +76,6 @@ installRouter.post('/setup', async (req, res, next) => {
       currencySymbol,
       supportPhone
     } = req.body;
-
-    if (!adminUsername || !adminEmail || !adminPassword) {
-      res.status(400).json({ error: 'Administrator username, email, and password are required.' });
-      return;
-    }
-
-    if (adminPassword.length < 8) {
-      res.status(400).json({ error: 'Administrator password must be at least 8 characters.' });
-      return;
-    }
 
     const adminId = crypto.randomUUID();
     const { hash, salt } = hashPassword(adminPassword);

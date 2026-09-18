@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { currenciesRepo } from '../db/repositories/currencies.repository.js';
 import { auditRepo } from '../db/repositories/audit.repository.js';
 import { requireAuth, requireRole, type AuthenticatedRequest } from '../middleware/auth.middleware.js';
+import { validateBody, v } from '../middleware/validation.middleware.js';
 
 export const currenciesRouter = Router();
 
@@ -44,13 +45,14 @@ currenciesRouter.put('/:code', requireAuth, requireRole('admin'), async (req: Au
 });
 
 // POST /api/currencies
-currenciesRouter.post('/', requireAuth, requireRole('admin'), async (req: AuthenticatedRequest, res, next) => {
+currenciesRouter.post('/', requireAuth, requireRole('admin'), validateBody({
+  code: [v.required('Currency code is required.'), v.currencyCode()],
+  symbol: v.required('Currency symbol is required.'),
+  name: [v.required('Currency name is required.'), v.string({ min: 1, max: 100 })],
+  exchange_rate: [v.required('Exchange rate is required.'), v.number({ min: 0.000001, message: 'Exchange rate must be positive.' })]
+}), async (req: AuthenticatedRequest, res, next) => {
   try {
     const { code, symbol, name, exchange_rate, decimal_precision, is_base } = req.body;
-    if (!code || !symbol || !name || exchange_rate === undefined) {
-      res.status(400).json({ error: 'Code, symbol, name, and exchange rate are required.' });
-      return;
-    }
 
     const created = await currenciesRepo.upsert({
       code: code.toUpperCase().trim(),

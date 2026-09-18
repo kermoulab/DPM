@@ -4,6 +4,7 @@ import { usersRepo } from '../db/repositories/users.repository.js';
 import { auditRepo } from '../db/repositories/audit.repository.js';
 import { hashPassword } from '../utils/crypto.js';
 import { requireAuth, requireRole, type AuthenticatedRequest } from '../middleware/auth.middleware.js';
+import { validateBody, v } from '../middleware/validation.middleware.js';
 
 export const usersRouter = Router();
 
@@ -18,18 +19,15 @@ usersRouter.get('/', requireAuth, requireRole('admin'), async (req, res, next) =
 });
 
 // POST /api/users
-usersRouter.post('/', requireAuth, requireRole('admin'), async (req: AuthenticatedRequest, res, next) => {
+usersRouter.post('/', requireAuth, requireRole('admin'), validateBody({
+  username: [v.required('Username is required.'), v.string({ min: 3, max: 50, message: 'Username must be 3-50 characters.' })],
+  email: [v.required('Email is required.'), v.email('A valid email address is required.')],
+  name: [v.required('Name is required.'), v.string({ min: 1, max: 100 })],
+  password: [v.required('Password is required.'), v.string({ min: 8, message: 'Password must be at least 8 characters.' })],
+  role: v.enum(['owner', 'admin', 'manager', 'agent', 'viewer'] as const)
+}), async (req: AuthenticatedRequest, res, next) => {
   try {
     const { username, email, name, password, role = 'agent', preferred_currency = 'USD' } = req.body;
-    if (!username || !email || !password || !name) {
-      res.status(400).json({ error: 'Username, email, name, and password are required.' });
-      return;
-    }
-
-    if (password.length < 8) {
-      res.status(400).json({ error: 'Password must be at least 8 characters.' });
-      return;
-    }
 
     const cleanUsername = username.trim();
     const cleanEmail = email.trim().toLowerCase();

@@ -4,6 +4,7 @@ import { customersRepo } from '../db/repositories/customers.repository.js';
 import { ordersRepo } from '../db/repositories/orders.repository.js';
 import { auditRepo } from '../db/repositories/audit.repository.js';
 import { requireAuth, requireRole, type AuthenticatedRequest } from '../middleware/auth.middleware.js';
+import { validateBody, v } from '../middleware/validation.middleware.js';
 
 export const customersRouter = Router();
 
@@ -41,13 +42,12 @@ customersRouter.get('/:id', requireAuth, async (req, res, next) => {
 });
 
 // POST /api/customers
-customersRouter.post('/', requireAuth, async (req: AuthenticatedRequest, res, next) => {
+customersRouter.post('/', requireAuth, validateBody({
+  name: [v.required('Customer name is required.'), v.string({ min: 1, max: 200 })],
+  email: v.email('Invalid email address format.')
+}), async (req: AuthenticatedRequest, res, next) => {
   try {
     const { name, email, whatsapp, notes } = req.body;
-    if (!name || !name.trim()) {
-      res.status(400).json({ error: 'Customer name is required.' });
-      return;
-    }
 
     const id = 'cust-' + crypto.randomUUID().slice(0, 8);
     const customer = await customersRepo.create({ id, name, email, whatsapp, notes });

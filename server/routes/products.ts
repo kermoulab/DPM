@@ -4,6 +4,7 @@ import { productsRepo } from '../db/repositories/products.repository.js';
 import { plansRepo } from '../db/repositories/plans.repository.js';
 import { auditRepo } from '../db/repositories/audit.repository.js';
 import { requireAuth, requireRole, type AuthenticatedRequest } from '../middleware/auth.middleware.js';
+import { validateBody, v } from '../middleware/validation.middleware.js';
 
 export const productsRouter = Router();
 
@@ -54,14 +55,12 @@ productsRouter.get('/:id', requireAuth, async (req, res, next) => {
 });
 
 // POST /api/products
-productsRouter.post('/', requireAuth, requireRole('manager'), async (req: AuthenticatedRequest, res, next) => {
+productsRouter.post('/', requireAuth, requireRole('manager'), validateBody({
+  category_id: v.required('Category is required.'),
+  name: [v.required('Product name is required.'), v.string({ min: 1, max: 200 })]
+}), async (req: AuthenticatedRequest, res, next) => {
   try {
     const { category_id, name, brand, description, capabilities, fulfillment_type, custom_fields, icon, image_url, stock_limit } = req.body;
-
-    if (!name || !category_id) {
-      res.status(400).json({ error: 'Product name and category are required.' });
-      return;
-    }
 
     const id = 'prod-' + crypto.randomUUID().slice(0, 8);
     const slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
