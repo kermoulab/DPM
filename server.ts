@@ -91,11 +91,21 @@ async function startServer() {
   // Health check
   app.get('/api/health', async (req, res) => {
     const dbTest = await testConnection();
-    res.json({
-      status: 'ok',
-      database: dbTest.ok ? 'connected' : 'disconnected',
+    const uptimeSeconds = Math.floor(process.uptime());
+    const isHealthy = dbTest.ok;
+    const isConfigured = Boolean(config.databaseUrl);
+
+    // In production or when DB is configured, an unreachable DB returns 503 Service Unavailable
+    // In local dev without DATABASE_URL configured yet, return 200 setup_required to allow installer access
+    const httpStatus = isHealthy ? 200 : (config.isProduction || isConfigured ? 503 : 200);
+
+    res.status(httpStatus).json({
+      status: isHealthy ? 'ok' : 'unhealthy',
+      database: isHealthy ? 'connected' : (isConfigured ? 'disconnected' : 'unconfigured'),
       latencyMs: dbTest.latencyMs,
-      timestamp: new Date().toISOString()
+      uptimeSeconds,
+      timestamp: new Date().toISOString(),
+      ...(dbTest.error && !config.isProduction ? { error: dbTest.error } : {})
     });
   });
 

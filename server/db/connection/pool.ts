@@ -89,11 +89,33 @@ export async function transaction<T>(
 
 /**
  * Health check to verify PostgreSQL connectivity and measure query latency.
+ * Guarantees resolution within timeoutMs (default: 5000ms) to prevent probe hang.
  */
-export async function testConnection(): Promise<{ ok: boolean; latencyMs: number; error?: string }> {
+export async function testConnection(
+  timeoutMs: number = 5000
+): Promise<{ ok: boolean; latencyMs: number; error?: string }> {
   const start = Date.now();
+  const connectionString = config.databaseUrl;
+  if (!connectionString) {
+    return {
+      ok: false,
+      latencyMs: 0,
+      error: 'DATABASE_URL is not configured'
+    };
+  }
+
+  let timer: NodeJS.Timeout | undefined;
   try {
-    const res = await query('SELECT 1 as ping');
+    const p = getPool();
+    const pingPromise = p.query('SELECT 1 as ping');
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timer = setTimeout(
+        () => reject(new Error(`Database health check timed out after ${timeoutMs}ms`)),
+        timeoutMs
+      );
+    });
+
+    const res = await Promise.race([pingPromise, timeoutPromise]);
     return {
       ok: res.rows[0]?.ping === 1,
       latencyMs: Date.now() - start
@@ -102,8 +124,12 @@ export async function testConnection(): Promise<{ ok: boolean; latencyMs: number
     return {
       ok: false,
       latencyMs: Date.now() - start,
-      error: err.message
+      error: err.message || 'Database connection error'
     };
+  } finally {
+    if (timer) {
+      clearTimeout(timer);
+    }
   }
 }
 
