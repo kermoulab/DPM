@@ -1,112 +1,143 @@
 import { Router } from 'express';
 import crypto from 'crypto';
-import { db, logAudit } from '../db.js';
-import { requireAuth, requireRole, hashPassword, type AuthenticatedRequest } from '../security.js';
+import { usersRepo } from '../db/repositories/users.repository.js';
+import { auditRepo } from '../db/repositories/audit.repository.js';
+import { hashPassword } from '../utils/crypto.js';
+import { requireAuth, requireRole, type AuthenticatedRequest } from '../middleware/auth.middleware.js';
 
 export const usersRouter = Router();
 
-// List users
-usersRouter.get('/', requireAuth, requireRole('admin'), (req, res) => {
-  const users = db.prepare(`
-    SELECT id, username, email, name, role, status, avatar, preferred_currency, created_at, last_login
-    FROM users
-    ORDER BY created_at DESC
-  `).all();
-  res.json({ users });
-});
-
-// Create new user
-usersRouter.post('/', requireAuth, requireRole('admin'), (req: AuthenticatedRequest, res) => {
-  const { username, email, name, password, role = 'agent' } = req.body;
-
-  if (!username || !email || !password) {
-    return res.status(400).json({ error: 'Username, email, and password are required.' });
-  }
-
-  const validRoles = ['owner', 'admin', 'manager', 'agent', 'viewer'];
-  if (!validRoles.includes(role)) {
-    return res.status(400).json({ error: 'Invalid role.' });
-  }
-
-  // Non-owner cannot create an owner
-  if (role === 'owner' && req.user?.role !== 'owner') {
-    return res.status(403).json({ error: 'Only an owner can grant the owner role.' });
-  }
-
-  const id = crypto.randomUUID();
-  const { hash, salt } = hashPassword(password);
-  const now = new Date().toISOString();
-
+// GET /api/users
+usersRouter.get('/', requireAuth, requireRole('admin'), async (req, res, next) => {
   try {
-    db.prepare(`
-      INSERT INTO users (id, username, email, name, password_hash, password_salt, role, status, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?)
-    `).run(id, username.trim(), email.trim(), name?.trim() || username.trim(), hash, salt, role, now);
+    const users = await usersRepo.findAll();
+    res.json({ users });
+  } catch (err) {
+    next(err);
+  }
+});
 
-    logAudit(req.user || null, 'CREATE_USER', 'user', id, { username, role });
-    res.status(201).json({ success: true, id, username, role });
-  } catch (err: any) {
-    if (err.message.includes('UNIQUE constraint failed')) {
-      return res.status(400).json({ error: 'Username or email already exists.' });
+// POST /api/users
+usersRouter.post('/', requireAuth, requireRole('admin'), async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const { username, email, name, password, role = 'agent', preferred_currency = 'USD' } = req.body;
+    if (!username || !email || !password || !name) {
+      res.status(400).json({ error: 'Username, email, name, and password are required.' });
+      return;
     }
-    res.status(500).json({ error: err.message });
+
+    if (password.length < 8) {
+      res.status(400).json({ error: 'Password must be at least 8 characters.' });
+      return;
+    }
+
+    const cleanUsername = username.trim();
+    const cleanEmail = email.trim().toLowerCase();
+
+    const existingUser = await usersRepo.findByUsernameOrEmail(cleanUsername);
+    if (existingUser) {
+      res.status(400).json({ error: 'Username already exists.' });
+      return;
+    }
+
+    const existingEmail = await usersRepo.findByUsernameOrEmail(cleanEmail);
+    if (existingEmail) {
+      res.status(400).json({ error: 'Email already exists.' });
+      return;
+    }
+
+    const id = crypto.randomUUID();
+    const { hash, salt } = hashPassword(password);
+
+    const created = await usersRepo.create({
+      id,
+      username: cleanUsername,
+      email: cleanEmail,
+      name: name.trim(),
+      password_hash: hash,
+      password_salt: salt,
+      role,
+      status: 'active',
+      preferred_currency
+    });
+
+    const { password_hash: _h, password_salt: _s, ...safeCreated } = created;
+    await auditRepo.log(req.user || null, 'CREATE_USER', 'user', id, { username: cleanUsername, role });
+    res.status(201).json({ success: true, id, user: safeCreated });
+  } catch (err) {
+    next(err);
   }
 });
 
-// Update user
-usersRouter.put('/:id', requireAuth, requireRole('admin'), (req: AuthenticatedRequest, res) => {
-  const { id } = req.params;
-  const { name, role, status, password } = req.body;
+// PUT /api/users/:id
+usersRouter.put('/:id', requireAuth, requireRole('admin'), async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const { id } = req.params;
+    const { name, role, status, password, preferred_currency } = req.body;
 
-  const targetUser = db.prepare('SELECT id, role FROM users WHERE id = ?').get(id) as any;
-  if (!targetUser) {
-    return res.status(404).json({ error: 'User not found.' });
+    const existing = await usersRepo.findById(id);
+    if (!existing) {
+      res.status(404).json({ error: 'User not found.' });
+      return;
+    }
+
+    // Protect owner from being demoted or deactivated by non-owner
+    if (existing.role === 'owner' && req.user?.role !== 'owner' && (role !== 'owner' || status !== 'active')) {
+      res.status(403).json({ error: 'Cannot modify primary owner account permissions.' });
+      return;
+    }
+
+    let passwordHash = undefined;
+    let passwordSalt = undefined;
+
+    if (password && password.length >= 8) {
+      const p = hashPassword(password);
+      passwordHash = p.hash;
+      passwordSalt = p.salt;
+    }
+
+    const updated = await usersRepo.update(id, {
+      name: name?.trim(),
+      role,
+      status,
+      preferred_currency,
+      password_hash: passwordHash,
+      password_salt: passwordSalt
+    });
+
+    const safeUpdated = updated ? (({ password_hash, password_salt, ...rest }) => rest)(updated) : null;
+    await auditRepo.log(req.user || null, 'UPDATE_USER', 'user', id, { role, status });
+    res.json({ success: true, user: safeUpdated });
+  } catch (err) {
+    next(err);
   }
-
-  if (targetUser.role === 'owner' && req.user?.role !== 'owner') {
-    return res.status(403).json({ error: 'Cannot modify an owner account.' });
-  }
-
-  let hash = null;
-  let salt = null;
-  if (password && password.length >= 8) {
-    const p = hashPassword(password);
-    hash = p.hash;
-    salt = p.salt;
-  }
-
-  db.prepare(`
-    UPDATE users
-    SET name = COALESCE(?, name),
-        role = COALESCE(?, role),
-        status = COALESCE(?, status),
-        password_hash = COALESCE(?, password_hash),
-        password_salt = COALESCE(?, password_salt)
-    WHERE id = ?
-  `).run(name?.trim(), role, status, hash, salt, id);
-
-  logAudit(req.user || null, 'UPDATE_USER', 'user', id, { role, status });
-  res.json({ success: true, message: 'User updated.' });
 });
 
-// Delete user
-usersRouter.delete('/:id', requireAuth, requireRole('admin'), (req: AuthenticatedRequest, res) => {
-  const { id } = req.params;
+// DELETE /api/users/:id
+usersRouter.delete('/:id', requireAuth, requireRole('admin'), async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const { id } = req.params;
 
-  if (id === req.user?.id) {
-    return res.status(400).json({ error: 'Cannot delete your own account.' });
+    if (id === req.user?.id) {
+      res.status(400).json({ error: 'Cannot delete your own user account.' });
+      return;
+    }
+
+    const existing = await usersRepo.findById(id);
+    if (!existing) {
+      res.status(404).json({ error: 'User not found.' });
+      return;
+    }
+
+    if (existing.role === 'owner') {
+      res.status(403).json({ error: 'Cannot delete the system owner account.' });
+      return;
+    }
+
+    await usersRepo.delete(id);
+    await auditRepo.log(req.user || null, 'DELETE_USER', 'user', id, { username: existing.username });
+    res.json({ success: true, message: 'User deleted.' });
+  } catch (err) {
+    next(err);
   }
-
-  const target = db.prepare('SELECT id, role, username FROM users WHERE id = ?').get(id) as any;
-  if (!target) {
-    return res.status(404).json({ error: 'User not found.' });
-  }
-
-  if (target.role === 'admin' || target.role === 'owner') {
-    return res.status(403).json({ error: 'Admin accounts cannot be deleted.' });
-  }
-
-  db.prepare('DELETE FROM users WHERE id = ?').run(id);
-  logAudit(req.user || null, 'DELETE_USER', 'user', id, { username: target.username, role: target.role });
-  res.json({ success: true, message: 'User deleted from database.' });
 });

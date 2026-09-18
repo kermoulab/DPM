@@ -117,24 +117,11 @@ export const AlertsView: React.FC<AlertsViewProps> = ({
     }
   };
 
-  // Persistent tracked contacted orders (synced with DB & localStorage)
-  const [contactedOrderIds, setContactedOrderIds] = React.useState<Set<string>>(() => {
-    try {
-      const saved = localStorage.getItem('saas_contacted_orders');
-      return saved ? new Set(JSON.parse(saved)) : new Set();
-    } catch {
-      return new Set();
-    }
-  });
+  // Track contacted orders in UI state, backed by PostgreSQL orders.whatsapp_contacted_at
+  const [contactedOrderIds, setContactedOrderIds] = React.useState<Set<string>>(new Set());
 
   const markOrderContacted = (orderId: string) => {
-    setContactedOrderIds((prev) => {
-      const next = new Set(prev).add(orderId);
-      try {
-        localStorage.setItem('saas_contacted_orders', JSON.stringify(Array.from(next)));
-      } catch {}
-      return next;
-    });
+    setContactedOrderIds((prev) => new Set(prev).add(orderId));
   };
 
   // Phone input modal for customers with missing WhatsApp numbers
@@ -160,20 +147,14 @@ export const AlertsView: React.FC<AlertsViewProps> = ({
       const total = expiring.length + expired.length;
       onAlertCountChange?.(total);
 
-      // Populate contacted orders from server record
+      // Populate contacted orders directly from PostgreSQL record
       const serverContacted = new Set<string>();
       [...expiring, ...expired].forEach((o: any) => {
         if (o.whatsapp_contacted_at) {
           serverContacted.add(o.id);
         }
       });
-      setContactedOrderIds((prev) => {
-        const merged = new Set([...prev, ...serverContacted]);
-        try {
-          localStorage.setItem('saas_contacted_orders', JSON.stringify(Array.from(merged)));
-        } catch {}
-        return merged;
-      });
+      setContactedOrderIds((prev) => new Set([...prev, ...serverContacted]));
     } catch (err) {
       console.error(err);
     } finally {

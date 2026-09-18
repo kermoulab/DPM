@@ -1,113 +1,83 @@
 import { Router } from 'express';
-import { db } from '../db.js';
-import { requireAuth } from '../security.js';
+import { query } from '../db/connection/pool.js';
+import { requireAuth } from '../middleware/auth.middleware.js';
 
 export const alertsRouter = Router();
 
-alertsRouter.get('/', requireAuth, (req, res) => {
+alertsRouter.get('/', requireAuth, async (req, res, next) => {
   try {
-    const today = new Date().toISOString().split('T')[0];
-    const threeDaysLater = new Date(Date.now() + 3 * 86400000).toISOString().split('T')[0];
+    // 1. Orders expiring in <= 3 days
+    const expiringOrdersRes = await query<any>(
+      `SELECT o.*,
+              c.name as customer_name, c.whatsapp as customer_whatsapp, c.email as customer_email,
+              p.name as product_name,
+              pl.name as plan_name,
+              (o.end_date - CURRENT_DATE)::int as days_remaining
+       FROM orders o
+       JOIN customers c ON c.id = o.customer_id
+       JOIN products p ON p.id = o.product_id
+       JOIN plans pl ON pl.id = o.plan_id
+       WHERE o.status IN ('active', 'expiring')
+         AND o.end_date >= CURRENT_DATE
+         AND o.end_date <= (CURRENT_DATE + INTERVAL '3 days')
+       ORDER BY o.end_date ASC`
+    );
 
-    // 1. Expiring orders (within 3 days)
-    const expiringOrders = db.prepare(`
-      SELECT 
-        o.id,
-        o.order_number,
-        o.start_date,
-        o.end_date,
-        o.price,
-        o.currency,
-        o.whatsapp_contacted_at,
-        c.id as customer_id,
-        c.name as customer_name,
-        c.whatsapp as customer_whatsapp,
-        p.id as product_id,
-        p.name as product_name,
-        p.brand as product_brand,
-        pl.id as plan_id,
-        pl.name as plan_name,
-        pl.duration,
-        pl.duration_unit,
-        pl.price as plan_price,
-        ROUND((julianday(o.end_date) - julianday('now'))) as days_remaining
-      FROM orders o
-      JOIN customers c ON c.id = o.customer_id
-      JOIN products p ON p.id = o.product_id
-      JOIN plans pl ON pl.id = o.plan_id
-      WHERE o.status != 'cancelled' 
-        AND o.end_date >= date('now') 
-        AND o.end_date <= ?
-      ORDER BY o.end_date ASC
-    `).all(threeDaysLater) as any[];
+    // 2. Expired orders within last 30 days
+    const expiredOrdersRes = await query<any>(
+      `SELECT o.*,
+              c.name as customer_name, c.whatsapp as customer_whatsapp, c.email as customer_email,
+              p.name as product_name,
+              pl.name as plan_name,
+              (CURRENT_DATE - o.end_date)::int as days_expired
+       FROM orders o
+       JOIN customers c ON c.id = o.customer_id
+       JOIN products p ON p.id = o.product_id
+       JOIN plans pl ON pl.id = o.plan_id
+       WHERE (o.status = 'expired' OR (o.status = 'active' AND o.end_date < CURRENT_DATE))
+         AND o.end_date >= (CURRENT_DATE - INTERVAL '30 days')
+       ORDER BY o.end_date DESC`
+    );
 
-    // 2. Expired orders
-    const expiredOrders = db.prepare(`
-      SELECT 
-        o.id,
-        o.order_number,
-        o.start_date,
-        o.end_date,
-        o.price,
-        o.currency,
-        o.whatsapp_contacted_at,
-        c.id as customer_id,
-        c.name as customer_name,
-        c.whatsapp as customer_whatsapp,
-        p.id as product_id,
-        p.name as product_name,
-        pl.id as plan_id,
-        pl.name as plan_name,
-        pl.duration,
-        pl.duration_unit,
-        pl.price as plan_price,
-        ROUND((julianday('now') - julianday(o.end_date))) as days_expired
-      FROM orders o
-      JOIN customers c ON c.id = o.customer_id
-      JOIN products p ON p.id = o.product_id
-      JOIN plans pl ON pl.id = o.plan_id
-      WHERE o.status != 'cancelled' AND o.end_date < date('now')
-      ORDER BY o.end_date DESC
-      LIMIT 20
-    `).all() as any[];
+    // 3. Low stock accounts (available profiles <= 1)
+    const lowStockAccountsRes = await query<any>(
+      `SELECT sa.*, p.name as product_name,
+              COUNT(sp.id)::int as total_profiles,
+              COUNT(CASE WHEN sp.status = 'available' THEN 1 END)::int as available_profiles
+       FROM service_accounts sa
+       JOIN products p ON p.id = sa.product_id
+       LEFT JOIN service_profiles sp ON sp.service_account_id = sa.id
+       WHERE sa.status = 'active'
+       GROUP BY sa.id, p.name
+       HAVING COUNT(CASE WHEN sp.status = 'available' THEN 1 END) <= 1`
+    );
 
-    // 3. Low inventory alerts
-    const lowInventoryProducts = db.prepare(`
-      SELECT 
-        p.id,
-        p.name,
-        p.brand,
-        p.capabilities,
-        COALESCE(prof.avail_profiles, 0) as available_profiles,
-        COALESCE(lic.avail_licenses, 0) as available_licenses
-      FROM products p
-      LEFT JOIN (
-        SELECT sa.product_id, COUNT(sp.id) as avail_profiles
-        FROM service_profiles sp
-        JOIN service_accounts sa ON sa.id = sp.service_account_id
-        WHERE sp.status = 'available'
-        GROUP BY sa.product_id
-      ) prof ON prof.product_id = p.id
-      LEFT JOIN (
-        SELECT product_id, COUNT(id) as avail_licenses
-        FROM license_keys
-        WHERE status = 'available'
-        GROUP BY product_id
-      ) lic ON lic.product_id = p.id
-      WHERE (p.capabilities LIKE '%service_account%' AND COALESCE(prof.avail_profiles, 0) <= 2)
-         OR (p.capabilities LIKE '%license_key%' AND COALESCE(lic.avail_licenses, 0) <= 2)
-    `).all() as any[];
+    // 4. Low stock licenses (< 3 available)
+    const lowInventoryRes = await query<any>(
+      `SELECT p.id, p.name, p.fulfillment_type,
+              COUNT(lk.id)::int as available_count
+       FROM products p
+       LEFT JOIN license_keys lk ON lk.product_id = p.id AND lk.status = 'available'
+       WHERE p.fulfillment_type = 'license_key' AND p.status = 'active'
+       GROUP BY p.id
+       HAVING COUNT(lk.id) < 3`
+    );
 
-    const badgeCount = expiringOrders.length + expiredOrders.length;
+    const expiringOrders = expiringOrdersRes.rows;
+    const expiredOrders = expiredOrdersRes.rows;
+    const lowStockAccounts = lowStockAccountsRes.rows;
+    const lowInventory = lowInventoryRes.rows;
+
+    const badgeCount = expiringOrders.length + expiredOrders.length + lowStockAccounts.length + lowInventory.length;
 
     res.json({
       badgeCount,
       expiringOrders,
       expiredOrders,
-      lowInventory: lowInventoryProducts,
-      lowStockAccounts: lowInventoryProducts
+      lowStockAccounts,
+      lowInventory
     });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  } catch (err) {
+    next(err);
   }
 });

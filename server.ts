@@ -2,7 +2,10 @@ import 'dotenv/config';
 import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
-import { initDatabase } from './server/db.js';
+import { config } from './server/config/index.js';
+import { getPool, testConnection } from './server/db/connection/pool.js';
+import { runMigrations } from './server/db/migrator.js';
+import { errorHandler } from './server/middleware/error.middleware.js';
 
 // Import route handlers
 import { installRouter } from './server/routes/install.js';
@@ -26,10 +29,19 @@ import { searchRouter } from './server/routes/search.js';
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = config.port;
 
-  // Initialize SQLite database schema
-  initDatabase();
+  // Run PostgreSQL migrations on startup if DATABASE_URL is configured
+  if (config.databaseUrl) {
+    try {
+      const migResult = await runMigrations(getPool());
+      if (migResult.applied.length > 0) {
+        console.log(`[DB] Applied ${migResult.applied.length} pending PostgreSQL migrations.`);
+      }
+    } catch (migErr) {
+      console.error('[DB] Migration error on startup:', migErr);
+    }
+  }
 
   // Middleware
   // JSON body limit of 2MB — no legitimate API payload requires more than this.
@@ -78,8 +90,14 @@ async function startServer() {
   app.use('/api/search', searchRouter);
 
   // Health check
-  app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  app.get('/api/health', async (req, res) => {
+    const dbTest = await testConnection();
+    res.json({
+      status: 'ok',
+      database: dbTest.ok ? 'connected' : 'disconnected',
+      latencyMs: dbTest.latencyMs,
+      timestamp: new Date().toISOString()
+    });
   });
 
   // 404 Handler for all API routes (prevents fallback to index.html)
@@ -88,15 +106,7 @@ async function startServer() {
   });
 
   // Global Error Handler for API routes
-  app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-    if (req.originalUrl && req.originalUrl.startsWith('/api')) {
-      console.error('API Error on', req.method, req.originalUrl, err);
-      return res.status(err.status || 500).json({
-        error: err.message || 'Internal server error occurred'
-      });
-    }
-    next(err);
-  });
+  app.use(errorHandler);
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== 'production') {

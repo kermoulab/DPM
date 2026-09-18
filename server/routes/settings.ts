@@ -1,41 +1,31 @@
 import { Router } from 'express';
-import { db, logAudit } from '../db.js';
-import { requireAuth, requireRole, type AuthenticatedRequest } from '../security.js';
+import { systemSettingsRepo } from '../db/repositories/system-settings.repository.js';
+import { auditRepo } from '../db/repositories/audit.repository.js';
+import { requireAuth, requireRole, type AuthenticatedRequest } from '../middleware/auth.middleware.js';
 
 export const settingsRouter = Router();
 
-// Get all settings
-settingsRouter.get('/', requireAuth, (req, res) => {
-  const rows = db.prepare('SELECT key, value FROM system_settings').all() as any[];
-  const settings: Record<string, string> = {};
-  for (const r of rows) {
-    settings[r.key] = r.value;
+settingsRouter.get('/', requireAuth, async (req, res, next) => {
+  try {
+    const settings = await systemSettingsRepo.getAll();
+    res.json({ settings });
+  } catch (err) {
+    next(err);
   }
-  res.json({ settings });
 });
 
-// Update settings
-settingsRouter.put('/', requireAuth, requireRole('admin'), (req: AuthenticatedRequest, res) => {
-  const allowedKeys = [
-    'company_name',
-    'base_currency',
-    'currency_symbol',
-    'support_phone',
-    'low_inventory_threshold',
-    'order_expiry_warning_days'
-  ];
-
-  const now = new Date().toISOString();
-  for (const key of allowedKeys) {
-    if (req.body[key] !== undefined) {
-      db.prepare(`
-        INSERT INTO system_settings (key, value, updated_at)
-        VALUES (?, ?, ?)
-        ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
-      `).run(key, String(req.body[key]).trim(), now);
+settingsRouter.put('/', requireAuth, requireRole('admin'), async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const updates = req.body;
+    if (typeof updates !== 'object' || updates === null) {
+      res.status(400).json({ error: 'Settings object is required.' });
+      return;
     }
-  }
 
-  logAudit(req.user || null, 'UPDATE_SETTINGS', 'settings', 'general', req.body);
-  res.json({ success: true, message: 'Settings successfully updated.' });
+    await systemSettingsRepo.setMany(updates);
+    await auditRepo.log(req.user || null, 'UPDATE_SETTINGS', 'settings', null, { keys: Object.keys(updates) });
+    res.json({ success: true, message: 'Settings saved successfully.' });
+  } catch (err) {
+    next(err);
+  }
 });
