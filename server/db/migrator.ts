@@ -6,6 +6,21 @@ import type pg from 'pg';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+function resolveMigrationsDir(): string | null {
+  const candidateDirs = [
+    path.join(__dirname, 'migrations'),
+    path.join(__dirname, '..', 'server', 'db', 'migrations'),
+    path.join(process.cwd(), 'server', 'db', 'migrations'),
+    path.join(process.cwd(), 'dist', 'migrations'),
+  ];
+  for (const dir of candidateDirs) {
+    if (fs.existsSync(dir)) {
+      return dir;
+    }
+  }
+  return null;
+}
+
 export interface MigrationResult {
   applied: string[];
   alreadyUpToDate: boolean;
@@ -36,9 +51,9 @@ export async function runMigrations(pool: pg.Pool): Promise<MigrationResult> {
     const appliedSet = new Set(existingRows.map((r) => r.version));
 
     // 3. Locate migration directory
-    const migrationsDir = path.join(__dirname, 'migrations');
-    if (!fs.existsSync(migrationsDir)) {
-      console.warn(`[Migrator] No migrations directory found at ${migrationsDir}`);
+    const migrationsDir = resolveMigrationsDir();
+    if (!migrationsDir) {
+      console.warn('[Migrator] No migrations directory found in any candidate path.');
       return { applied: [], alreadyUpToDate: true };
     }
 
