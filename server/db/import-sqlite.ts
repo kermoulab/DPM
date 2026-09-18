@@ -1,6 +1,5 @@
 import path from 'path';
 import fs from 'fs';
-import { DatabaseSync } from 'node:sqlite';
 import type pg from 'pg';
 
 export interface MigrationSummary {
@@ -32,6 +31,7 @@ export async function importSqliteToPostgres(pool: pg.Pool, sqlitePath?: string)
   }
 
   console.log(`[Import] Opening source SQLite database: ${dbPath}`);
+  const { DatabaseSync } = await import('node:sqlite');
   const sqlite = new DatabaseSync(dbPath);
   const client = await pool.connect();
   const summary: MigrationSummary[] = [];

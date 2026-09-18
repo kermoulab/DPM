@@ -136,21 +136,21 @@ export const Installer: React.FC<InstallerProps> = ({ onInstallComplete, onInsta
                   System & Environment Pre-Flight Checks
                 </h2>
                 <p className="text-xs text-slate-500 mt-1">
-                  Verifying runtime compatibility and local storage engine.
+                  Verifying runtime compatibility and database connectivity.
                 </p>
               </div>
 
               <div className="space-y-2.5">
                 {[
                   {
-                    label: 'Node.js Runtime (v22+ with Native SQLite Engine)',
+                    label: 'Node.js Runtime (v18+ LTS)',
                     ok: requirements?.nodeOk,
                     details: requirements?.nodeVersion
                   },
                   {
-                    label: 'Local SQLite ACID Storage & Write Permissions',
-                    ok: requirements?.dataDirWritable,
-                    details: 'WAL Mode Supported'
+                    label: 'PostgreSQL Database Engine & Connection Pool',
+                    ok: requirements?.postgresReady,
+                    details: requirements?.postgresReady ? 'Connected' : 'Connection Pending'
                   },
                   {
                     label: 'Cryptographic Engine (AES-256-GCM + PBKDF2)',
@@ -177,7 +177,7 @@ export const Installer: React.FC<InstallerProps> = ({ onInstallComplete, onInsta
               <div className="p-4 rounded-2xl bg-blue-50/60 border border-blue-100 flex items-center justify-between">
                 <div>
                   <p className="text-xs font-bold text-blue-900">Database Connection Test</p>
-                  <p className="text-[11px] text-blue-700">Test SQLite schema tables creation</p>
+                  <p className="text-[11px] text-blue-700">Test PostgreSQL database connection</p>
                 </div>
                 <button
                   type="button"
