@@ -1,12 +1,40 @@
+# Dependencies
 node_modules/
-build/
+
+# Production build outputs
 dist/
+build/
+
+# Testing & Coverage
 coverage/
-.DS_Store
-*.log
-.env*
+*.lcov
+
+# Environment and Secrets
+.env
+.env.*
 !.env.example
-data/*.db
-data/*.db-wal
-data/*.db-shm
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Database & SQLite Local Data
+*.sqlite
+*.sqlite3
+*.db
+*.db-wal
+*.db-shm
 data/
+
+# OS and Editor Artifacts
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.bak
+*.tmp
+*.swp
+
