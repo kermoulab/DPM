@@ -1,0 +1,33 @@
+# Render Blueprint Specification for Recura ERP
+# Documentation: https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: recura-erp
+    runtime: node
+    plan: starter # Change to "free" for free tier testing (note: spins down on inactivity)
+    region: frankfurt # Regions: frankfurt (EU), oregon (US West), ohio (US East), singapore (Asia)
+    buildCommand: npm run build
+    startCommand: npm start
+    preDeployCommand: npm run db:migrate
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: recura-erp-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ENCRYPTION_KEY
+        generateValue: true
+
+databases:
+  - name: recura-erp-db
+    databaseName: recura_erp
+    user: recura_user
+    plan: starter # Change to "free" for 30-day free testing tier
+    region: frankfurt # Must match web service region for minimal latency
+    postgresMajorVersion: "16"
