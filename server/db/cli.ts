@@ -3,6 +3,7 @@ import pg from 'pg';
 import { runMigrations } from './migrator.js';
 import { importSqliteToPostgres } from './import-sqlite.js';
 import { seedDevelopmentData } from './seed.js';
+import { resolveSslConfig } from './connection/ssl.js';
 
 const { Pool } = pg;
 
@@ -13,14 +14,10 @@ function createPool(): pg.Pool {
     process.exit(1);
   }
 
-  const isProduction = process.env.NODE_ENV === 'production';
   return new Pool({
     connectionString,
-    ssl: connectionString.includes('sslmode=disable')
-      ? false
-      : isProduction || connectionString.includes('render.com') || connectionString.includes('neon.tech') || connectionString.includes('supabase')
-      ? { rejectUnauthorized: false }
-      : false
+    max: parseInt(process.env.DATABASE_POOL_MAX || process.env.DB_POOL_MAX || '10', 10),
+    ssl: resolveSslConfig(connectionString)
   });
 }
 

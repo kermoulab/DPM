@@ -1,5 +1,6 @@
 import pg from 'pg';
 import { config } from '../../config/index.js';
+import { resolveSslConfig } from './ssl.js';
 
 const { Pool } = pg;
 
@@ -15,25 +16,12 @@ export function getPool(): pg.Pool {
     console.warn('[DB] WARNING: DATABASE_URL is not configured.');
   }
 
-  const isProduction = config.isProduction;
-  const isCloudProvider =
-    connectionString.includes('render.com') ||
-    connectionString.includes('neon.tech') ||
-    connectionString.includes('supabase') ||
-    connectionString.includes('aws') ||
-    connectionString.includes('pooler.');
-
-  const useSsl =
-    connectionString.includes('sslmode=require') ||
-    (isCloudProvider && !connectionString.includes('sslmode=disable')) ||
-    (isProduction && !connectionString.includes('sslmode=disable'));
-
   pool = new Pool({
     connectionString,
-    max: parseInt(process.env.DB_POOL_MAX || '20', 10),
+    max: parseInt(process.env.DATABASE_POOL_MAX || process.env.DB_POOL_MAX || '20', 10),
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 10000,
-    ssl: useSsl ? { rejectUnauthorized: false } : false
+    ssl: resolveSslConfig(connectionString)
   });
 
   pool.on('error', (err) => {
