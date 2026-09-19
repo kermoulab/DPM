@@ -218,6 +218,14 @@ export default function App() {
   if (isInstalled === false) {
     return (
       <Installer
+        onInstallComplete={(user, token) => {
+          // Auto-login: installer finalize returns a JWT + user
+          if (token) api.setToken(token);
+          setIsInstalled(true);
+          setCurrentUser(user as any);
+          setActiveTab('dashboard');
+          loadAppData();
+        }}
         onInstalled={() => {
           setIsInstalled(true);
           checkInitialState();
@@ -225,6 +233,7 @@ export default function App() {
       />
     );
   }
+
 
   // 3. Login screen (if installed but not authenticated)
   if (!currentUser) {

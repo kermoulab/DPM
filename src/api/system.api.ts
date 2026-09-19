@@ -9,13 +9,71 @@ import type {
 } from '../types';
 
 export const systemApi = {
-  // Installer
+  // ── Installer ──────────────────────────────────────────────────────────────
   getInstallStatus() {
-    return request<{ installed: boolean; requirements: any }>('/api/install/status');
+    return request<{
+      installed: boolean;
+      installState: 'not_installed' | 'installing' | 'installed' | 'upgrade_required';
+      upgradeRequired: boolean;
+      pendingMigrations: number;
+      dbConfigured: boolean;
+      requirements: {
+        nodeVersion: string;
+        nodeOk: boolean;
+        postgresReady: boolean;
+        cryptoAvailable: boolean;
+      };
+    }>('/api/install/status');
   },
+
+  testConnection(databaseUrl: string) {
+    return request<{ success: boolean; message?: string; maskedUrl?: string; hint?: string; error?: string }>(
+      '/api/install/test-connection',
+      { method: 'POST', body: JSON.stringify({ databaseUrl }) }
+    );
+  },
+
+  configureDb(databaseUrl: string) {
+    return request<{ success: boolean; message?: string; maskedUrl?: string; error?: string }>(
+      '/api/install/configure-db',
+      { method: 'POST', body: JSON.stringify({ databaseUrl }) }
+    );
+  },
+
+  runMigrations() {
+    return request<{ success: boolean; applied: string[]; alreadyUpToDate: boolean; message?: string; error?: string }>(
+      '/api/install/run-migrations',
+      { method: 'POST' }
+    );
+  },
+
+  createAdmin(payload: {
+    adminUsername: string;
+    adminEmail: string;
+    adminPassword: string;
+    adminName?: string;
+    companyName?: string;
+    baseCurrency?: string;
+    currencySymbol?: string;
+    supportPhone?: string;
+  }) {
+    return request<{ success: boolean; message?: string; error?: string }>(
+      '/api/install/create-admin',
+      { method: 'POST', body: JSON.stringify(payload) }
+    );
+  },
+
+  finalizeInstall() {
+    return request<{ success: boolean; token: string; user: User; message?: string }>(
+      '/api/install/finalize',
+      { method: 'POST' }
+    );
+  },
+
   testDb() {
     return request<{ success: boolean; message?: string }>('/api/install/test-db', { method: 'POST' });
   },
+
   runInstall(payload: any) {
     return request<{ success: boolean; token: string; user: User }>('/api/install/setup', {
       method: 'POST',

@@ -83,6 +83,14 @@ export class UsersRepository {
     return (res.rowCount ?? 0) > 0;
   }
 
+  async findByRole(role: UserRow['role']): Promise<UserRow | null> {
+    const res = await query<UserRow>(
+      'SELECT * FROM users WHERE role = $1 ORDER BY created_at ASC LIMIT 1',
+      [role]
+    );
+    return res.rows[0] || null;
+  }
+
   async updateLastLogin(id: string): Promise<void> {
     await query('UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1', [id]);
   }
