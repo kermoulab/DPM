@@ -72,25 +72,6 @@ export const InventoryView: React.FC = () => {
     loadData(true);
   }, [activeTab]);
 
-  React.useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (openMenuAccountId && !(e.target as Element).closest('.account-actions-menu')) {
-        setOpenMenuAccountId(null);
-      }
-    };
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setOpenMenuAccountId(null);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [openMenuAccountId]);
-
   const loadData = async (showLoadingSpinner = false) => {
     if (showLoadingSpinner) {
       setLoading(true);
@@ -380,70 +361,25 @@ export const InventoryView: React.FC = () => {
                           {acc.status}
                         </span>
                       </td>
-                      <td className="py-3.5 px-5 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
+                      <td className="py-3.5 px-5 text-right relative">
+                        <div className="flex items-center justify-end">
                           <button
                             type="button"
-                            onClick={() => handleViewProfiles(acc)}
-                            className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-indigo-600 transition"
-                            title={`Profiles (${acc.assigned_profiles || 0}/${acc.capacity})`}
-                          >
-                            <Users size={14} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleRevealCredentials(acc.id)}
-                            className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-amber-600 transition"
-                            title="Reveal Credentials"
-                          >
-                            <Key size={14} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleOpenEditAccount(acc)}
-                            className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-blue-600 transition"
-                            title="Edit Account"
-                          >
-                            <Pencil size={14} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteAccount(acc)}
-                            disabled={(acc.assigned_profiles || 0) > 0}
+                            id={`account-menu-btn-${acc.id}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              accountMenuTriggerRef.current = e.currentTarget;
+                              setOpenMenuAccountId(openMenuAccountId === acc.id ? null : acc.id);
+                            }}
                             className={`p-1.5 rounded-lg border transition ${
-                              (acc.assigned_profiles || 0) > 0
-                                ? 'border-slate-100 text-slate-300 cursor-not-allowed'
-                                : 'border-slate-200 text-slate-600 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200'
+                              openMenuAccountId === acc.id
+                                ? 'border-slate-400 bg-slate-100 text-slate-900'
+                                : 'border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-800'
                             }`}
-                            title={
-                              (acc.assigned_profiles || 0) > 0
-                                ? `Cannot delete: ${acc.assigned_profiles} active assigned profile(s)`
-                                : 'Delete Account'
-                            }
+                            title="More Options"
                           >
-                            <Trash2 size={14} />
+                            <MoreVertical size={14} />
                           </button>
-
-                          {/* 3 dots with toggle dropdown */}
-                          <div className="relative inline-block text-left account-actions-menu">
-                            <button
-                              type="button"
-                              id={`account-menu-btn-${acc.id}`}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                accountMenuTriggerRef.current = e.currentTarget;
-                                setOpenMenuAccountId(openMenuAccountId === acc.id ? null : acc.id);
-                              }}
-                              className={`p-1.5 rounded-lg border transition ${
-                                openMenuAccountId === acc.id
-                                  ? 'border-slate-400 bg-slate-100 text-slate-900'
-                                  : 'border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-800'
-                              }`}
-                              title="More Options"
-                            >
-                              <MoreVertical size={14} />
-                            </button>
-                          </div>
                         </div>
                       </td>
                     </tr>
@@ -471,8 +407,10 @@ export const InventoryView: React.FC = () => {
             <div className="py-1">
               {/* Edit Account */}
               <button
+                type="button"
                 id={`menu-edit-${activeAcc.id}`}
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation();
                   setOpenMenuAccountId(null);
                   handleOpenEditAccount(activeAcc);
                 }}
@@ -484,8 +422,10 @@ export const InventoryView: React.FC = () => {
 
               {/* Profiles */}
               <button
+                type="button"
                 id={`menu-profiles-${activeAcc.id}`}
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation();
                   setOpenMenuAccountId(null);
                   handleViewProfiles(activeAcc);
                 }}
@@ -497,8 +437,10 @@ export const InventoryView: React.FC = () => {
 
               {/* Reveal Credentials */}
               <button
+                type="button"
                 id={`menu-reveal-${activeAcc.id}`}
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation();
                   setOpenMenuAccountId(null);
                   handleRevealCredentials(activeAcc.id);
                 }}
@@ -512,28 +454,22 @@ export const InventoryView: React.FC = () => {
             {/* Delete Account */}
             <div className="py-1">
               <button
+                type="button"
                 id={`menu-delete-${activeAcc.id}`}
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation();
                   setOpenMenuAccountId(null);
                   handleDeleteAccount(activeAcc);
                 }}
-                disabled={(activeAcc.assigned_profiles || 0) > 0}
                 title={
                   (activeAcc.assigned_profiles || 0) > 0
                     ? `Cannot delete: ${activeAcc.assigned_profiles} active assigned profile(s)`
                     : 'Delete Account'
                 }
-                className={`w-full px-3.5 py-2 text-xs flex items-center justify-between transition font-medium ${
-                  (activeAcc.assigned_profiles || 0) > 0
-                    ? 'text-slate-400 cursor-not-allowed hover:bg-transparent opacity-60'
-                    : 'text-rose-600 hover:bg-rose-50'
-                }`}
+                className="w-full px-3.5 py-2 text-xs flex items-center justify-between transition font-medium text-rose-600 hover:bg-rose-50"
               >
                 <div className="flex items-center gap-2.5">
-                  <Trash2
-                    size={14}
-                    className={(activeAcc.assigned_profiles || 0) > 0 ? 'text-slate-400 shrink-0' : 'text-rose-600 shrink-0'}
-                  />
+                  <Trash2 size={14} className="text-rose-600 shrink-0" />
                   <span>Delete Account</span>
                 </div>
                 {(activeAcc.assigned_profiles || 0) > 0 && (
