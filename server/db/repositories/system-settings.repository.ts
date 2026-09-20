@@ -9,10 +9,10 @@ export interface SystemSetting {
 /**
  * Formal installation state machine.
  *
- * NOT_INSTALLED   — Fresh database, no DPM schema applied yet
+ * NOT_INSTALLED   — Fresh database, no Vectis schema applied yet
  * INSTALLING      — Database connected and migrations run, admin creation pending
  * INSTALLED       — Full installation complete, system is operational
- * UPGRADE_REQUIRED — DPM code has new migrations that haven't been applied to this DB
+ * UPGRADE_REQUIRED — Vectis code has new migrations that haven't been applied to this DB
  */
 export type InstallState =
   | 'not_installed'
@@ -51,7 +51,7 @@ export class SystemSettingsRepository {
   }
 
   /**
-   * Returns true when DPM is fully installed and operational.
+   * Returns true when Vectis is fully installed and operational.
    * Returns false for any other state (not_installed, installing, upgrade_required).
    */
   async isInstalled(): Promise<boolean> {

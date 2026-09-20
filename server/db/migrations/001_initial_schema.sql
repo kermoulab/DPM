@@ -1,5 +1,5 @@
 -- =============================================================================
--- Migration 001: Initial PostgreSQL Schema for DPM
+-- Migration 001: Initial PostgreSQL Schema for Vectis
 -- =============================================================================
 
 -- Schema Migrations Table

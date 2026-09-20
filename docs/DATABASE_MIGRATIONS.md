@@ -1,8 +1,8 @@
-﻿# DPM — Database Migrations
+﻿# Vectis — Database Migrations
 
 ## Overview
 
-DPM uses a simple, provider-neutral migration system built on plain SQL files and a
+Vectis uses a simple, provider-neutral migration system built on plain SQL files and a
 tracking table. No external migration framework is required.
 
 Migrations live in:

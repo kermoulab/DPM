@@ -1,4 +1,4 @@
-﻿# DPM — Database Setup Guide
+﻿# Vectis — Database Setup Guide
 
 ## Prerequisites
 
@@ -14,7 +14,7 @@
 
 Using psql:
 
-    createdb dpm_erp
+    createdb vectis_erp
 
 Or via your provider's dashboard/CLI. Any empty PostgreSQL database works.
 
@@ -24,7 +24,7 @@ Or via your provider's dashboard/CLI. Any empty PostgreSQL database works.
 
 Edit `.env` and set at minimum:
 
-    DATABASE_URL=postgresql://user:password@host:5432/dpm_erp
+    DATABASE_URL=postgresql://user:password@host:5432/vectis_erp
     JWT_SECRET=<random 32+ char string>
     ENCRYPTION_KEY=<64 hex characters>
 

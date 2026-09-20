@@ -1,4 +1,4 @@
-﻿# DPM — Database Reference
+﻿# Vectis — Database Reference
 
 ## Architecture
 
@@ -35,20 +35,20 @@ React never holds database credentials, hostnames, or SQL.
 
 ## Supported PostgreSQL Providers
 
-DPM connects through a standard `postgresql://` connection string.
+Vectis connects through a standard `postgresql://` connection string.
 It works with **any properly configured PostgreSQL server**:
 
 | Environment | Example URL |
 |---|---|
-| Local PostgreSQL | `postgresql://postgres:postgres@localhost:5432/dpm_erp` |
-| Docker PostgreSQL | `postgresql://postgres:postgres@localhost:5432/dpm_erp` |
-| Render Managed PostgreSQL | `postgres://user:pass@dpg-xxx.render.com/dpm_db` |
+| Local PostgreSQL | `postgresql://postgres:postgres@localhost:5432/vectis_erp` |
+| Docker PostgreSQL | `postgresql://postgres:postgres@localhost:5432/vectis_erp` |
+| Render Managed PostgreSQL | `postgres://user:pass@dpg-xxx.render.com/vectis_db` |
 | Neon Serverless PostgreSQL | `postgresql://user:pass@ep-xxx.neon.tech/neondb?sslmode=require` |
 | Supabase PostgreSQL | `postgresql://postgres.xxx:pass@pooler.supabase.com:6543/postgres` |
 | Railway PostgreSQL | `postgresql://postgres:pass@monorail.proxy.rlwy.net:port/railway` |
-| AWS RDS PostgreSQL | `postgresql://user:pass@xxx.rds.amazonaws.com:5432/dpm_erp` |
-| Google Cloud SQL | `postgresql://user:pass@xxx/dpm_erp` |
-| Azure Database for PostgreSQL | `postgresql://user:pass@xxx.postgres.database.azure.com:5432/dpm_erp` |
+| AWS RDS PostgreSQL | `postgresql://user:pass@xxx.rds.amazonaws.com:5432/vectis_erp` |
+| Google Cloud SQL | `postgresql://user:pass@xxx/vectis_erp` |
+| Azure Database for PostgreSQL | `postgresql://user:pass@xxx.postgres.database.azure.com:5432/vectis_erp` |
 
 The application does not know or care which provider is hosting PostgreSQL.
 
@@ -110,7 +110,7 @@ Primary Keys: Application-generated VARCHAR(64) IDs. No uuid-ossp extension requ
 
 ## No Provider Lock-In
 
-DPM does not use:
+Vectis does not use:
 
 - Supabase client SDK
 - Neon serverless driver

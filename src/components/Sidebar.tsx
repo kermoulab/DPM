@@ -104,7 +104,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
               <div>
                 <h1 className="font-semibold text-white text-sm tracking-tight">
-                  DPM SYSTEM
+                  Vectis SYSTEM
                 </h1>
               </div>
             </div>
@@ -179,7 +179,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {!collapsed && (
                 <div className="truncate">
                   <h1 className="font-semibold text-white text-sm tracking-tight">
-                    DPM SYSTEM
+                    Vectis SYSTEM
                   </h1>
                 </div>
               )}

@@ -125,7 +125,7 @@ export const Installer: React.FC<InstallerProps> = ({ onInstallComplete, onInsta
   const [advancedOpen, setAdvancedOpen] = React.useState(false);
   const [dbHost, setDbHost]       = React.useState('localhost');
   const [dbPort, setDbPort]       = React.useState('5432');
-  const [dbName, setDbName]       = React.useState('dpm_erp');
+  const [dbName, setDbName]       = React.useState('vectis_erp');
   const [dbUser, setDbUser]       = React.useState('postgres');
   const [dbPass, setDbPass]       = React.useState('');
   const [dbSsl, setDbSsl]         = React.useState(false);
@@ -419,7 +419,7 @@ export const Installer: React.FC<InstallerProps> = ({ onInstallComplete, onInsta
               ⚡
             </div>
             <div>
-              <h1 className="text-sm font-bold tracking-tight">DPM Installation</h1>
+              <h1 className="text-sm font-bold tracking-tight">Vectis Installation</h1>
               <p className="text-[11px] text-slate-400">Digital Product Management System</p>
             </div>
           </div>
@@ -476,7 +476,7 @@ export const Installer: React.FC<InstallerProps> = ({ onInstallComplete, onInsta
                 <div className="w-16 h-16 rounded-3xl bg-blue-50 border border-blue-100 mx-auto flex items-center justify-center text-3xl">
                   ⚡
                 </div>
-                <h2 className="text-xl font-bold text-slate-900">Welcome to DPM</h2>
+                <h2 className="text-xl font-bold text-slate-900">Welcome to Vectis</h2>
                 <p className="text-xs text-slate-500 max-w-md mx-auto">
                   Let's set up your Digital Product Management System.
                   This wizard takes about 2 minutes.
@@ -503,7 +503,7 @@ export const Installer: React.FC<InstallerProps> = ({ onInstallComplete, onInsta
               </div>
 
               <Alert type="info">
-                Your data never leaves your server. DPM connects directly to your PostgreSQL database.
+                Your data never leaves your server. Vectis connects directly to your PostgreSQL database.
               </Alert>
             </div>
           )}
@@ -516,7 +516,7 @@ export const Installer: React.FC<InstallerProps> = ({ onInstallComplete, onInsta
                   <Database size={16} className="text-blue-600" /> Connect Your Database
                 </h2>
                 <p className="text-xs text-slate-500 mt-1">
-                  DPM works with any standard PostgreSQL server (local, Railway, Render, Neon, AWS RDS, etc.)
+                  Vectis works with any standard PostgreSQL server (local, Railway, Render, Neon, AWS RDS, etc.)
                 </p>
               </div>
 
@@ -533,7 +533,7 @@ export const Installer: React.FC<InstallerProps> = ({ onInstallComplete, onInsta
                       type={testStatus === 'ok' ? 'password' : 'text'}
                       value={dbUrl}
                       onChange={(e) => { setDbUrl(e.target.value); setTestStatus('idle'); }}
-                      placeholder="postgresql://user:password@localhost:5432/dpm_erp"
+                      placeholder="postgresql://user:password@localhost:5432/vectis_erp"
                       disabled={advancedOpen}
                     />
                     <p className="text-[11px] text-slate-400">
@@ -556,7 +556,7 @@ export const Installer: React.FC<InstallerProps> = ({ onInstallComplete, onInsta
                       {[
                         { label: 'Host',     value: dbHost,  set: setDbHost,  placeholder: 'localhost', span: false },
                         { label: 'Port',     value: dbPort,  set: setDbPort,  placeholder: '5432',      span: false },
-                        { label: 'Database', value: dbName,  set: setDbName,  placeholder: 'dpm_erp',  span: true  },
+                        { label: 'Database', value: dbName,  set: setDbName,  placeholder: 'vectis_erp',  span: true  },
                         { label: 'Username', value: dbUser,  set: setDbUser,  placeholder: 'postgres',  span: false },
                         { label: 'Password', value: dbPass,  set: setDbPass,  placeholder: '••••••••', span: false, type: 'password' }
                       ].map(({ label, value, set, placeholder, span, type }) => (
@@ -617,10 +617,10 @@ export const Installer: React.FC<InstallerProps> = ({ onInstallComplete, onInsta
                     <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs space-y-2">
                       <div className="flex items-center gap-2 font-bold text-emerald-800">
                         <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
-                        <span>Existing DPM Database Detected</span>
+                        <span>Existing Vectis Database Detected</span>
                       </div>
                       <p className="text-slate-600 leading-relaxed">
-                        This database already has an installed DPM system with all your data, administrator accounts, and products intact. Clicking <strong>Connect & Go to Login</strong> will reconnect your database and take you straight to login without having to re-run migrations.
+                        This database already has an installed Vectis with all your data, administrator accounts, and products intact. Clicking <strong>Connect & Go to Login</strong> will reconnect your database and take you straight to login without having to re-run migrations.
                       </p>
                     </div>
                   )}
@@ -642,14 +642,14 @@ export const Installer: React.FC<InstallerProps> = ({ onInstallComplete, onInsta
                   <Settings size={16} className="text-blue-600" /> Database Setup
                 </h2>
                 <p className="text-xs text-slate-500 mt-1">
-                  DPM will create all required tables and indexes in your PostgreSQL database.
+                  Vectis will create all required tables and indexes in your PostgreSQL database.
                   This is safe to run on an empty database.
                 </p>
               </div>
 
               {migrationsStatus === 'idle' && (
                 <Alert type="info">
-                  Click "Run Database Setup" to apply the DPM schema to your database.
+                  Click "Run Database Setup" to apply the Vectis schema to your database.
                   No existing data will be modified.
                 </Alert>
               )}
@@ -667,7 +667,7 @@ export const Installer: React.FC<InstallerProps> = ({ onInstallComplete, onInsta
               {(migrationsStatus === 'done' || migrationsDone) && (
                 <div className="space-y-2">
                   <Alert type="success">
-                    Database schema applied successfully. DPM is ready.
+                    Database schema applied successfully. Vectis is ready.
                   </Alert>
                   {migrationsApplied.length > 0 && (
                     <div className="space-y-1.5">
@@ -701,7 +701,7 @@ export const Installer: React.FC<InstallerProps> = ({ onInstallComplete, onInsta
                   <User size={16} className="text-blue-600" /> Create Administrator
                 </h2>
                 <p className="text-xs text-slate-500 mt-1">
-                  This account will have full ownership of DPM. Choose a strong, unique password.
+                  This account will have full ownership of Vectis. Choose a strong, unique password.
                 </p>
               </div>
 
@@ -826,7 +826,7 @@ export const Installer: React.FC<InstallerProps> = ({ onInstallComplete, onInsta
                 </div>
                 <h2 className="text-base font-bold text-slate-900 mt-3">Ready to Complete Installation</h2>
                 <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-                  DPM will generate secure application secrets, lock the installer,
+                  Vectis will generate secure application secrets, lock the installer,
                   and log you in automatically.
                 </p>
               </div>

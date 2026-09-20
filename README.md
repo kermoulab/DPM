@@ -1,4 +1,4 @@
-# Recura — Universal Digital Products Reseller ERP
+# Vectis — Universal Digital Products Reseller ERP
 
 A production-grade Enterprise Resource Planning (ERP) platform purpose-built for digital product resellers. Manages recurring subscriptions, shared streaming service accounts, software license keys, digital files, on-demand merchandise, automated order fulfillment, renewals, customer accounts, and WhatsApp notifications.
 
@@ -45,7 +45,7 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
 Configure your PostgreSQL connection string in `.env`:
 ```env
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/recura_erp
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/vectis_erp
 JWT_SECRET=your_generated_jwt_secret_at_least_32_characters_long
 ENCRYPTION_KEY=your_generated_64_character_hex_encryption_key
 PORT=3000
@@ -80,7 +80,7 @@ If starting on a fresh database without seed data, navigate to `/install` to com
 
 ## Database Management CLI
 
-Recura includes a typed database management CLI at [`server/db/cli.ts`](file:///server/db/cli.ts):
+Vectis includes a typed database management CLI at [`server/db/cli.ts`](file:///server/db/cli.ts):
 
 | Command | Script | Description |
 |---|---|---|
@@ -192,4 +192,4 @@ HTTP Request
 
 ## License
 
-Private & Confidential. All rights reserved. Recura ERP.
+Private & Confidential. All rights reserved. Vectis ERP.

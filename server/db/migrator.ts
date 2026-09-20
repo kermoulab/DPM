@@ -8,7 +8,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Advisory lock key for migrations — prevents concurrent execution across processes.
-// This is a stable application-level constant: hash('dpm_migrations') clamped to int32.
+// This is a stable application-level constant: hash('vectis_migrations') clamped to int32.
 const MIGRATION_LOCK_KEY = 1874952739;
 
 function resolveMigrationsDir(): string | null {

@@ -1,8 +1,8 @@
-﻿# DPM — Database Backup & Restore
+﻿# Vectis — Database Backup & Restore
 
 ## Standard PostgreSQL Tools
 
-DPM uses a plain PostgreSQL database. All standard PostgreSQL backup and restore
+Vectis uses a plain PostgreSQL database. All standard PostgreSQL backup and restore
 tools work without modification:
 
 ```
@@ -20,13 +20,13 @@ No provider-specific backup API is required.
 ### Plain SQL format (recommended for portability)
 
 ```bash
-pg_dump "$DATABASE_URL" > dpm_backup.sql
+pg_dump "$DATABASE_URL" > vectis_backup.sql
 ```
 
 ### Custom format (compressed, supports selective restore)
 
 ```bash
-pg_dump -Fc "$DATABASE_URL" > dpm_backup.dump
+pg_dump -Fc "$DATABASE_URL" > vectis_backup.dump
 ```
 
 ---
@@ -36,34 +36,34 @@ pg_dump -Fc "$DATABASE_URL" > dpm_backup.dump
 ### From plain SQL dump
 
 ```bash
-psql "$NEW_DATABASE_URL" < dpm_backup.sql
+psql "$NEW_DATABASE_URL" < vectis_backup.sql
 ```
 
 ### From custom format dump
 
 ```bash
-pg_restore -d "$NEW_DATABASE_URL" dpm_backup.dump
+pg_restore -d "$NEW_DATABASE_URL" vectis_backup.dump
 ```
 
 ---
 
 ## Migrating Between Providers
 
-DPM data is fully portable between any two PostgreSQL servers:
+Vectis data is fully portable between any two PostgreSQL servers:
 
 1. Dump the source database:
    ```bash
-   pg_dump "$OLD_DATABASE_URL" > dpm_backup.sql
+   pg_dump "$OLD_DATABASE_URL" > vectis_backup.sql
    ```
 
 2. Create an empty database on the new provider.
 
 3. Restore the dump:
    ```bash
-   psql "$NEW_DATABASE_URL" < dpm_backup.sql
+   psql "$NEW_DATABASE_URL" < vectis_backup.sql
    ```
 
-4. Update `DATABASE_URL` in your environment and restart DPM.  
+4. Update `DATABASE_URL` in your environment and restart Vectis.  
    No code changes required.
 
 ---

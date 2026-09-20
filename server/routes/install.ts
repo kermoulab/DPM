@@ -131,7 +131,7 @@ async function probeConnection(
     const full = res.rows[0]?.version || '';
     const short = full.split(' on ')[0] || full;
 
-    // Check if this database already contains an installed DPM instance
+    // Check if this database already contains an installed Vectis instance
     let isAlreadyInstalled = false;
     try {
       const tableCheck = await client.query<{ exists: boolean }>(`
@@ -233,7 +233,7 @@ installRouter.post('/test-connection', async (req, res) => {
   const currentDbConfigured = Boolean(process.env.DATABASE_URL?.trim());
   const installState = await systemSettingsRepo.getInstallState().catch(() => 'not_installed' as const);
   if (installState === 'installed' && currentDbConfigured) {
-    res.status(403).json({ success: false, error: 'DPM is already installed and running.' });
+    res.status(403).json({ success: false, error: 'Vectis is already installed and running.' });
     return;
   }
 
@@ -251,7 +251,7 @@ installRouter.post('/test-connection', async (req, res) => {
       success: true,
       alreadyInstalled: Boolean(result.isAlreadyInstalled),
       message: result.isAlreadyInstalled
-        ? `Connection successful. Existing DPM database detected (${result.postgresVersion || 'PostgreSQL'}).`
+        ? `Connection successful. Existing Vectis database detected (${result.postgresVersion || 'PostgreSQL'}).`
         : `Connection successful. ${result.postgresVersion || 'PostgreSQL'} detected.`,
       // Never echo the URL or password
       maskedUrl: maskDatabaseUrl(databaseUrl.trim())
@@ -275,7 +275,7 @@ installRouter.post('/configure-db', async (req, res) => {
   const currentDbConfigured = Boolean(process.env.DATABASE_URL?.trim());
   const installState = await systemSettingsRepo.getInstallState().catch(() => 'not_installed' as const);
   if (installState === 'installed' && currentDbConfigured) {
-    res.status(403).json({ success: false, error: 'DPM is already installed and configured.' });
+    res.status(403).json({ success: false, error: 'Vectis is already installed and configured.' });
     return;
   }
 
@@ -316,11 +316,11 @@ installRouter.post('/configure-db', async (req, res) => {
 
     const isExistingInstalled = probe.isAlreadyInstalled || (await systemSettingsRepo.isInstalled().catch(() => false));
     if (isExistingInstalled) {
-      console.log('[Install] Reconnected to existing DPM database. System is operational.');
+      console.log('[Install] Reconnected to existing Vectis database. System is operational.');
       res.json({
         success: true,
         alreadyInstalled: true,
-        message: 'Existing DPM database connected successfully. Redirecting to login...',
+        message: 'Existing Vectis database connected successfully. Redirecting to login...',
         maskedUrl: maskDatabaseUrl(url)
       });
       return;
@@ -428,7 +428,7 @@ installRouter.post('/create-admin', validateBody({
       });
       return;
     }
-    res.status(403).json({ success: false, error: 'DPM is already installed.' });
+    res.status(403).json({ success: false, error: 'Vectis is already installed.' });
     return;
   }
 
@@ -495,7 +495,7 @@ installRouter.post('/create-admin', validateBody({
 
         // 2. System settings
         const settings: [string, string][] = [
-          ['company_name', (companyName?.trim()) || 'DPM'],
+          ['company_name', (companyName?.trim()) || 'Vectis'],
           ['base_currency', currency],
           ['currency_symbol', symbol],
           ['support_phone', (supportPhone?.trim()) || '']
@@ -547,7 +547,7 @@ installRouter.post('/create-admin', validateBody({
           'ADMIN_CREATED',
           'system',
           adminId,
-          { companyName: companyName?.trim() || 'DPM' }
+          { companyName: companyName?.trim() || 'Vectis' }
         );
       } catch { /* non-fatal */ }
 
@@ -598,13 +598,13 @@ installRouter.post('/finalize', async (req, res) => {
       res.json({
         success: true,
         alreadyInstalled: true,
-        message: 'System is already installed. Welcome back to DPM.',
+        message: 'System is already installed. Welcome back to Vectis.',
         token,
         user: authUser
       });
       return;
     }
-    res.status(403).json({ success: false, error: 'DPM is already installed.' });
+    res.status(403).json({ success: false, error: 'Vectis is already installed.' });
     return;
   }
 
@@ -653,7 +653,7 @@ installRouter.post('/finalize', async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Installation complete. Welcome to DPM.',
+      message: 'Installation complete. Welcome to Vectis.',
       token,
       user: authUser
     });
@@ -707,7 +707,7 @@ installRouter.post('/setup', validateBody({
       );
       const settings = [
         ['installed', 'true'], ['install_state', 'installed'],
-        ['company_name', (companyName?.trim()) || 'DPM'],
+        ['company_name', (companyName?.trim()) || 'Vectis'],
         ['base_currency', (baseCurrency?.trim().toUpperCase()) || 'USD'],
         ['currency_symbol', (currencySymbol?.trim()) || '$'],
         ['support_phone', (supportPhone?.trim()) || '']

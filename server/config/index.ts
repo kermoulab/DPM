@@ -25,15 +25,15 @@ import crypto from 'crypto';
 /**
  * Universal multi-path environment loader:
  * Resolves .env files across different hosting environments:
- * - DPM_CONFIG_PATH / DATA_DIR (Custom paths, Docker, Kubernetes)
+ * - Vectis_CONFIG_PATH / DATA_DIR (Custom paths, Docker, Kubernetes)
  * - /data/.env (Standard cloud/Docker persistent volume mounts)
- * - ~/.dpm/.env (User home directory storage)
+ * - ~/.vectis/.env (User home directory storage)
  * - ./data/.env and ./.env (Local project and volume directories)
  */
 function loadUniversalDotenv(): void {
   const candidatePaths: string[] = [];
 
-  if (process.env.DPM_CONFIG_PATH) candidatePaths.push(process.env.DPM_CONFIG_PATH);
+  if (process.env.Vectis_CONFIG_PATH) candidatePaths.push(process.env.Vectis_CONFIG_PATH);
   if (process.env.DATA_DIR) candidatePaths.push(path.join(process.env.DATA_DIR, '.env'));
   candidatePaths.push(path.join(process.cwd(), '.env'));
   candidatePaths.push(path.join(process.cwd(), 'data', '.env'));
@@ -44,7 +44,7 @@ function loadUniversalDotenv(): void {
 
   try {
     const home = os.homedir();
-    if (home) candidatePaths.push(path.join(home, '.dpm', '.env'));
+    if (home) candidatePaths.push(path.join(home, '.vectis', '.env'));
   } catch {}
 
   // Load from candidate paths without overwriting existing process.env variables
@@ -94,7 +94,7 @@ function loadConfig(): AppConfig {
   // DATABASE_URL — optional at startup (installer will configure it)
   const databaseUrl = (process.env.DATABASE_URL || '').trim();
   if (!databaseUrl) {
-    console.warn('[Config] DATABASE_URL not set. DPM will operate in installer mode until a database is configured.');
+    console.warn('[Config] DATABASE_URL not set. Vectis will operate in installer mode until a database is configured.');
   } else if (!databaseUrl.startsWith('postgres://') && !databaseUrl.startsWith('postgresql://')) {
     console.warn('[Config] WARNING: DATABASE_URL does not start with "postgresql://" or "postgres://". Connection may fail.');
   }

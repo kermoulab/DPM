@@ -14,7 +14,7 @@
  *
  * Examples:
  *   Local PostgreSQL (no SSL):
- *     DATABASE_URL=postgresql://postgres:postgres@localhost:5432/dpm_erp
+ *     DATABASE_URL=postgresql://postgres:postgres@localhost:5432/vectis_erp
  *
  *   Remote PostgreSQL with SSL required in URL:
  *     DATABASE_URL=postgresql://user:pass@host:5432/db?sslmode=require

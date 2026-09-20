@@ -20,16 +20,16 @@ import crypto from 'crypto';
 
 /**
  * Universal candidate paths for configuration persistence across different hosting environments:
- * 1. Explicit DPM_CONFIG_PATH or DATA_DIR (Docker, Kubernetes, custom PaaS)
+ * 1. Explicit Vectis_CONFIG_PATH or DATA_DIR (Docker, Kubernetes, custom PaaS)
  * 2. Standard working directory .env (VPS, PM2, systemd, local)
  * 3. ./data/.env (Docker mounted volume)
  * 4. /data/.env (Standard cloud container volume mount on Linux)
- * 5. ~/.dpm/.env (User home directory storage)
+ * 5. ~/.vectis/.env (User home directory storage)
  */
 export function getEnvPaths(): string[] {
   const paths: string[] = [];
 
-  if (process.env.DPM_CONFIG_PATH) paths.push(process.env.DPM_CONFIG_PATH);
+  if (process.env.Vectis_CONFIG_PATH) paths.push(process.env.Vectis_CONFIG_PATH);
   if (process.env.DATA_DIR) paths.push(path.join(process.env.DATA_DIR, '.env'));
   paths.push(path.join(process.cwd(), '.env'));
   paths.push(path.join(process.cwd(), 'data', '.env'));
@@ -41,7 +41,7 @@ export function getEnvPaths(): string[] {
   try {
     const homeDir = os.homedir();
     if (homeDir) {
-      paths.push(path.join(homeDir, '.dpm', '.env'));
+      paths.push(path.join(homeDir, '.vectis', '.env'));
     }
   } catch {}
 
@@ -75,7 +75,7 @@ export function writeEnvVar(key: string, value: string): void {
       const dir = path.dirname(envPath);
       // Ensure target directory exists if it's a persistent folder
       if (!fs.existsSync(dir)) {
-        if (envPath.includes('.dpm') || envPath.includes('data')) {
+        if (envPath.includes('.vectis') || envPath.includes('data')) {
           try { fs.mkdirSync(dir, { recursive: true }); } catch { continue; }
         } else {
           continue;
