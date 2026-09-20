@@ -205,6 +205,31 @@ async function runTests() {
       assert(body.details.adminPassword.includes('at least 8 characters'), 'Enforces 8-character password constraint');
     }
 
+    {
+      // POST /api/install/test-connection with invalid protocol
+      const res = await fetch(`${BASE_URL}/api/install/test-connection`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ databaseUrl: 'http://localhost:5432/db' })
+      });
+      assert(res.status === 400, 'POST /api/install/test-connection rejects non-postgres protocols with HTTP 400');
+      const body = await res.json();
+      assert(body.success === false, 'Returns success: false for invalid URL protocol');
+      assert(body.error.includes('postgresql://') || body.error.includes('postgres://'), 'Returns clear protocol requirement');
+    }
+
+    {
+      // POST /api/install/configure-db with invalid protocol
+      const res = await fetch(`${BASE_URL}/api/install/configure-db`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ databaseUrl: 'mysql://root:pass@localhost:3306/db' })
+      });
+      assert(res.status === 400, 'POST /api/install/configure-db rejects non-postgres protocols with HTTP 400');
+      const body = await res.json();
+      assert(body.success === false, 'Returns success: false');
+    }
+
     // -------------------------------------------------------------
     // 6. Authentication & JWT Security
     // -------------------------------------------------------------

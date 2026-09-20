@@ -118,7 +118,7 @@ function validateDatabaseUrl(url: unknown): { valid: boolean; error?: string } {
  */
 async function probeConnection(
   connectionString: string
-): Promise<{ ok: boolean; postgresVersion?: string; error?: string }> {
+): Promise<{ ok: boolean; postgresVersion?: string; isAlreadyInstalled?: boolean; error?: string }> {
   const client = new pg.Client({
     connectionString,
     connectionTimeoutMillis: 8000,
@@ -130,7 +130,35 @@ async function probeConnection(
     // Parse "PostgreSQL 16.2 on ..." → "PostgreSQL 16.2"
     const full = res.rows[0]?.version || '';
     const short = full.split(' on ')[0] || full;
-    return { ok: true, postgresVersion: short };
+
+    // Check if this database already contains an installed DPM instance
+    let isAlreadyInstalled = false;
+    try {
+      const tableCheck = await client.query<{ exists: boolean }>(`
+        SELECT EXISTS (
+          SELECT 1 FROM information_schema.tables 
+          WHERE table_schema = 'public' AND table_name = 'system_settings'
+        ) as exists
+      `);
+      if (tableCheck.rows[0]?.exists) {
+        const stateRes = await client.query<{ key: string; value: string }>(
+          `SELECT key, value FROM system_settings WHERE key IN ('install_state', 'installed')`
+        );
+        for (const row of stateRes.rows) {
+          if (
+            (row.key === 'install_state' && (row.value === 'installed' || row.value === 'upgrade_required')) ||
+            (row.key === 'installed' && row.value === 'true')
+          ) {
+            isAlreadyInstalled = true;
+            break;
+          }
+        }
+      }
+    } catch {
+      // Table check or query failed (e.g. fresh DB with no tables), ignore and treat as not installed
+    }
+
+    return { ok: true, postgresVersion: short, isAlreadyInstalled };
   } catch (err) {
     return { ok: false, error: sanitizeDbError(err) };
   } finally {
@@ -201,10 +229,11 @@ installRouter.get('/status', async (req, res) => {
 // NEVER returns the password or full connection string.
 
 installRouter.post('/test-connection', async (req, res) => {
-  // If already installed, deny
+  // If active pool is already installed AND DATABASE_URL is configured in environment, deny external probing
+  const currentDbConfigured = Boolean(process.env.DATABASE_URL?.trim());
   const installState = await systemSettingsRepo.getInstallState().catch(() => 'not_installed' as const);
-  if (installState === 'installed') {
-    res.status(403).json({ success: false, error: 'DPM is already installed.' });
+  if (installState === 'installed' && currentDbConfigured) {
+    res.status(403).json({ success: false, error: 'DPM is already installed and running.' });
     return;
   }
 
@@ -220,7 +249,10 @@ installRouter.post('/test-connection', async (req, res) => {
   if (result.ok) {
     res.json({
       success: true,
-      message: `Connection successful. ${result.postgresVersion || 'PostgreSQL'} detected.`,
+      alreadyInstalled: Boolean(result.isAlreadyInstalled),
+      message: result.isAlreadyInstalled
+        ? `Connection successful. Existing DPM database detected (${result.postgresVersion || 'PostgreSQL'}).`
+        : `Connection successful. ${result.postgresVersion || 'PostgreSQL'} detected.`,
       // Never echo the URL or password
       maskedUrl: maskDatabaseUrl(databaseUrl.trim())
     });
@@ -240,9 +272,10 @@ installRouter.post('/test-connection', async (req, res) => {
 // Persists DATABASE_URL to .env, reinitialises the global pool, marks INSTALLING.
 
 installRouter.post('/configure-db', async (req, res) => {
+  const currentDbConfigured = Boolean(process.env.DATABASE_URL?.trim());
   const installState = await systemSettingsRepo.getInstallState().catch(() => 'not_installed' as const);
-  if (installState === 'installed') {
-    res.status(403).json({ success: false, error: 'DPM is already installed.' });
+  if (installState === 'installed' && currentDbConfigured) {
+    res.status(403).json({ success: false, error: 'DPM is already installed and configured.' });
     return;
   }
 
@@ -272,8 +305,30 @@ installRouter.post('/configure-db', async (req, res) => {
     // Hot-swap the global pool with the new URL
     await reinitializePool(url);
     console.log('[Install] Database configured and pool reinitialized.');
+
+    // Ensure JWT_SECRET and ENCRYPTION_KEY exist (or generate them if new container boot)
+    const jwtSecret = ensureEnvSecret('JWT_SECRET', 32);
+    const encKeyHex  = ensureEnvSecret('ENCRYPTION_KEY', 32);
+    updateConfig({
+      jwtSecret,
+      encryptionKey: Buffer.from(encKeyHex, 'hex')
+    });
+
+    const isExistingInstalled = probe.isAlreadyInstalled || (await systemSettingsRepo.isInstalled().catch(() => false));
+    if (isExistingInstalled) {
+      console.log('[Install] Reconnected to existing DPM database. System is operational.');
+      res.json({
+        success: true,
+        alreadyInstalled: true,
+        message: 'Existing DPM database connected successfully. Redirecting to login...',
+        maskedUrl: maskDatabaseUrl(url)
+      });
+      return;
+    }
+
     res.json({
       success: true,
+      alreadyInstalled: false,
       message: 'Database connection configured successfully.',
       maskedUrl: maskDatabaseUrl(url)
     });
@@ -293,8 +348,28 @@ installRouter.post('/configure-db', async (req, res) => {
 installRouter.post('/run-migrations', async (req, res) => {
   const installState = await systemSettingsRepo.getInstallState().catch(() => 'not_installed' as const);
   if (installState === 'installed') {
-    res.status(403).json({ success: false, error: 'DPM is already installed.' });
-    return;
+    try {
+      const info = await getPendingMigrations(getPool());
+      if (info.pendingCount === 0) {
+        res.json({
+          success: true,
+          applied: [],
+          alreadyUpToDate: true,
+          alreadyInstalled: true,
+          message: 'Database schema is already installed and up to date.'
+        });
+        return;
+      }
+    } catch {
+      res.json({
+        success: true,
+        applied: [],
+        alreadyUpToDate: true,
+        alreadyInstalled: true,
+        message: 'Database schema is already installed.'
+      });
+      return;
+    }
   }
 
   if (!process.env.DATABASE_URL?.trim()) {
@@ -344,6 +419,15 @@ installRouter.post('/create-admin', validateBody({
 }), async (req, res) => {
   const installState = await systemSettingsRepo.getInstallState().catch(() => 'not_installed' as const);
   if (installState === 'installed') {
+    const existingOwner = await usersRepo.findByRole('owner').catch(() => null);
+    if (existingOwner) {
+      res.json({
+        success: true,
+        alreadyInstalled: true,
+        message: 'Administrator account already exists. Redirecting to login...'
+      });
+      return;
+    }
     res.status(403).json({ success: false, error: 'DPM is already installed.' });
     return;
   }
@@ -500,6 +584,26 @@ installRouter.post('/create-admin', validateBody({
 installRouter.post('/finalize', async (req, res) => {
   const installState = await systemSettingsRepo.getInstallState().catch(() => 'not_installed' as const);
   if (installState === 'installed') {
+    const owner = await usersRepo.findByRole('owner').catch(() => null);
+    if (owner) {
+      const authUser = {
+        id: owner.id,
+        username: owner.username,
+        email: owner.email,
+        name: owner.name,
+        role: owner.role as 'owner',
+        preferred_currency: owner.preferred_currency || 'USD'
+      };
+      const token = createSessionToken(authUser);
+      res.json({
+        success: true,
+        alreadyInstalled: true,
+        message: 'System is already installed. Welcome back to DPM.',
+        token,
+        user: authUser
+      });
+      return;
+    }
     res.status(403).json({ success: false, error: 'DPM is already installed.' });
     return;
   }

@@ -17,7 +17,9 @@ import {
   ChevronUp,
   Loader2,
   RefreshCw,
-  Building2
+  Building2,
+  Copy,
+  Check
 } from 'lucide-react';
 import { api } from '../api';
 import type { User as UserType } from '../types';
@@ -131,6 +133,8 @@ export const Installer: React.FC<InstallerProps> = ({ onInstallComplete, onInsta
   const [testMessage, setTestMessage] = React.useState('');
   const [maskedUrl, setMaskedUrl] = React.useState('');
   const [dbConfigured, setDbConfigured] = React.useState(false);
+  const [isExistingDb, setIsExistingDb] = React.useState(false);
+  const [copiedUrl, setCopiedUrl]       = React.useState(false);
 
   // Step 3: migrations
   const [migrationsDone, setMigrationsDone] = React.useState(false);
@@ -171,6 +175,12 @@ export const Installer: React.FC<InstallerProps> = ({ onInstallComplete, onInsta
     try {
       const res = await api.getInstallStatus();
       setStatus(res);
+      if (res.installed) {
+        if (onInstalled) {
+          onInstalled();
+          return;
+        }
+      }
       if (res.dbConfigured) {
         setDbConfigured(true);
         // If DB is pre-configured via env, skip DB entry step — mark it done
@@ -234,8 +244,14 @@ export const Installer: React.FC<InstallerProps> = ({ onInstallComplete, onInsta
       setTestStatus('ok');
       setTestMessage(res.message || 'Connection successful.');
       if (res.maskedUrl) setMaskedUrl(res.maskedUrl);
+      if (res.alreadyInstalled) {
+        setIsExistingDb(true);
+      } else {
+        setIsExistingDb(false);
+      }
     } catch (err: any) {
       setTestStatus('fail');
+      setIsExistingDb(false);
       setTestMessage(err.message || 'Connection failed. Check your database details.');
     }
   }
@@ -253,7 +269,13 @@ export const Installer: React.FC<InstallerProps> = ({ onInstallComplete, onInsta
     setBusy(true);
     clearError();
     try {
-      await api.configureDb(effectiveDbUrl);
+      const res = await api.configureDb(effectiveDbUrl);
+      if (res.alreadyInstalled) {
+        if (onInstalled) {
+          onInstalled();
+          return;
+        }
+      }
       goTo(3);
     } catch (err: any) {
       setError(err.message || 'Failed to save database configuration.');
@@ -271,6 +293,12 @@ export const Installer: React.FC<InstallerProps> = ({ onInstallComplete, onInsta
     setMigrationsStatus('running');
     try {
       const res = await api.runMigrations();
+      if (res.alreadyInstalled) {
+        if (onInstalled) {
+          onInstalled();
+          return;
+        }
+      }
       setMigrationsApplied(res.applied || []);
       setMigrationsDone(true);
       setMigrationsStatus('done');
@@ -305,7 +333,7 @@ export const Installer: React.FC<InstallerProps> = ({ onInstallComplete, onInsta
     }
     setBusy(true);
     try {
-      await api.createAdmin({
+      const res = await api.createAdmin({
         adminUsername: adminUsername.trim(),
         adminEmail: adminEmail.trim(),
         adminPassword,
@@ -314,6 +342,12 @@ export const Installer: React.FC<InstallerProps> = ({ onInstallComplete, onInsta
         baseCurrency,
         supportPhone: supportPhone.trim()
       });
+      if (res.alreadyInstalled) {
+        if (onInstalled) {
+          onInstalled();
+          return;
+        }
+      }
       setAdminCreated(true);
       goTo(5);
     } catch (err: any) {
@@ -330,7 +364,7 @@ export const Installer: React.FC<InstallerProps> = ({ onInstallComplete, onInsta
     clearError();
     try {
       const res = await api.finalizeInstall();
-      api.setToken(res.token);
+      if (res.token) api.setToken(res.token);
       if (onInstallComplete && res.user) {
         onInstallComplete(res.user, res.token);
       }
@@ -351,6 +385,7 @@ export const Installer: React.FC<InstallerProps> = ({ onInstallComplete, onInsta
   }
 
   function canGoNext(): boolean {
+    if (step === 2 && isExistingDb) return true;
     if (step === 2 && !dbConfigured && !status?.dbConfigured && testStatus !== 'ok') return false;
     if (step === 3 && migrationsStatus === 'running') return false;
     if (step === 4 && (!adminUsername || !adminEmail || !adminPassword || !adminConfirm)) return false;
@@ -359,8 +394,9 @@ export const Installer: React.FC<InstallerProps> = ({ onInstallComplete, onInsta
 
   function nextLabel(): string {
     if (busy) return 'Please wait...';
+    if (step === 2 && isExistingDb) return 'Connect & Go to Login';
     if (step === 2 && (dbConfigured || status?.dbConfigured)) return 'Continue';
-    if (step === 2) return testStatus === 'ok' ? 'Continue →' : 'Continue →';
+    if (step === 2) return 'Continue →';
     if (step === 3 && !migrationsDone) return migrationsStatus === 'running' ? 'Running...' : 'Run Database Setup';
     if (step === 3) return 'Continue';
     if (step === 5) return 'Review & Finalize';
@@ -576,6 +612,43 @@ export const Installer: React.FC<InstallerProps> = ({ onInstallComplete, onInsta
                       {testMessage}
                     </Alert>
                   )}
+
+                  {isExistingDb && (
+                    <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs space-y-2">
+                      <div className="flex items-center gap-2 font-bold text-emerald-800">
+                        <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+                        <span>Existing DPM Database Detected</span>
+                      </div>
+                      <p className="text-slate-600 leading-relaxed">
+                        This database already has an installed DPM system with all your data, administrator accounts, and products intact. Clicking <strong>Connect & Go to Login</strong> will reconnect your database and take you straight to login without having to re-run migrations.
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-slate-800 flex items-center gap-1.5">
+                        <Server size={13} className="text-blue-600" />
+                        Hosting on Render, Railway, or Fly.io?
+                      </span>
+                      {effectiveDbUrl && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(effectiveDbUrl);
+                            setCopiedUrl(true);
+                            setTimeout(() => setCopiedUrl(false), 2000);
+                          }}
+                          className="text-[11px] text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
+                        >
+                          {copiedUrl ? <><Check size={12} className="text-emerald-600" /> Copied!</> : <><Copy size={12} /> Copy DATABASE_URL</>}
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-500 leading-relaxed">
+                      Cloud platforms have ephemeral storage and reset local files when your server restarts or spins down. To keep your database permanently connected across restarts, add <code className="bg-slate-200 px-1 py-0.5 rounded text-slate-800">DATABASE_URL</code> in your host's <strong>Environment Variables</strong> dashboard.
+                    </p>
+                  </div>
                 </>
               )}
 

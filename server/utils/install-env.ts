@@ -84,9 +84,13 @@ export function ensureEnvSecret(key: string, bytes = 32): string {
   }
 
   const secret = generateSecret(bytes);
-  writeEnvVar(key, secret);
+  try {
+    writeEnvVar(key, secret);
+    console.log(`[Install] Generated ${key} and wrote to .env`);
+  } catch (err: any) {
+    console.warn(`[Install] Could not write ${key} to .env (ephemeral/read-only filesystem):`, err.message);
+  }
   process.env[key] = secret;
-  console.log(`[Install] Generated ${key} and wrote to .env`);
   return secret;
 }
 
@@ -95,9 +99,13 @@ export function ensureEnvSecret(key: string, bytes = 32): string {
  * The value is validated before this function is called.
  */
 export function persistDatabaseUrl(databaseUrl: string): void {
-  writeEnvVar('DATABASE_URL', databaseUrl);
+  try {
+    writeEnvVar('DATABASE_URL', databaseUrl);
+    console.log('[Install] DATABASE_URL written to .env');
+  } catch (err: any) {
+    console.warn('[Install] Could not write DATABASE_URL to .env (ephemeral/read-only filesystem):', err.message);
+  }
   process.env.DATABASE_URL = databaseUrl;
-  console.log('[Install] DATABASE_URL written to .env');
 }
 
 /**

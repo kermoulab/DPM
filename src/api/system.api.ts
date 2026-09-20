@@ -27,21 +27,21 @@ export const systemApi = {
   },
 
   testConnection(databaseUrl: string) {
-    return request<{ success: boolean; message?: string; maskedUrl?: string; hint?: string; error?: string }>(
+    return request<{ success: boolean; message?: string; maskedUrl?: string; alreadyInstalled?: boolean; hint?: string; error?: string }>(
       '/api/install/test-connection',
       { method: 'POST', body: JSON.stringify({ databaseUrl }) }
     );
   },
 
   configureDb(databaseUrl: string) {
-    return request<{ success: boolean; message?: string; maskedUrl?: string; error?: string }>(
+    return request<{ success: boolean; message?: string; maskedUrl?: string; alreadyInstalled?: boolean; error?: string }>(
       '/api/install/configure-db',
       { method: 'POST', body: JSON.stringify({ databaseUrl }) }
     );
   },
 
   runMigrations() {
-    return request<{ success: boolean; applied: string[]; alreadyUpToDate: boolean; message?: string; error?: string }>(
+    return request<{ success: boolean; applied: string[]; alreadyUpToDate: boolean; alreadyInstalled?: boolean; message?: string; error?: string }>(
       '/api/install/run-migrations',
       { method: 'POST' }
     );
@@ -57,7 +57,7 @@ export const systemApi = {
     currencySymbol?: string;
     supportPhone?: string;
   }) {
-    return request<{ success: boolean; message?: string; error?: string }>(
+    return request<{ success: boolean; message?: string; alreadyInstalled?: boolean; error?: string }>(
       '/api/install/create-admin',
       { method: 'POST', body: JSON.stringify(payload) }
     );
