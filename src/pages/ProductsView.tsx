@@ -117,6 +117,9 @@ export const ProductsView: React.FC = () => {
   const [showNewCategory, setShowNewCategory] = React.useState(false);
   const [catName, setCatName] = React.useState('');
   const [catDesc, setCatDesc] = React.useState('');
+  const [isBulkCategory, setIsBulkCategory] = React.useState(false);
+  const [bulkCatNames, setBulkCatNames] = React.useState('');
+  const [submittingCategory, setSubmittingCategory] = React.useState(false);
 
   // Close dropdown menu and modals when clicking anywhere or pressing Escape
   React.useEffect(() => {
@@ -132,6 +135,8 @@ export const ProductsView: React.FC = () => {
         setActivePlanProduct(null);
         setEditingPlanId(null);
         setShowNewCategory(false);
+        setIsBulkCategory(false);
+        setBulkCatNames('');
         setShowManageCategories(false);
         setEditingCategory(null);
         setDeletingCategory(null);
@@ -301,9 +306,41 @@ export const ProductsView: React.FC = () => {
 
   const handleCreateCategory = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!catName) return;
+    if (isBulkCategory) {
+      const lines = bulkCatNames
+        .split('\n')
+        .map((l) => l.trim())
+        .filter(Boolean);
+      if (lines.length === 0) return;
+      setSubmittingCategory(true);
+      try {
+        let createdCount = 0;
+        for (const name of lines) {
+          try {
+            await api.createCategory({ name });
+            createdCount++;
+          } catch (err: any) {
+            console.warn(`Failed to create category "${name}":`, err?.message || err);
+          }
+        }
+        setShowNewCategory(false);
+        setIsBulkCategory(false);
+        setBulkCatNames('');
+        showNotification(`Successfully created ${createdCount} categories.`);
+        window.dispatchEvent(new CustomEvent('app:data-mutated'));
+        loadData(false);
+      } catch (err: any) {
+        alert(err.message || 'Failed to create categories.');
+      } finally {
+        setSubmittingCategory(false);
+      }
+      return;
+    }
+
+    if (!catName.trim()) return;
+    setSubmittingCategory(true);
     try {
-      await api.createCategory({ name: catName, description: catDesc });
+      await api.createCategory({ name: catName.trim(), description: catDesc });
       setShowNewCategory(false);
       setCatName('');
       setCatDesc('');
@@ -312,6 +349,8 @@ export const ProductsView: React.FC = () => {
       loadData(false);
     } catch (err: any) {
       alert(err.message);
+    } finally {
+      setSubmittingCategory(false);
     }
   };
 
@@ -1088,39 +1127,91 @@ export const ProductsView: React.FC = () => {
       {/* Modal: New Category */}
       {showNewCategory && (
         <div
-          onClick={() => setShowNewCategory(false)}
+          onClick={() => {
+            setShowNewCategory(false);
+            setIsBulkCategory(false);
+            setBulkCatNames('');
+          }}
           className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4"
         >
           <div
             onClick={(e) => e.stopPropagation()}
             className="w-full max-w-sm bg-white rounded-3xl shadow-2xl border border-slate-200 p-6 space-y-4"
           >
-            <h3 className="text-sm font-bold text-slate-900">Add New Category</h3>
+            <h3 className="text-sm font-bold text-slate-900">
+              {isBulkCategory ? 'Add Bulk Categories' : 'Add New Category'}
+            </h3>
             <form onSubmit={handleCreateCategory} className="space-y-3">
-              <div>
-                <label className="text-xs font-semibold text-slate-700 block mb-1">Category Name *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Streaming Services"
-                  value={catName}
-                  onChange={(e) => setCatName(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:bg-white focus:outline-hidden"
-                />
-              </div>
+              {isBulkCategory ? (
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">
+                    Category Names (one per line) *
+                  </label>
+                  <textarea
+                    required
+                    rows={6}
+                    placeholder={'Streaming Services\nSoftware & Tools\nVPN & Proxies'}
+                    value={bulkCatNames}
+                    onChange={(e) => setBulkCatNames(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:bg-white focus:outline-hidden font-mono"
+                  />
+                  <div className="mt-1.5">
+                    <a
+                      href="#single-category"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setIsBulkCategory(false);
+                      }}
+                      className="text-[11px] text-blue-600 hover:text-blue-700 hover:underline cursor-pointer inline-flex items-center gap-1 font-medium"
+                    >
+                      ← Back to single category
+                    </a>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">Category Name *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Streaming Services"
+                    value={catName}
+                    onChange={(e) => setCatName(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:bg-white focus:outline-hidden"
+                  />
+                  <div className="mt-1.5">
+                    <a
+                      href="#bulk-categories"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setIsBulkCategory(true);
+                      }}
+                      className="text-[11px] text-blue-600 hover:text-blue-700 hover:underline cursor-pointer inline-flex items-center gap-1 font-medium"
+                    >
+                      Add bulk categories (each category in line)
+                    </a>
+                  </div>
+                </div>
+              )}
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={() => setShowNewCategory(false)}
-                  className="px-3 py-1.5 text-xs border rounded-xl text-slate-600 hover:bg-slate-50"
+                  disabled={submittingCategory}
+                  onClick={() => {
+                    setShowNewCategory(false);
+                    setIsBulkCategory(false);
+                    setBulkCatNames('');
+                  }}
+                  className="px-3 py-1.5 text-xs border rounded-xl text-slate-600 hover:bg-slate-50 disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-1.5 text-xs bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-500 shadow-xs"
+                  disabled={submittingCategory}
+                  className="px-4 py-1.5 text-xs bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-500 shadow-xs disabled:opacity-50"
                 >
-                  Save Category
+                  {submittingCategory ? 'Saving...' : isBulkCategory ? 'Save Categories' : 'Save Category'}
                 </button>
               </div>
             </form>
