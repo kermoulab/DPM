@@ -9,6 +9,62 @@ interface DeliveryReceiptModalProps {
   order: any;
 }
 
+const buildClientFallback = (ord: any, l: string) => {
+  const fulfillment = ord.fulfillment_data || {};
+  const cName = ord.customer_name || 'Valued Customer';
+  const oNum = ord.order_number || '';
+  const pName = ord.product_name || 'Product';
+  const eDate = ord.end_date ? String(ord.end_date).split('T')[0].split(' ')[0] : '';
+  const lic = fulfillment.license_key || ord.license_key || '';
+  const login = fulfillment.login || ord.account_login || '';
+  const pass = fulfillment.password || '';
+  const prof = fulfillment.profile_name || ord.profile_name || '';
+  const pin = fulfillment.pin || ord.profile_pin || '';
+
+  let creds = '';
+  if (lic) {
+    if (l === 'fr') creds = `🔑 Clé de licence: ${lic}`;
+    else if (l === 'ar') creds = `🔑 مفتاح الترخيص: ${lic}`;
+    else if (l === 'ru') creds = `🔑 Лицензионный ключ: ${lic}`;
+    else creds = `🔑 License Key: ${lic}`;
+  } else if (login || pass) {
+    const parts: string[] = [];
+    if (l === 'fr') {
+      if (login) parts.push(`📧 Identifiant: ${login}`);
+      if (pass) parts.push(`🔑 Mot de passe: ${pass}`);
+      if (prof) parts.push(`👤 Profil: ${prof}`);
+      if (pin) parts.push(`🔒 Code PIN: ${pin}`);
+    } else if (l === 'ar') {
+      if (login) parts.push(`📧 البريد / الحساب: ${login}`);
+      if (pass) parts.push(`🔑 كلمة المرور: ${pass}`);
+      if (prof) parts.push(`👤 الملف الشخصي: ${prof}`);
+      if (pin) parts.push(`🔒 رمز PIN: ${pin}`);
+    } else if (l === 'ru') {
+      if (login) parts.push(`📧 Логин / Email: ${login}`);
+      if (pass) parts.push(`🔑 Пароль: ${pass}`);
+      if (prof) parts.push(`👤 Профиль: ${prof}`);
+      if (pin) parts.push(`🔒 PIN-код: ${pin}`);
+    } else {
+      if (login) parts.push(`📧 Email/Login: ${login}`);
+      if (pass) parts.push(`🔑 Password: ${pass}`);
+      if (prof) parts.push(`👤 Profile: ${prof}`);
+      if (pin) parts.push(`🔒 PIN: ${pin}`);
+    }
+    creds = parts.join('\n');
+  }
+
+  if (l === 'fr') {
+    return `Merci ${cName} pour votre achat!\nVotre commande #${oNum} pour ${pName} est active jusqu'au ${eDate}.\n\nDétails d'accès:\n${creds}\n\nMerci pour votre confiance!`;
+  }
+  if (l === 'ar') {
+    return `شكراً لك ${cName} على طلبك!\nطلبك رقم #${oNum} لخدمة ${pName} مفعّل حتى تاريخ ${eDate}.\n\nبيانات الدخول:\n${creds}\n\nشكراً لاختيارك لنا!`;
+  }
+  if (l === 'ru') {
+    return `Спасибо за ваш заказ, ${cName}!\nВаш заказ #${oNum} на ${pName} активен до ${eDate}.\n\nДанные для доступа:\n${creds}\n\nСпасибо, что выбрали нас!`;
+  }
+  return `Thank you ${cName} for your purchase!\nYour order #${oNum} for ${pName} is active until ${eDate}.\n\nAccess Details:\n${creds}\n\nThank you for choosing us! If you have any questions, feel free to reach out.`;
+};
+
 export const DeliveryReceiptModal: React.FC<DeliveryReceiptModalProps> = ({
   isOpen = true,
   onClose,
@@ -17,9 +73,15 @@ export const DeliveryReceiptModal: React.FC<DeliveryReceiptModalProps> = ({
   const { format: formatMoney } = useCurrency();
   const [copied, setCopied] = React.useState(false);
   const [waMessage, setWaMessage] = React.useState('');
-  const [waUrl, setWaUrl] = React.useState<string | null>(null);
+  const [phoneInput, setPhoneInput] = React.useState('');
   const [lang, setLang] = React.useState('en');
   const [loadingWa, setLoadingWa] = React.useState(false);
+
+  React.useEffect(() => {
+    if (order?.customer_whatsapp) {
+      setPhoneInput(order.customer_whatsapp);
+    }
+  }, [order]);
 
   React.useEffect(() => {
     if (isOpen && order) {
@@ -41,12 +103,16 @@ export const DeliveryReceiptModal: React.FC<DeliveryReceiptModalProps> = ({
       const res = await api.composeWhatsApp({
         order_id: order.id,
         language: selectedLang,
-        event_type: 'order_created'
+        event_type: 'order_created',
+        phone: phoneInput || order.customer_whatsapp || undefined
       });
       setWaMessage(res.message);
-      setWaUrl(res.waUrl);
+      if (res.cleanPhone && !phoneInput) {
+        setPhoneInput(res.cleanPhone);
+      }
     } catch (err) {
-      console.error(err);
+      console.error('Failed to compose WhatsApp message:', err);
+      setWaMessage(buildClientFallback(order, selectedLang));
     } finally {
       setLoadingWa(false);
     }
@@ -57,6 +123,11 @@ export const DeliveryReceiptModal: React.FC<DeliveryReceiptModalProps> = ({
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  const effectivePhone = (phoneInput || order?.customer_whatsapp || '').replace(/[^\d+]/g, '').replace(/^00/, '+');
+  const effectiveWaUrl = effectivePhone && waMessage
+    ? `https://wa.me/${effectivePhone.replace('+', '')}?text=${encodeURIComponent(waMessage)}`
+    : null;
 
   if (!isOpen || !order) return null;
 
@@ -211,10 +282,23 @@ export const DeliveryReceiptModal: React.FC<DeliveryReceiptModalProps> = ({
               className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-700 focus:outline-hidden focus:bg-white"
             />
 
+            {/* Phone input if customer has no number */}
+            {!order.customer_whatsapp && (
+              <div className="pt-1">
+                <input
+                  type="tel"
+                  placeholder="Enter recipient WhatsApp number (e.g. +212600000000)"
+                  value={phoneInput}
+                  onChange={(e) => setPhoneInput(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-hidden focus:bg-white"
+                />
+              </div>
+            )}
+
             <div className="flex items-center gap-2 pt-1">
-              {waUrl ? (
+              {effectiveWaUrl ? (
                 <a
-                  href={waUrl}
+                  href={effectiveWaUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex-1 py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-xl flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20 transition"
@@ -228,7 +312,7 @@ export const DeliveryReceiptModal: React.FC<DeliveryReceiptModalProps> = ({
                   disabled
                   className="flex-1 py-2.5 px-4 bg-slate-100 text-slate-400 text-xs font-semibold rounded-xl cursor-not-allowed"
                 >
-                  No WhatsApp Number Provided
+                  Enter WhatsApp Number
                 </button>
               )}
 

@@ -44,6 +44,11 @@ export interface StatusConfig {
   description: string;
 }
 
+const formatDateOnly = (d?: string | null) => {
+  if (!d) return '—';
+  return String(d).split('T')[0].split(' ')[0];
+};
+
 export const ORDER_STATUS_CONFIG: Record<OrderStatus, StatusConfig> = {
   active: {
     label: 'Active',
@@ -393,7 +398,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
                         <div className="flex items-center gap-1.5 text-slate-600">
                           <Calendar size={13} className="text-slate-400 shrink-0" />
                           <span>
-                            {o.start_date} → {o.end_date}
+                            {formatDateOnly(o.start_date)} → {formatDateOnly(o.end_date)}
                           </span>
                         </div>
                         {o.renewal_count > 0 && (
@@ -494,7 +499,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
               id={`action-whatsapp-${activeOrder.id}`}
               onClick={() => {
                 setActiveMenuOrderId(null);
-                onComposeWhatsApp(activeOrder.id);
+                onViewOrder(activeOrder);
               }}
               className="w-full px-3.5 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition font-medium"
             >
