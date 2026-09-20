@@ -89,6 +89,28 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // Listen for data mutations across views to keep dashboard metrics & alerts fresh
+  React.useEffect(() => {
+    const handleDataMutated = () => {
+      if (currentUser) {
+        loadAppData();
+      }
+    };
+    window.addEventListener('app:data-mutated', handleDataMutated);
+    return () => window.removeEventListener('app:data-mutated', handleDataMutated);
+  }, [currentUser]);
+
+  // Always revalidate dashboard stats when user navigates to the dashboard tab
+  React.useEffect(() => {
+    if (activeTab === 'dashboard' && currentUser) {
+      api.getDashboardStats().then((freshStats) => {
+        setStats(freshStats);
+      }).catch((err) => {
+        console.error('Failed revalidating dashboard stats:', err);
+      });
+    }
+  }, [activeTab, currentUser]);
+
   const checkInitialState = async () => {
     setCheckingInstall(true);
     try {

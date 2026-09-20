@@ -134,11 +134,13 @@ export const AlertsView: React.FC<AlertsViewProps> = ({
   const [phoneSubmitting, setPhoneSubmitting] = React.useState(false);
 
   React.useEffect(() => {
-    loadAlerts();
+    loadAlerts(true);
   }, []);
 
-  const loadAlerts = async () => {
-    setLoading(true);
+  const loadAlerts = async (showLoadingSpinner = false) => {
+    if (showLoadingSpinner) {
+      setLoading(true);
+    }
     try {
       const data = await api.getAlerts();
       setAlerts(data);
@@ -158,7 +160,9 @@ export const AlertsView: React.FC<AlertsViewProps> = ({
     } catch (err) {
       console.error(err);
     } finally {
-      setLoading(false);
+      if (showLoadingSpinner) {
+        setLoading(false);
+      }
     }
   };
 

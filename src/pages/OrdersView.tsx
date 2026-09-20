@@ -109,7 +109,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
   const [updatingOrderId, setUpdatingOrderId] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    loadOrders();
+    loadOrders(true);
   }, [statusFilter]);
 
   React.useEffect(() => {
@@ -119,8 +119,10 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
     }
   }, [toast]);
 
-  const loadOrders = async () => {
-    setLoading(true);
+  const loadOrders = async (showLoadingSpinner = false) => {
+    if (showLoadingSpinner) {
+      setLoading(true);
+    }
     try {
       const params: any = { status: statusFilter };
       const res = await api.getOrders(params);
@@ -135,19 +137,26 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
     } catch (err) {
       console.error(err);
     } finally {
-      setLoading(false);
+      if (showLoadingSpinner) {
+        setLoading(false);
+      }
     }
   };
+
   const handleDelete = async (order: Order) => {
     if (!confirm(`Are you sure you want to permanently delete order #${order.order_number}? This action cannot be undone.`)) {
       return;
     }
+    // Optimistic remove
+    setOrders((prev) => prev.filter((o) => o.id !== order.id));
     try {
       const res = await api.deleteOrder(order.id);
       setToast({ message: res.message || `Order #${order.order_number} deleted successfully.` });
-      loadOrders();
+      window.dispatchEvent(new CustomEvent('app:data-mutated'));
+      loadOrders(false);
     } catch (err: any) {
       alert(err.message || 'Failed to delete order.');
+      loadOrders(false);
     }
   };
 
@@ -198,7 +207,8 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
 
     try {
       await api.updateOrder(orderId, { status: newStatus });
-      // Background re-fetch to ensure database state sync
+      window.dispatchEvent(new CustomEvent('app:data-mutated'));
+      // Background re-fetch to ensure database state sync without spinner
       const params: any = { status: statusFilter };
       const res = await api.getOrders(params);
       setOrders(res.orders);
@@ -211,7 +221,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
       }
     } catch (err: any) {
       alert(err.message || 'Failed to update order status');
-      loadOrders(); // Rollback on error
+      loadOrders(false); // Rollback on error
     } finally {
       setUpdatingOrderId(null);
     }

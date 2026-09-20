@@ -153,11 +153,13 @@ export const ProductsView: React.FC = () => {
   };
 
   React.useEffect(() => {
-    loadData();
+    loadData(true);
   }, [selectedCategory]);
 
-  const loadData = async () => {
-    setLoading(true);
+  const loadData = async (showLoadingSpinner = false) => {
+    if (showLoadingSpinner) {
+      setLoading(true);
+    }
     try {
       const [cRes, pRes] = await Promise.all([
         api.getCategories(),
@@ -171,7 +173,9 @@ export const ProductsView: React.FC = () => {
     } catch (err) {
       console.error(err);
     } finally {
-      setLoading(false);
+      if (showLoadingSpinner) {
+        setLoading(false);
+      }
     }
   };
 
@@ -199,7 +203,8 @@ export const ProductsView: React.FC = () => {
       setProdName('');
       setProdBrand('');
       setProdDesc('');
-      loadData();
+      window.dispatchEvent(new CustomEvent('app:data-mutated'));
+      loadData(false);
     } catch (err: any) {
       alert(err.message);
     }
@@ -231,7 +236,8 @@ export const ProductsView: React.FC = () => {
       const res = await api.getPlans(activePlanProduct.id);
       setPlans(res.plans);
       setNewPlanName('');
-      loadData();
+      window.dispatchEvent(new CustomEvent('app:data-mutated'));
+      loadData(false);
     } catch (err: any) {
       alert(err.message);
     }
@@ -248,7 +254,8 @@ export const ProductsView: React.FC = () => {
         const res = await api.getPlans(activePlanProduct.id);
         setPlans(res.plans);
       }
-      loadData();
+      window.dispatchEvent(new CustomEvent('app:data-mutated'));
+      loadData(false);
     } catch (err: any) {
       alert(err.message);
     }
@@ -283,7 +290,8 @@ export const ProductsView: React.FC = () => {
         const res = await api.getPlans(activePlanProduct.id);
         setPlans(res.plans);
       }
-      loadData();
+      window.dispatchEvent(new CustomEvent('app:data-mutated'));
+      loadData(false);
     } catch (err: any) {
       alert(err.message || 'Failed to update plan.');
     } finally {
@@ -300,7 +308,8 @@ export const ProductsView: React.FC = () => {
       setCatName('');
       setCatDesc('');
       showNotification('Category created and saved to database.');
-      loadData();
+      window.dispatchEvent(new CustomEvent('app:data-mutated'));
+      loadData(false);
     } catch (err: any) {
       alert(err.message);
     }
@@ -503,7 +512,8 @@ export const ProductsView: React.FC = () => {
       });
       showNotification('Product details updated successfully.');
       setEditingProduct(null);
-      loadData();
+      window.dispatchEvent(new CustomEvent('app:data-mutated'));
+      loadData(false);
     } catch (err: any) {
       alert(err.message || 'Failed to update product.');
     } finally {
@@ -519,7 +529,8 @@ export const ProductsView: React.FC = () => {
       const res = await api.deleteProduct(deletingProduct.id);
       showNotification(res.message || 'Product removed successfully.');
       setDeletingProduct(null);
-      loadData();
+      window.dispatchEvent(new CustomEvent('app:data-mutated'));
+      loadData(false);
     } catch (err: any) {
       alert(err.message || 'Failed to delete product.');
     } finally {

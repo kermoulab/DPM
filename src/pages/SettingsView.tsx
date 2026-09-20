@@ -138,11 +138,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   }, [toastMessage]);
 
   React.useEffect(() => {
-    loadTabContent();
+    loadTabContent(true);
   }, [activeTab]);
 
-  const loadTabContent = async () => {
-    setLoading(true);
+  const loadTabContent = async (showLoadingSpinner = false) => {
+    if (showLoadingSpinner) {
+      setLoading(true);
+    }
     try {
       if (activeTab === 'profile') {
         const res = await api.getMe();
@@ -160,7 +162,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     } catch (err) {
       console.error(err);
     } finally {
-      setLoading(false);
+      if (showLoadingSpinner) {
+        setLoading(false);
+      }
     }
   };
 
@@ -361,7 +365,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       setNewPasswordState('');
       setNewRole('agent');
       setToastMessage(`Staff user ${newUsername} created successfully.`);
-      loadTabContent();
+      window.dispatchEvent(new CustomEvent('app:data-mutated'));
+      loadTabContent(false);
     } catch (err: any) {
       alert(err.message);
     }
@@ -377,7 +382,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     try {
       await api.deleteUser(userToDelete.id);
       setToastMessage(`User "${userToDelete.name}" deleted from database.`);
-      await loadTabContent();
+      window.dispatchEvent(new CustomEvent('app:data-mutated'));
+      await loadTabContent(false);
     } catch (err: any) {
       alert(err.message || 'Failed to delete user.');
     } finally {

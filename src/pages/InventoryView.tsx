@@ -69,7 +69,7 @@ export const InventoryView: React.FC = () => {
   const [licBulkKeys, setLicBulkKeys] = React.useState('');
 
   React.useEffect(() => {
-    loadData();
+    loadData(true);
   }, [activeTab]);
 
   React.useEffect(() => {
@@ -91,8 +91,10 @@ export const InventoryView: React.FC = () => {
     };
   }, [openMenuAccountId]);
 
-  const loadData = async () => {
-    setLoading(true);
+  const loadData = async (showLoadingSpinner = false) => {
+    if (showLoadingSpinner) {
+      setLoading(true);
+    }
     try {
       const pRes = await api.getProducts();
       setProducts(pRes.products);
@@ -111,7 +113,9 @@ export const InventoryView: React.FC = () => {
     } catch (err) {
       console.error(err);
     } finally {
-      setLoading(false);
+      if (showLoadingSpinner) {
+        setLoading(false);
+      }
     }
   };
 
@@ -130,7 +134,8 @@ export const InventoryView: React.FC = () => {
       setShowAddAccount(false);
       setAccLogin('');
       setAccPassword('');
-      loadData();
+      window.dispatchEvent(new CustomEvent('app:data-mutated'));
+      loadData(false);
     } catch (err: any) {
       alert(err.message);
     }
@@ -175,7 +180,8 @@ export const InventoryView: React.FC = () => {
       setEditAccount(null);
       setToastMessage(`Account ${editLogin} updated successfully in database.`);
       setTimeout(() => setToastMessage(null), 3500);
-      await loadData();
+      window.dispatchEvent(new CustomEvent('app:data-mutated'));
+      await loadData(false);
     } catch (err: any) {
       alert(err.message || 'Failed to update service account.');
     } finally {
@@ -201,7 +207,8 @@ export const InventoryView: React.FC = () => {
       const res = await api.deleteAccount(acc.id);
       setToastMessage(res.message || 'Account deleted from database.');
       setTimeout(() => setToastMessage(null), 3500);
-      await loadData();
+      window.dispatchEvent(new CustomEvent('app:data-mutated'));
+      await loadData(false);
     } catch (err: any) {
       alert(err.message || 'Failed to delete service account.');
     }
@@ -228,7 +235,8 @@ export const InventoryView: React.FC = () => {
       alert(`Successfully added ${res.count} license keys to stock.`);
       setShowAddLicenses(false);
       setLicBulkKeys('');
-      loadData();
+      window.dispatchEvent(new CustomEvent('app:data-mutated'));
+      loadData(false);
     } catch (err: any) {
       alert(err.message);
     }

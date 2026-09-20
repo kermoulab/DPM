@@ -26,7 +26,7 @@ export const DevicesView: React.FC = () => {
   const [toastMessage, setToastMessage] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    loadDevices();
+    loadDevices(true);
   }, []);
 
   // Keyboard shortcut to dismiss pairing dialog or confirmation modal
@@ -59,6 +59,7 @@ export const DevicesView: React.FC = () => {
         if (current && current.status === 'paired') {
           setPairingData(null);
           setToastMessage(`Device "${current.device_name}" connected successfully!`);
+          window.dispatchEvent(new CustomEvent('app:data-mutated'));
         }
       } catch {
         // Ignore polling errors
@@ -68,15 +69,19 @@ export const DevicesView: React.FC = () => {
     return () => clearInterval(interval);
   }, [pairingData]);
 
-  const loadDevices = async () => {
-    setLoading(true);
+  const loadDevices = async (showLoadingSpinner = false) => {
+    if (showLoadingSpinner) {
+      setLoading(true);
+    }
     try {
       const res = await api.getDevices();
       setDevices(res.devices);
     } catch (err) {
       console.error(err);
     } finally {
-      setLoading(false);
+      if (showLoadingSpinner) {
+        setLoading(false);
+      }
     }
   };
 
@@ -85,7 +90,7 @@ export const DevicesView: React.FC = () => {
     try {
       const res = await api.generatePairingCode();
       setPairingData(res);
-      loadDevices();
+      loadDevices(false);
     } catch (err: any) {
       alert(err.message || 'Failed to generate pairing token');
     } finally {
@@ -103,9 +108,10 @@ export const DevicesView: React.FC = () => {
       try {
         await api.revokeDevice(device.id);
         setToastMessage('Pending pairing request deleted.');
+        window.dispatchEvent(new CustomEvent('app:data-mutated'));
       } catch (err: any) {
         setToastMessage(err.message || 'Failed to delete pending pairing.');
-        await loadDevices();
+        await loadDevices(false);
       } finally {
         setDeletingId(null);
       }
@@ -126,9 +132,10 @@ export const DevicesView: React.FC = () => {
     try {
       const res = await api.revokeDevice(target.id);
       setToastMessage(res.message || `Device "${target.device_name}" deleted and unpaired on Android side.`);
+      window.dispatchEvent(new CustomEvent('app:data-mutated'));
     } catch (err: any) {
       setToastMessage(err.message || 'Failed to unpair device');
-      await loadDevices();
+      await loadDevices(false);
     } finally {
       setDeletingId(null);
     }

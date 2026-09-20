@@ -56,7 +56,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
   const [toastMessage, setToastMessage] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    loadCustomers();
+    loadCustomers(true);
   }, []);
 
   React.useEffect(() => {
@@ -91,15 +91,19 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
     };
   }, []);
 
-  const loadCustomers = async () => {
-    setLoading(true);
+  const loadCustomers = async (showLoadingSpinner = false) => {
+    if (showLoadingSpinner) {
+      setLoading(true);
+    }
     try {
       const res = await api.getCustomers();
       setCustomers(res.customers);
     } catch (err) {
       console.error('Failed to load customers from database:', err);
     } finally {
-      setLoading(false);
+      if (showLoadingSpinner) {
+        setLoading(false);
+      }
     }
   };
 
@@ -114,7 +118,8 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
       setWhatsapp('');
       setNotes('');
       setToastMessage('Customer created successfully.');
-      await loadCustomers();
+      window.dispatchEvent(new CustomEvent('app:data-mutated'));
+      await loadCustomers(false);
     } catch (err: any) {
       alert(err.message || 'Failed to create customer');
     }
@@ -132,42 +137,64 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
   const handleUpdateCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editCustomer || !editName.trim()) return;
+    const updatedData = {
+      name: editName.trim(),
+      email: editEmail.trim(),
+      whatsapp: editWhatsapp.trim(),
+      notes: editNotes.trim(),
+      status: editStatus
+    };
+    // Optimistic in-place update to prevent tbody flicker/reload
+    setCustomers((prev) =>
+      prev.map((c) => (c.id === editCustomer.id ? { ...c, ...updatedData } : c))
+    );
+    setEditCustomer(null);
     try {
-      await api.updateCustomer(editCustomer.id, {
-        name: editName.trim(),
-        email: editEmail.trim(),
-        whatsapp: editWhatsapp.trim(),
-        notes: editNotes.trim(),
-        status: editStatus
-      });
+      await api.updateCustomer(editCustomer.id, updatedData);
       setToastMessage(`Customer "${editName.trim()}" updated successfully.`);
-      setEditCustomer(null);
-      await loadCustomers();
+      window.dispatchEvent(new CustomEvent('app:data-mutated'));
+      await loadCustomers(false);
     } catch (err: any) {
       alert(err.message || 'Failed to update customer');
+      await loadCustomers(false);
     }
   };
 
   const handleToggleStatus = async (cust: Customer) => {
     const newStatus = cust.status === 'active' ? 'inactive' : 'active';
+    // Optimistic in-place update so row updates seamlessly without tbody unmounting
+    setCustomers((prev) =>
+      prev.map((c) => (c.id === cust.id ? { ...c, status: newStatus } : c))
+    );
     try {
       await api.updateCustomer(cust.id, { status: newStatus });
       setToastMessage(`Customer "${cust.name}" marked as ${newStatus === 'active' ? 'Active' : 'Deactivated'}.`);
-      await loadCustomers();
+      window.dispatchEvent(new CustomEvent('app:data-mutated'));
+      await loadCustomers(false);
     } catch (err: any) {
+      // Rollback on error
+      setCustomers((prev) =>
+        prev.map((c) => (c.id === cust.id ? { ...c, status: cust.status } : c))
+      );
       alert(err.message || 'Failed to update customer status');
     }
   };
 
   const handleDeleteCustomer = async () => {
     if (!customerToDelete) return;
+    const targetId = customerToDelete.id;
+    const targetName = customerToDelete.name;
+    // Optimistic in-place removal
+    setCustomers((prev) => prev.filter((c) => c.id !== targetId));
+    setCustomerToDelete(null);
     try {
-      await api.deleteCustomer(customerToDelete.id);
-      setToastMessage(`Customer "${customerToDelete.name}" deleted from database.`);
-      setCustomerToDelete(null);
-      await loadCustomers();
+      await api.deleteCustomer(targetId);
+      setToastMessage(`Customer "${targetName}" deleted from database.`);
+      window.dispatchEvent(new CustomEvent('app:data-mutated'));
+      await loadCustomers(false);
     } catch (err: any) {
       alert(err.message || 'Failed to delete customer');
+      await loadCustomers(false);
     }
   };
 
