@@ -70,7 +70,7 @@ export const ORDER_STATUS_CONFIG: Record<OrderStatus, StatusConfig> = {
     dotClass: 'bg-amber-500',
     activeTabClass: 'bg-amber-600 text-white shadow-xs',
     tabBadgeClass: 'bg-amber-100 text-amber-800',
-    description: 'Term expiring within 3 days'
+    description: 'Term expiring within 7 days'
   },
   expired: {
     label: 'Expired',
@@ -313,7 +313,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
     },
     {
       id: 'expiring',
-      label: 'Expiring ≤3d',
+      label: 'Expiring Soon',
       count: orderCounts.expiring,
       dotClass: ORDER_STATUS_CONFIG.expiring.dotClass,
       activeClass: ORDER_STATUS_CONFIG.expiring.activeTabClass,

@@ -494,10 +494,12 @@ async function runComprehensiveAudit() {
     const ordersRepoContent = fs.readFileSync(path.join(process.cwd(), 'server', 'db', 'repositories', 'orders.repository.ts'), 'utf8');
     assert(ordersRepoContent.includes('reconcileSubscriptionStatuses'),
       'orders.repository.ts defines reconcileSubscriptionStatuses');
-    assert(ordersRepoContent.includes("SET status = 'expired'"),
+    assert(ordersRepoContent.includes("WHEN end_date < ((CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date) THEN 'expired'"),
       'reconcileSubscriptionStatuses executes atomic SQL UPDATE for expired status');
-    assert(ordersRepoContent.includes("SET status = 'expiring'"),
+    assert(ordersRepoContent.includes("THEN 'expiring'"),
       'reconcileSubscriptionStatuses executes atomic SQL UPDATE for expiring status');
+    assert(ordersRepoContent.includes('+ 7'),
+      'orders.repository.ts uses 7-day threshold for expiring subscriptions');
     assert(ordersRepoContent.includes('UPDATE service_profiles') && ordersRepoContent.includes("status = 'available', assigned_customer_id = NULL, assigned_order_id = NULL"),
       'orders.repository.ts atomically releases assigned service profiles upon order deletion');
     assert(ordersRepoContent.includes('UPDATE license_keys') && ordersRepoContent.includes("status = 'available'"),
@@ -547,6 +549,13 @@ async function runComprehensiveAudit() {
     const orderServiceContent = fs.readFileSync(path.join(process.cwd(), 'server', 'services', 'order.service.ts'), 'utf8');
     assert(orderServiceContent.includes('HAVING COUNT(sp.id) < sa.capacity'),
       'order.service.ts allocates profiles on-the-fly from active accounts with available capacity');
+    assert(orderServiceContent.includes('initialStatus') && orderServiceContent.includes('renewalStatus'),
+      'order.service.ts calculates accurate initial and renewal subscription statuses based on expiry window');
+
+    // Inspect DeliveryReceiptModal.tsx for dynamic WhatsApp message event type
+    const receiptModalContent = fs.readFileSync(path.join(process.cwd(), 'src', 'components', 'DeliveryReceiptModal.tsx'), 'utf8');
+    assert(receiptModalContent.includes("eventType = 'order_expired'") && receiptModalContent.includes("eventType = 'order_expiring'"),
+      'DeliveryReceiptModal dynamically selects order_expired or order_expiring template based on order status');
 
     // Inspect EditOrderModal.tsx for date input normalization and status sync
     const editModalContent = fs.readFileSync(path.join(process.cwd(), 'src', 'components', 'EditOrderModal.tsx'), 'utf8');

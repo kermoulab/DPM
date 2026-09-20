@@ -32,9 +32,9 @@ const calculateStatusForEndDate = (dateStr: string): 'active' | 'expiring' | 'ex
   const today = new Date().toISOString().split('T')[0];
   if (clean < today) return 'expired';
   const d = new Date();
-  d.setUTCDate(d.getUTCDate() + 3);
-  const threeDays = d.toISOString().split('T')[0];
-  if (clean <= threeDays) return 'expiring';
+  d.setUTCDate(d.getUTCDate() + 7);
+  const sevenDays = d.toISOString().split('T')[0];
+  if (clean <= sevenDays) return 'expiring';
   return 'active';
 };
 

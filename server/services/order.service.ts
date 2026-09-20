@@ -77,8 +77,20 @@ export class OrderService {
     const price = payload.custom_price !== undefined ? payload.custom_price : Number(plan.price);
     const cost = payload.custom_cost !== undefined ? payload.custom_cost : Number(plan.cost);
 
+    const todayStr = new Date().toISOString().split('T')[0];
+    const sevenDaysAhead = new Date();
+    sevenDaysAhead.setUTCDate(sevenDaysAhead.getUTCDate() + 7);
+    const limitDate = sevenDaysAhead.toISOString().split('T')[0];
+
+    let initialStatus = 'active';
+    if (endDate < todayStr) {
+      initialStatus = 'expired';
+    } else if (endDate <= limitDate) {
+      initialStatus = 'expiring';
+    }
+
     // Execute order creation & stock allocation inside a managed PostgreSQL transaction
-    return await transaction<OrderRow>(async (client) => {
+    const createdOrder = await transaction<OrderRow>(async (client) => {
       let assignedAccountId = payload.assigned_service_account_id || null;
       let assignedProfileId = payload.assigned_profile_id || null;
       let assignedLicenseKeyId = payload.assigned_license_key_id || null;
@@ -225,7 +237,7 @@ export class OrderService {
          RETURNING *`,
         [
           orderId, orderNumber, payload.customer_id, product.id, plan.id,
-          'active', startDate, endDate, price, cost, plan.currency || 'USD',
+          initialStatus, startDate, endDate, price, cost, plan.currency || 'USD',
           payload.payment_status || 'paid', payload.payment_method || 'cash',
           product.fulfillment_type, assignedAccountId, assignedProfileId,
           assignedLicenseKeyId, JSON.stringify(fulfillmentData), payload.userId || null
@@ -254,6 +266,9 @@ export class OrderService {
 
       return fullOrderRes.rows[0] || orderRes.rows[0];
     });
+
+    await ordersRepo.reconcileSubscriptionStatuses();
+    return createdOrder;
   }
 
   async cancelOrder(orderId: string, reason?: string, user?: any): Promise<void> {
@@ -343,11 +358,22 @@ export class OrderService {
         ]
       );
 
+      const sevenDaysAhead = new Date();
+      sevenDaysAhead.setUTCDate(sevenDaysAhead.getUTCDate() + 7);
+      const limitDate = sevenDaysAhead.toISOString().split('T')[0];
+
+      let renewalStatus = 'active';
+      if (newEndDate < todayStr) {
+        renewalStatus = 'expired';
+      } else if (newEndDate <= limitDate) {
+        renewalStatus = 'expiring';
+      }
+
       await client.query(
         `UPDATE orders
-         SET end_date = $1, status = 'active', renewal_count = renewal_count + 1
-         WHERE id = $2`,
-        [newEndDate, orderId]
+         SET end_date = $1, status = $2, renewal_count = renewal_count + 1
+         WHERE id = $3`,
+        [newEndDate, renewalStatus, orderId]
       );
 
       return {
@@ -360,6 +386,7 @@ export class OrderService {
       };
     });
 
+    await ordersRepo.reconcileSubscriptionStatuses();
     await auditRepo.log(user || null, 'RENEW_ORDER', 'order', orderId, { newEndDate: result.new_end_date, price: result.price });
     return result;
   }

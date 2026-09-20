@@ -65,12 +65,13 @@ export const AlertsView: React.FC<AlertsViewProps> = ({
     const today = new Date().toISOString().split('T')[0];
     const duration = Number(order.duration) || 1;
     const unit = order.duration_unit || 'months';
-    const isExpired = order.end_date < today;
+    const cleanEnd = formatDateOnly(order.end_date);
+    const isExpired = cleanEnd < today;
     // If order is active/expiring: renewal begins from its existing end_date.
     // If order is already expired: renewal begins from current date (today).
-    const startDate = isExpired ? today : order.end_date;
+    const startDate = isExpired ? today : cleanEnd;
 
-    const parts = startDate.split('T')[0].split('-');
+    const parts = startDate.split('-');
     const year = parseInt(parts[0], 10);
     const month = parseInt(parts[1], 10) - 1;
     const day = parseInt(parts[2], 10);
@@ -490,7 +491,7 @@ export const AlertsView: React.FC<AlertsViewProps> = ({
           </div>
           <h3 className="text-sm font-bold text-slate-800">All Operations Clear</h3>
           <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-            No active subscriptions are expiring within 3 days and no accounts have expired.
+            No active subscriptions are expiring within 7 days and no accounts have expired.
           </p>
         </div>
       ) : (

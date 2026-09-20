@@ -101,10 +101,19 @@ export const DeliveryReceiptModal: React.FC<DeliveryReceiptModalProps> = ({
     if (!order?.id) return;
     setLoadingWa(true);
     try {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const endStr = order.end_date ? String(order.end_date).split('T')[0] : '';
+      let eventType = 'order_created';
+      if (order.status === 'expired' || (endStr && endStr < todayStr)) {
+        eventType = 'order_expired';
+      } else if (order.status === 'expiring') {
+        eventType = 'order_expiring';
+      }
+
       const res = await api.composeWhatsApp({
         order_id: order.id,
         language: selectedLang,
-        event_type: 'order_created',
+        event_type: eventType,
         phone: phoneInput || order.customer_whatsapp || undefined
       });
       setWaMessage(res.message);

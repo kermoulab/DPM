@@ -53,21 +53,17 @@ export class OrdersRepository {
     try {
       await query(`
         UPDATE orders
-        SET status = 'expired'
-        WHERE status IN ('active', 'expiring') AND end_date < CURRENT_DATE
-      `);
-      await query(`
-        UPDATE orders
-        SET status = 'expiring'
-        WHERE status IN ('active', 'expired')
-          AND end_date >= CURRENT_DATE
-          AND end_date <= (CURRENT_DATE + INTERVAL '3 days')
-      `);
-      await query(`
-        UPDATE orders
-        SET status = 'active'
-        WHERE status IN ('expiring', 'expired')
-          AND end_date > (CURRENT_DATE + INTERVAL '3 days')
+        SET status = CASE
+          WHEN end_date < ((CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date) THEN 'expired'
+          WHEN end_date <= (((CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date) + 7) THEN 'expiring'
+          ELSE 'active'
+        END
+        WHERE status IN ('active', 'expiring', 'expired')
+          AND status != CASE
+            WHEN end_date < ((CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date) THEN 'expired'
+            WHEN end_date <= (((CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date) + 7) THEN 'expiring'
+            ELSE 'active'
+          END
       `);
     } catch (err) {
       console.error('[OrdersRepository] Failed to reconcile subscription statuses:', err);
@@ -174,7 +170,9 @@ export class OrdersRepository {
         JSON.stringify(order.fulfillment_data || {}), order.created_by_user_id || null
       ]
     );
-    return res.rows[0];
+    const inserted = res.rows[0];
+    await this.reconcileSubscriptionStatuses();
+    return inserted;
   }
 
   async update(id: string, updates: Partial<OrderRow>): Promise<OrderRow | null> {
@@ -182,9 +180,9 @@ export class OrdersRepository {
     if (updates.end_date) {
       const cleanEnd = String(updates.end_date).split('T')[0];
       const today = new Date().toISOString().split('T')[0];
-      const threeDaysAhead = new Date();
-      threeDaysAhead.setUTCDate(threeDaysAhead.getUTCDate() + 3);
-      const limit = threeDaysAhead.toISOString().split('T')[0];
+      const sevenDaysAhead = new Date();
+      sevenDaysAhead.setUTCDate(sevenDaysAhead.getUTCDate() + 7);
+      const limit = sevenDaysAhead.toISOString().split('T')[0];
 
       if (cleanEnd < today) {
         newStatus = 'expired';

@@ -9,7 +9,7 @@ alertsRouter.get('/', requireAuth, async (req, res, next) => {
   try {
     await ordersRepo.reconcileSubscriptionStatuses();
 
-    // 1. Orders expiring in <= 3 days
+    // 1. Orders expiring in <= 7 days
     const expiringOrdersRes = await query<any>(
       `SELECT o.*,
               o.start_date::text as start_date,
@@ -17,18 +17,18 @@ alertsRouter.get('/', requireAuth, async (req, res, next) => {
               c.name as customer_name, c.whatsapp as customer_whatsapp, c.email as customer_email,
               p.name as product_name,
               pl.name as plan_name,
-              (o.end_date - CURRENT_DATE)::int as days_remaining
+              (o.end_date - ((CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date))::int as days_remaining
        FROM orders o
        JOIN customers c ON c.id = o.customer_id
        JOIN products p ON p.id = o.product_id
        JOIN plans pl ON pl.id = o.plan_id
        WHERE o.status IN ('active', 'expiring')
-         AND o.end_date >= CURRENT_DATE
-         AND o.end_date <= (CURRENT_DATE + INTERVAL '3 days')
+         AND o.end_date >= ((CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date)
+         AND o.end_date <= (((CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date) + 7)
        ORDER BY o.end_date ASC`
     );
 
-    // 2. Expired orders within last 30 days
+    // 2. Expired orders
     const expiredOrdersRes = await query<any>(
       `SELECT o.*,
               o.start_date::text as start_date,
@@ -36,13 +36,12 @@ alertsRouter.get('/', requireAuth, async (req, res, next) => {
               c.name as customer_name, c.whatsapp as customer_whatsapp, c.email as customer_email,
               p.name as product_name,
               pl.name as plan_name,
-              (CURRENT_DATE - o.end_date)::int as days_expired
+              (((CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date) - o.end_date)::int as days_expired
        FROM orders o
        JOIN customers c ON c.id = o.customer_id
        JOIN products p ON p.id = o.product_id
        JOIN plans pl ON pl.id = o.plan_id
-       WHERE (o.status = 'expired' OR (o.status = 'active' AND o.end_date < CURRENT_DATE))
-         AND o.end_date >= (CURRENT_DATE - INTERVAL '30 days')
+       WHERE (o.status = 'expired' OR (o.status IN ('active', 'expiring') AND o.end_date < ((CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date)))
        ORDER BY o.end_date DESC`
     );
 
