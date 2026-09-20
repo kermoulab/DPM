@@ -22,6 +22,7 @@ import {
 import { api } from '../api';
 import type { Product, Category, Plan, ProductCapability } from '../types';
 import { useCurrency } from '../context/CurrencyContext';
+import { PortalDropdown } from '../components/PortalDropdown';
 
 export const ProductsView: React.FC = () => {
   const { format: formatMoney } = useCurrency();
@@ -33,6 +34,7 @@ export const ProductsView: React.FC = () => {
 
   // Product Actions Dropdown
   const [openProductMenuId, setOpenProductMenuId] = React.useState<string | null>(null);
+  const productMenuTriggerRef = React.useRef<HTMLButtonElement | null>(null);
 
   // Edit Product Modal State
   const [editingProduct, setEditingProduct] = React.useState<Product | null>(null);
@@ -634,6 +636,7 @@ export const ProductsView: React.FC = () => {
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
+                        productMenuTriggerRef.current = e.currentTarget;
                         setOpenProductMenuId(openProductMenuId === p.id ? null : p.id);
                       }}
                       className="p-1 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
@@ -641,38 +644,6 @@ export const ProductsView: React.FC = () => {
                     >
                       <MoreVertical size={16} />
                     </button>
-
-                    {/* 3-Dots Dropdown Menu: [ Edit ] and [ Delete ] */}
-                    {openProductMenuId === p.id && (
-                      <div
-                        onClick={(e) => e.stopPropagation()}
-                        className="absolute right-0 top-full mt-1 w-36 bg-white rounded-2xl shadow-xl border border-slate-200/90 py-1.5 z-30 animate-in fade-in zoom-in-95 duration-100 text-left"
-                      >
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setOpenProductMenuId(null);
-                            handleOpenEditProduct(p);
-                          }}
-                          className="w-full px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition"
-                        >
-                          <Edit2 size={13} className="text-blue-600 shrink-0" />
-                          <span>Edit</span>
-                        </button>
-                        <div className="my-1 border-t border-slate-100" />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setOpenProductMenuId(null);
-                            setDeletingProduct(p);
-                          }}
-                          className="w-full px-3.5 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center gap-2 transition"
-                        >
-                          <Trash2 size={13} className="text-rose-600 shrink-0" />
-                          <span>Delete</span>
-                        </button>
-                      </div>
-                    )}
                   </div>
                 </div>
 
@@ -709,6 +680,45 @@ export const ProductsView: React.FC = () => {
           ))}
         </div>
       )}
+
+      {/* 3-Dots Product Action Menu Portal (Rendered outside grid to prevent clipping and scrolling) */}
+      {(() => {
+        const activeProduct = products.find((p) => p.id === openProductMenuId);
+        if (!activeProduct) return null;
+
+        return (
+          <PortalDropdown
+            isOpen={Boolean(activeProduct)}
+            onClose={() => setOpenProductMenuId(null)}
+            triggerRef={productMenuTriggerRef}
+            width={160}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                setOpenProductMenuId(null);
+                handleOpenEditProduct(activeProduct);
+              }}
+              className="w-full px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition"
+            >
+              <Edit2 size={13} className="text-blue-600 shrink-0" />
+              <span>Edit</span>
+            </button>
+            <div className="my-1 border-t border-slate-100" />
+            <button
+              type="button"
+              onClick={() => {
+                setOpenProductMenuId(null);
+                setDeletingProduct(activeProduct);
+              }}
+              className="w-full px-3.5 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center gap-2 transition"
+            >
+              <Trash2 size={13} className="text-rose-600 shrink-0" />
+              <span>Delete</span>
+            </button>
+          </PortalDropdown>
+        );
+      })()}
 
       {/* Modal: New Product */}
       {showNewProduct && (

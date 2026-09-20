@@ -14,6 +14,7 @@ import {
 import { api } from '../api';
 import type { Customer } from '../types';
 import { useCurrency } from '../context/CurrencyContext';
+import { PortalDropdown } from '../components/PortalDropdown';
 
 interface CustomersViewProps {
   onComposeWhatsApp: (orderId: string) => void;
@@ -31,6 +32,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
 
   // 3-dots action menu state
   const [openActionMenuId, setOpenActionMenuId] = React.useState<string | null>(null);
+  const customerMenuTriggerRef = React.useRef<HTMLButtonElement | null>(null);
 
   // New Customer Modal
   const [showNewCustomer, setShowNewCustomer] = React.useState(false);
@@ -272,6 +274,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
+                              customerMenuTriggerRef.current = e.currentTarget;
                               setOpenActionMenuId(openActionMenuId === cust.id ? null : cust.id);
                             }}
                             className={`p-1.5 rounded-xl border transition flex items-center justify-center ${
@@ -283,69 +286,6 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
                           >
                             <MoreVertical size={16} />
                           </button>
-
-                          {/* 3-Dots Dropdown Toggle Form / Menu */}
-                          {openActionMenuId === cust.id && (
-                            <div
-                              onClick={(e) => e.stopPropagation()}
-                              className="absolute right-5 mt-1.5 w-44 bg-white rounded-2xl shadow-xl border border-slate-200/90 py-1.5 z-40 animate-in fade-in-50 zoom-in-95 duration-100 text-left"
-                            >
-                              {/* Edit Action */}
-                              <button
-                                onClick={() => {
-                                  setOpenActionMenuId(null);
-                                  handleOpenEditCustomer(cust);
-                                }}
-                                className="w-full px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition"
-                              >
-                                <Edit2 size={14} className="text-blue-600 shrink-0" />
-                                <span>Edit</span>
-                              </button>
-
-                              {/* Deactivate / Activate Action */}
-                              <button
-                                onClick={() => {
-                                  setOpenActionMenuId(null);
-                                  handleToggleStatus(cust);
-                                }}
-                                className="w-full px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition"
-                              >
-                                <Power
-                                  size={14}
-                                  className={`shrink-0 ${
-                                    isActive ? 'text-amber-500' : 'text-emerald-500'
-                                  }`}
-                                />
-                                <span>{isActive ? 'Deactivate' : 'Activate'}</span>
-                              </button>
-
-                              {/* New Order Action */}
-                              <button
-                                onClick={() => {
-                                  setOpenActionMenuId(null);
-                                  onOpenOrderForCustomer(cust.id);
-                                }}
-                                className="w-full px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition"
-                              >
-                                <ShoppingBag size={14} className="text-emerald-600 shrink-0" />
-                                <span>New Order</span>
-                              </button>
-
-                              <div className="my-1 border-t border-slate-100" />
-
-                              {/* Delete Action */}
-                              <button
-                                onClick={() => {
-                                  setOpenActionMenuId(null);
-                                  setCustomerToDelete(cust);
-                                }}
-                                className="w-full px-3.5 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center gap-2.5 transition"
-                              >
-                                <Trash2 size={14} className="shrink-0" />
-                                <span>Delete</span>
-                              </button>
-                            </div>
-                          )}
                         </div>
                       </td>
                     </tr>
@@ -356,6 +296,77 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
           </div>
         )}
       </div>
+
+      {/* 3-Dots Customer Action Menu Portal (Rendered outside table/tbody to prevent scrolling and clipping) */}
+      {(() => {
+        const activeCust = customers.find((c) => c.id === openActionMenuId);
+        if (!activeCust) return null;
+        const isActive = activeCust.status === 'active';
+
+        return (
+          <PortalDropdown
+            isOpen={Boolean(activeCust)}
+            onClose={() => setOpenActionMenuId(null)}
+            triggerRef={customerMenuTriggerRef}
+            width={180}
+          >
+            {/* Edit Action */}
+            <button
+              onClick={() => {
+                setOpenActionMenuId(null);
+                handleOpenEditCustomer(activeCust);
+              }}
+              className="w-full px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition"
+            >
+              <Edit2 size={14} className="text-blue-600 shrink-0" />
+              <span>Edit</span>
+            </button>
+
+            {/* Deactivate / Activate Action */}
+            <button
+              onClick={() => {
+                setOpenActionMenuId(null);
+                handleToggleStatus(activeCust);
+              }}
+              className="w-full px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition"
+            >
+              <Power
+                size={14}
+                className={`shrink-0 ${
+                  isActive ? 'text-amber-500' : 'text-emerald-500'
+                }`}
+              />
+              <span>{isActive ? 'Deactivate' : 'Activate'}</span>
+            </button>
+
+            {/* New Order Action */}
+            <button
+              onClick={() => {
+                setOpenActionMenuId(null);
+                onOpenOrderForCustomer(activeCust.id);
+              }}
+              className="w-full px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition"
+            >
+              <ShoppingBag size={14} className="text-emerald-600 shrink-0" />
+              <span>New Order</span>
+            </button>
+
+            <div className="my-1 border-t border-slate-100" />
+
+            {/* Delete Action */}
+            <button
+              onClick={() => {
+                setOpenActionMenuId(null);
+                setCustomerToDelete(activeCust);
+              }}
+              className="w-full px-3.5 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center gap-2.5 transition"
+            >
+              <Trash2 size={14} className="shrink-0" />
+              <span>Delete</span>
+            </button>
+          </PortalDropdown>
+        );
+      })()}
 
       {/* Modal: Edit Customer */}
       {editCustomer && (

@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { api } from '../api';
 import type { ServiceAccount, LicenseKey, Product } from '../types';
+import { PortalDropdown } from '../components/PortalDropdown';
 
 export const InventoryView: React.FC = () => {
   const [activeTab, setActiveTab] = React.useState<'accounts' | 'licenses'>('accounts');
@@ -29,6 +30,7 @@ export const InventoryView: React.FC = () => {
 
   // 3-dots dropdown menu state
   const [openMenuAccountId, setOpenMenuAccountId] = React.useState<string | null>(null);
+  const accountMenuTriggerRef = React.useRef<HTMLButtonElement | null>(null);
 
   // Edit Service Account modal state
   const [editAccount, setEditAccount] = React.useState<ServiceAccount | null>(null);
@@ -375,7 +377,11 @@ export const InventoryView: React.FC = () => {
                           <div className="relative inline-block text-left account-actions-menu">
                             <button
                               id={`account-menu-btn-${acc.id}`}
-                              onClick={() => setOpenMenuAccountId(openMenuAccountId === acc.id ? null : acc.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                accountMenuTriggerRef.current = e.currentTarget;
+                                setOpenMenuAccountId(openMenuAccountId === acc.id ? null : acc.id);
+                              }}
                               className={`p-1.5 rounded-lg border transition ${
                                 openMenuAccountId === acc.id
                                   ? 'border-slate-400 bg-slate-100 text-slate-900'
@@ -385,89 +391,6 @@ export const InventoryView: React.FC = () => {
                             >
                               <MoreVertical size={14} />
                             </button>
-
-                            {openMenuAccountId === acc.id && (
-                              <div
-                                id={`account-dropdown-${acc.id}`}
-                                className="absolute right-0 mt-1.5 w-52 bg-white rounded-2xl shadow-xl border border-slate-200/90 py-1.5 z-40 text-left divide-y divide-slate-100"
-                              >
-                                <div className="py-1">
-                                  {/* Edit Account */}
-                                  <button
-                                    id={`menu-edit-${acc.id}`}
-                                    onClick={() => {
-                                      setOpenMenuAccountId(null);
-                                      handleOpenEditAccount(acc);
-                                    }}
-                                    className="w-full px-3.5 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition font-medium"
-                                  >
-                                    <Pencil size={14} className="text-blue-600 shrink-0" />
-                                    <span>Edit Account</span>
-                                  </button>
-
-                                  {/* Profiles */}
-                                  <button
-                                    id={`menu-profiles-${acc.id}`}
-                                    onClick={() => {
-                                      setOpenMenuAccountId(null);
-                                      handleViewProfiles(acc);
-                                    }}
-                                    className="w-full px-3.5 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition font-medium"
-                                  >
-                                    <Users size={14} className="text-indigo-600 shrink-0" />
-                                    <span>Profiles ({acc.assigned_profiles || 0}/{acc.capacity})</span>
-                                  </button>
-
-                                  {/* Reveal Credentials */}
-                                  <button
-                                    id={`menu-reveal-${acc.id}`}
-                                    onClick={() => {
-                                      setOpenMenuAccountId(null);
-                                      handleRevealCredentials(acc.id);
-                                    }}
-                                    className="w-full px-3.5 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition font-medium"
-                                  >
-                                    <Key size={14} className="text-amber-600 shrink-0" />
-                                    <span>Reveal Credentials</span>
-                                  </button>
-                                </div>
-
-                                {/* Delete Account */}
-                                <div className="py-1">
-                                  <button
-                                    id={`menu-delete-${acc.id}`}
-                                    onClick={() => {
-                                      setOpenMenuAccountId(null);
-                                      handleDeleteAccount(acc);
-                                    }}
-                                    disabled={(acc.assigned_profiles || 0) > 0}
-                                    title={
-                                      (acc.assigned_profiles || 0) > 0
-                                        ? `Cannot delete: ${acc.assigned_profiles} active assigned profile(s)`
-                                        : 'Delete Account'
-                                    }
-                                    className={`w-full px-3.5 py-2 text-xs flex items-center justify-between transition font-medium ${
-                                      (acc.assigned_profiles || 0) > 0
-                                        ? 'text-slate-400 cursor-not-allowed hover:bg-transparent opacity-60'
-                                        : 'text-rose-600 hover:bg-rose-50'
-                                    }`}
-                                  >
-                                    <div className="flex items-center gap-2.5">
-                                      <Trash2
-                                        size={14}
-                                        className={(acc.assigned_profiles || 0) > 0 ? 'text-slate-400 shrink-0' : 'text-rose-600 shrink-0'}
-                                      />
-                                      <span>Delete Account</span>
-                                    </div>
-                                    {(acc.assigned_profiles || 0) > 0 && (
-                                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 font-semibold border border-amber-200/70">
-                                        Restricted
-                                      </span>
-                                    )}
-                                  </button>
-                                </div>
-                              </div>
-                            )}
                           </div>
                         </div>
                       </td>
@@ -479,6 +402,98 @@ export const InventoryView: React.FC = () => {
           )}
         </div>
       )}
+
+      {/* 3-Dots Account Action Menu Portal (Rendered outside table/tbody to prevent scrolling and clipping) */}
+      {(() => {
+        const activeAcc = accounts.find((a) => a.id === openMenuAccountId);
+        if (!activeAcc) return null;
+
+        return (
+          <PortalDropdown
+            isOpen={Boolean(activeAcc)}
+            onClose={() => setOpenMenuAccountId(null)}
+            triggerRef={accountMenuTriggerRef}
+            width={210}
+            className="divide-y divide-slate-100"
+          >
+            <div className="py-1">
+              {/* Edit Account */}
+              <button
+                id={`menu-edit-${activeAcc.id}`}
+                onClick={() => {
+                  setOpenMenuAccountId(null);
+                  handleOpenEditAccount(activeAcc);
+                }}
+                className="w-full px-3.5 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition font-medium"
+              >
+                <Pencil size={14} className="text-blue-600 shrink-0" />
+                <span>Edit Account</span>
+              </button>
+
+              {/* Profiles */}
+              <button
+                id={`menu-profiles-${activeAcc.id}`}
+                onClick={() => {
+                  setOpenMenuAccountId(null);
+                  handleViewProfiles(activeAcc);
+                }}
+                className="w-full px-3.5 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition font-medium"
+              >
+                <Users size={14} className="text-indigo-600 shrink-0" />
+                <span>Profiles ({activeAcc.assigned_profiles || 0}/{activeAcc.capacity})</span>
+              </button>
+
+              {/* Reveal Credentials */}
+              <button
+                id={`menu-reveal-${activeAcc.id}`}
+                onClick={() => {
+                  setOpenMenuAccountId(null);
+                  handleRevealCredentials(activeAcc.id);
+                }}
+                className="w-full px-3.5 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition font-medium"
+              >
+                <Key size={14} className="text-amber-600 shrink-0" />
+                <span>Reveal Credentials</span>
+              </button>
+            </div>
+
+            {/* Delete Account */}
+            <div className="py-1">
+              <button
+                id={`menu-delete-${activeAcc.id}`}
+                onClick={() => {
+                  setOpenMenuAccountId(null);
+                  handleDeleteAccount(activeAcc);
+                }}
+                disabled={(activeAcc.assigned_profiles || 0) > 0}
+                title={
+                  (activeAcc.assigned_profiles || 0) > 0
+                    ? `Cannot delete: ${activeAcc.assigned_profiles} active assigned profile(s)`
+                    : 'Delete Account'
+                }
+                className={`w-full px-3.5 py-2 text-xs flex items-center justify-between transition font-medium ${
+                  (activeAcc.assigned_profiles || 0) > 0
+                    ? 'text-slate-400 cursor-not-allowed hover:bg-transparent opacity-60'
+                    : 'text-rose-600 hover:bg-rose-50'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Trash2
+                    size={14}
+                    className={(activeAcc.assigned_profiles || 0) > 0 ? 'text-slate-400 shrink-0' : 'text-rose-600 shrink-0'}
+                  />
+                  <span>Delete Account</span>
+                </div>
+                {(activeAcc.assigned_profiles || 0) > 0 && (
+                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 font-semibold border border-amber-200/70">
+                    Restricted
+                  </span>
+                )}
+              </button>
+            </div>
+          </PortalDropdown>
+        );
+      })()}
 
       {/* Tab 2: License Keys */}
       {activeTab === 'licenses' && (

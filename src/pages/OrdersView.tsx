@@ -21,6 +21,7 @@ import { api } from '../api';
 import type { Order } from '../types';
 import { EditOrderModal } from '../components/EditOrderModal';
 import { useCurrency } from '../context/CurrencyContext';
+import { PortalDropdown } from '../components/PortalDropdown';
 
 interface OrdersViewProps {
   onOpenOrderBuilder: () => void;
@@ -101,6 +102,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
   const [loading, setLoading] = React.useState(true);
   const [statusFilter, setStatusFilter] = React.useState('active');
   const [activeMenuOrderId, setActiveMenuOrderId] = React.useState<string | null>(null);
+  const menuTriggerRef = React.useRef<HTMLButtonElement | null>(null);
   const [editingOrder, setEditingOrder] = React.useState<Order | null>(null);
   const [deleteRestrictedOrder, setDeleteRestrictedOrder] = React.useState<Order | null>(null);
   const [toast, setToast] = React.useState<ToastNotification | null>(null);
@@ -328,7 +330,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
             No orders found in {statusTabs.find((t) => t.id === statusFilter)?.label || 'this filter'}.
           </div>
         ) : (
-          <div className="overflow-x-auto min-h-[360px] pb-28">
+          <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
                 <tr className="bg-slate-50/60 border-b border-slate-100 text-slate-400 uppercase text-[10px] tracking-wider">
@@ -404,6 +406,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
+                                menuTriggerRef.current = e.currentTarget;
                                 setActiveMenuOrderId(activeMenuOrderId === o.id ? null : o.id);
                               }}
                               className={`p-1.5 rounded-xl border transition flex items-center justify-center ${
@@ -415,119 +418,6 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
                             >
                               <MoreVertical size={16} />
                             </button>
-
-                            {activeMenuOrderId === o.id && (
-                              <>
-                                {/* Invisible backdrop to dismiss menu on outside click */}
-                                <div
-                                  className="fixed inset-0 z-20 cursor-default"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setActiveMenuOrderId(null);
-                                  }}
-                                />
-
-                                <div
-                                  id={`order-dropdown-menu-${o.id}`}
-                                  className={`absolute right-0 w-56 bg-white rounded-2xl shadow-xl border border-slate-200/90 py-1.5 z-30 animate-in fade-in zoom-in-95 duration-100 text-left ${
-                                    index >= filteredOrders.length - 2 && filteredOrders.length > 2
-                                      ? 'bottom-full mb-1.5'
-                                      : 'top-full mt-1.5'
-                                  }`}
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  {/* View */}
-                                  <button
-                                    id={`action-view-${o.id}`}
-                                    onClick={() => {
-                                      setActiveMenuOrderId(null);
-                                      onViewOrder(o);
-                                    }}
-                                    className="w-full px-3.5 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition font-medium"
-                                  >
-                                    <Eye size={15} className="text-blue-600 shrink-0" />
-                                    <span>View Order & Receipt</span>
-                                  </button>
-
-                                  {/* Edit */}
-                                  <button
-                                    id={`action-edit-${o.id}`}
-                                    onClick={() => {
-                                      setActiveMenuOrderId(null);
-                                      setEditingOrder(o);
-                                    }}
-                                    className="w-full px-3.5 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition font-medium"
-                                  >
-                                    <Edit3 size={15} className="text-amber-600 shrink-0" />
-                                    <span>Edit Order</span>
-                                  </button>
-
-                                  {/* Contact via WhatsApp */}
-                                  <button
-                                    id={`action-whatsapp-${o.id}`}
-                                    onClick={() => {
-                                      setActiveMenuOrderId(null);
-                                      onComposeWhatsApp(o.id);
-                                    }}
-                                    className="w-full px-3.5 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition font-medium"
-                                  >
-                                    <MessageSquare size={15} className="text-emerald-600 shrink-0" />
-                                    <span>Contact via WhatsApp</span>
-                                  </button>
-
-                                  {/* Renewal */}
-                                  <button
-                                    id={`action-renew-${o.id}`}
-                                    onClick={async () => {
-                                      setActiveMenuOrderId(null);
-                                      await onRenewOrder(o.id);
-                                      await loadOrders();
-                                    }}
-                                    className="w-full px-3.5 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition font-medium"
-                                  >
-                                    <RefreshCw size={15} className="text-indigo-600 shrink-0" />
-                                    <span>Renew Subscription</span>
-                                  </button>
-
-
-
-                                  <div className="my-1 border-t border-slate-100" />
-
-                                  {/* Delete (Restricted for active/expiring orders) */}
-                                  {o.status === 'active' || o.status === 'expiring' ? (
-                                    <button
-                                      id={`action-delete-${o.id}`}
-                                      onClick={() => {
-                                        setActiveMenuOrderId(null);
-                                        handleRestrictedDelete(o);
-                                      }}
-                                      className="w-full px-3.5 py-2 text-xs text-slate-400 hover:bg-amber-50/50 flex items-center justify-between transition group"
-                                      title="Active orders cannot be deleted. Cancel first to free allocated assets."
-                                    >
-                                      <div className="flex items-center gap-2.5">
-                                        <Trash2 size={15} className="text-slate-300 group-hover:text-slate-400 shrink-0" />
-                                        <span>Delete Order</span>
-                                      </div>
-                                      <span className="text-[9px] font-bold uppercase tracking-wider text-amber-700 bg-amber-100/70 px-1.5 py-0.5 rounded border border-amber-200">
-                                        Restricted
-                                      </span>
-                                    </button>
-                                  ) : (
-                                    <button
-                                      id={`action-delete-${o.id}`}
-                                      onClick={() => {
-                                        setActiveMenuOrderId(null);
-                                        handleDelete(o);
-                                      }}
-                                      className="w-full px-3.5 py-2 text-xs text-rose-600 hover:bg-rose-50 flex items-center gap-2.5 transition font-medium"
-                                    >
-                                      <Trash2 size={15} className="text-rose-500 shrink-0" />
-                                      <span>Delete Order</span>
-                                    </button>
-                                  )}
-                                </div>
-                              </>
-                            )}
                           </div>
                         </div>
                       </td>
@@ -539,6 +429,109 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
           </div>
         )}
       </div>
+
+      {/* 3-Dots Dropdown Portal (Rendered outside table/tbody to prevent scrolling and clipping) */}
+      {(() => {
+        const activeOrder = orders.find((o) => o.id === activeMenuOrderId);
+        if (!activeOrder) return null;
+
+        return (
+          <PortalDropdown
+            isOpen={Boolean(activeOrder)}
+            onClose={() => setActiveMenuOrderId(null)}
+            triggerRef={menuTriggerRef}
+            width={220}
+          >
+            {/* View */}
+            <button
+              id={`action-view-${activeOrder.id}`}
+              onClick={() => {
+                setActiveMenuOrderId(null);
+                onViewOrder(activeOrder);
+              }}
+              className="w-full px-3.5 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition font-medium"
+            >
+              <Eye size={15} className="text-blue-600 shrink-0" />
+              <span>View Order & Receipt</span>
+            </button>
+
+            {/* Edit */}
+            <button
+              id={`action-edit-${activeOrder.id}`}
+              onClick={() => {
+                setActiveMenuOrderId(null);
+                setEditingOrder(activeOrder);
+              }}
+              className="w-full px-3.5 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition font-medium"
+            >
+              <Edit3 size={15} className="text-amber-600 shrink-0" />
+              <span>Edit Order</span>
+            </button>
+
+            {/* Contact via WhatsApp */}
+            <button
+              id={`action-whatsapp-${activeOrder.id}`}
+              onClick={() => {
+                setActiveMenuOrderId(null);
+                onComposeWhatsApp(activeOrder.id);
+              }}
+              className="w-full px-3.5 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition font-medium"
+            >
+              <MessageSquare size={15} className="text-emerald-600 shrink-0" />
+              <span>Contact via WhatsApp</span>
+            </button>
+
+            {/* Renewal */}
+            <button
+              id={`action-renew-${activeOrder.id}`}
+              onClick={async () => {
+                setActiveMenuOrderId(null);
+                await onRenewOrder(activeOrder.id);
+                await loadOrders();
+              }}
+              className="w-full px-3.5 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition font-medium"
+            >
+              <RefreshCw size={15} className="text-indigo-600 shrink-0" />
+              <span>Renew Subscription</span>
+            </button>
+
+            <div className="my-1 border-t border-slate-100" />
+
+            {/* Delete (Restricted for active/expiring orders) */}
+            {activeOrder.status === 'active' || activeOrder.status === 'expiring' ? (
+              <button
+                id={`action-delete-${activeOrder.id}`}
+                onClick={() => {
+                  setActiveMenuOrderId(null);
+                  handleRestrictedDelete(activeOrder);
+                }}
+                className="w-full px-3.5 py-2 text-xs text-slate-400 hover:bg-amber-50/50 flex items-center justify-between transition group"
+                title="Active orders cannot be deleted. Cancel first to free allocated assets."
+              >
+                <div className="flex items-center gap-2.5">
+                  <Trash2 size={15} className="text-slate-300 group-hover:text-slate-400 shrink-0" />
+                  <span>Delete Order</span>
+                </div>
+                <span className="text-[9px] font-bold uppercase tracking-wider text-amber-700 bg-amber-100/70 px-1.5 py-0.5 rounded border border-amber-200">
+                  Restricted
+                </span>
+              </button>
+            ) : (
+              <button
+                id={`action-delete-${activeOrder.id}`}
+                onClick={() => {
+                  setActiveMenuOrderId(null);
+                  handleDelete(activeOrder);
+                }}
+                className="w-full px-3.5 py-2 text-xs text-rose-600 hover:bg-rose-50 flex items-center gap-2.5 transition font-medium"
+              >
+                <Trash2 size={15} className="text-rose-500 shrink-0" />
+                <span>Delete Order</span>
+              </button>
+            )}
+          </PortalDropdown>
+        );
+      })()}
 
       {/* Edit Order Modal */}
       <EditOrderModal
