@@ -118,7 +118,8 @@ export const InventoryView: React.FC = () => {
         login: accLogin,
         password: accPassword,
         capacity: Number(accCapacity),
-        expiry_date: accExpiry || undefined
+        expiry_date: accExpiry || undefined,
+        create_profiles: true
       });
       setShowAddAccount(false);
       setAccLogin('');

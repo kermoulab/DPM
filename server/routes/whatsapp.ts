@@ -179,17 +179,42 @@ whatsappRouter.post('/compose', requireAuth, async (req: AuthenticatedRequest, r
     }
 
     const cleanPhone = rawPhone.replace(/[^\d+]/g, '').replace(/^00/, '+');
-    const endDateStr = order.end_date ? String(order.end_date).split('T')[0].split(' ')[0] : '';
-    const startDateStr = order.start_date ? String(order.start_date).split('T')[0].split(' ')[0] : '';
+    
+    // Robust date extraction handling Date objects, ISO strings, and SQL date strings
+    const toISODate = (val: any): string => {
+      if (!val) return '';
+      if (val instanceof Date && !isNaN(val.getTime())) {
+        const y = val.getUTCFullYear();
+        const m = String(val.getUTCMonth() + 1).padStart(2, '0');
+        const d = String(val.getUTCDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+      }
+      const s = String(val).trim();
+      if (s.includes('T')) return s.split('T')[0];
+      if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+      const parsed = new Date(s);
+      if (!isNaN(parsed.getTime())) {
+        const y = parsed.getUTCFullYear();
+        const m = String(parsed.getUTCMonth() + 1).padStart(2, '0');
+        const d = String(parsed.getUTCDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+      }
+      return '';
+    };
 
-    // Calculate real remaining / expired days
-    const today = new Date();
-    today.setUTCHours(0, 0, 0, 0);
-    const [ey, em, ed] = (endDateStr || '').split('-').map(Number);
+    const endDateStr = toISODate(order.end_date);
+    const startDateStr = toISODate(order.start_date);
+
+    // Calculate real remaining / expired days using pure UTC arithmetic
+    const now = new Date();
+    const todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
     let diffDays = 0;
-    if (ey && em && ed) {
-      const targetDate = new Date(Date.UTC(ey, em - 1, ed));
-      diffDays = Math.round((targetDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    if (endDateStr) {
+      const [ey, em, ed] = endDateStr.split('-').map(Number);
+      if (ey && em && ed) {
+        const targetUtc = Date.UTC(ey, em - 1, ed);
+        diffDays = Math.round((targetUtc - todayUtc) / (1000 * 60 * 60 * 24));
+      }
     }
     const daysRemaining = diffDays >= 0 ? String(diffDays) : '0';
     const daysExpired = diffDays < 0 ? String(Math.abs(diffDays)) : '0';

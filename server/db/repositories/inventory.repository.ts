@@ -46,7 +46,29 @@ export interface LicenseKeyRow {
 
 export class InventoryRepository {
   // Service Accounts
+  async reconcileServiceProfiles(): Promise<void> {
+    try {
+      await query(`
+        INSERT INTO service_profiles (id, service_account_id, profile_name, status, created_at)
+        SELECT 'prof-' || substr(md5(random()::text || clock_timestamp()::text || gs.n::text), 1, 8),
+               sa.id,
+               'Profile ' || gs.n,
+               'available',
+               CURRENT_TIMESTAMP
+        FROM service_accounts sa
+        CROSS JOIN LATERAL generate_series(
+          (SELECT COUNT(*) FROM service_profiles sp WHERE sp.service_account_id = sa.id) + 1,
+          sa.capacity
+        ) AS gs(n)
+        WHERE sa.capacity > (SELECT COUNT(*) FROM service_profiles sp WHERE sp.service_account_id = sa.id)
+      `);
+    } catch (err) {
+      console.error('[InventoryRepository] Failed to reconcile service profiles:', err);
+    }
+  }
+
   async findAccounts(filters?: { product_id?: string; status?: string }): Promise<ServiceAccountRow[]> {
+    await this.reconcileServiceProfiles();
     let sql = `
       SELECT sa.*, p.name as product_name,
              COUNT(sp.id)::int as profile_count,

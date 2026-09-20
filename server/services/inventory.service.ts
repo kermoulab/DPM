@@ -51,8 +51,8 @@ export class InventoryService {
         ]
       );
 
-      // Auto-create initial profiles atomically
-      if (payload.create_profiles) {
+      // Auto-create initial profiles atomically (defaulting to true)
+      if (payload.create_profiles !== false) {
         const profileNames = payload.profile_names || [];
         for (let i = 1; i <= capacity; i++) {
           const pName = profileNames[i - 1] || `Profile ${i}`;

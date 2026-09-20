@@ -98,6 +98,34 @@ export class OrderService {
           );
 
           if (profileRes.rows.length === 0) {
+            // Self-healing: if an active account exists for this product with capacity not yet created as profiles, create next profile
+            const unalloc = await client.query<{ id: string; capacity: number; count: string }>(
+              `SELECT sa.id, sa.capacity, COUNT(sp.id)::int as count
+               FROM service_accounts sa
+               LEFT JOIN service_profiles sp ON sp.service_account_id = sa.id
+               WHERE sa.product_id = $1 AND sa.status = 'active'
+               GROUP BY sa.id, sa.capacity
+               HAVING COUNT(sp.id) < sa.capacity
+               LIMIT 1
+               FOR UPDATE OF sa`,
+              [product.id]
+            );
+
+            if (unalloc.rows[0]) {
+              const acc = unalloc.rows[0];
+              const nextNum = Number(acc.count) + 1;
+              const newProfId = 'prof-' + crypto.randomUUID().slice(0, 8);
+              const insRes = await client.query<{ id: string; service_account_id: string; profile_name: string; pin: string }>(
+                `INSERT INTO service_profiles (id, service_account_id, profile_name, status, created_at)
+                 VALUES ($1, $2, $3, 'available', CURRENT_TIMESTAMP)
+                 RETURNING id, service_account_id, profile_name, pin`,
+                [newProfId, acc.id, `Profile ${nextNum}`]
+              );
+              profileRes.rows.push(insRes.rows[0]);
+            }
+          }
+
+          if (profileRes.rows.length === 0) {
             const err = new Error('Out of stock: No available profiles for this service account product.');
             (err as any).statusCode = 400;
             throw err;

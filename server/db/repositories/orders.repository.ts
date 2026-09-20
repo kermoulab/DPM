@@ -59,14 +59,14 @@ export class OrdersRepository {
       await query(`
         UPDATE orders
         SET status = 'expiring'
-        WHERE status = 'active'
+        WHERE status IN ('active', 'expired')
           AND end_date >= CURRENT_DATE
           AND end_date <= (CURRENT_DATE + INTERVAL '3 days')
       `);
       await query(`
         UPDATE orders
         SET status = 'active'
-        WHERE status = 'expiring'
+        WHERE status IN ('expiring', 'expired')
           AND end_date > (CURRENT_DATE + INTERVAL '3 days')
       `);
     } catch (err) {
@@ -78,6 +78,8 @@ export class OrdersRepository {
     await this.reconcileSubscriptionStatuses();
     let sql = `
       SELECT o.*,
+             o.start_date::text as start_date,
+             o.end_date::text as end_date,
              c.name as customer_name, c.email as customer_email, c.whatsapp as customer_whatsapp,
              p.name as product_name,
              pl.name as plan_name,
@@ -123,6 +125,8 @@ export class OrdersRepository {
     await this.reconcileSubscriptionStatuses();
     const res = await query<OrderRow>(
       `SELECT o.*,
+              o.start_date::text as start_date,
+              o.end_date::text as end_date,
               c.name as customer_name, c.email as customer_email, c.whatsapp as customer_whatsapp,
               p.name as product_name,
               pl.name as plan_name,
@@ -174,7 +178,24 @@ export class OrdersRepository {
   }
 
   async update(id: string, updates: Partial<OrderRow>): Promise<OrderRow | null> {
-    const res = await query<OrderRow>(
+    let newStatus = updates.status ?? null;
+    if (updates.end_date) {
+      const cleanEnd = String(updates.end_date).split('T')[0];
+      const today = new Date().toISOString().split('T')[0];
+      const threeDaysAhead = new Date();
+      threeDaysAhead.setUTCDate(threeDaysAhead.getUTCDate() + 3);
+      const limit = threeDaysAhead.toISOString().split('T')[0];
+
+      if (cleanEnd < today) {
+        newStatus = 'expired';
+      } else if (cleanEnd <= limit) {
+        newStatus = 'expiring';
+      } else {
+        newStatus = 'active';
+      }
+    }
+
+    await query<OrderRow>(
       `UPDATE orders
        SET status = COALESCE($1, status),
            payment_status = COALESCE($2, payment_status),
@@ -183,15 +204,16 @@ export class OrdersRepository {
            price = COALESCE($5, price),
            cost = COALESCE($6, cost),
            whatsapp_contacted_at = COALESCE($7, whatsapp_contacted_at)
-       WHERE id = $8
-       RETURNING *`,
+       WHERE id = $8`,
       [
-        updates.status ?? null, updates.payment_status ?? null, updates.payment_method ?? null,
-        updates.end_date ?? null, updates.price ?? null, updates.cost ?? null,
+        newStatus, updates.payment_status ?? null, updates.payment_method ?? null,
+        updates.end_date ? String(updates.end_date).split('T')[0] : null,
+        updates.price ?? null, updates.cost ?? null,
         updates.whatsapp_contacted_at ?? null, id
       ]
     );
-    return res.rows[0] || null;
+    await this.reconcileSubscriptionStatuses();
+    return this.findById(id);
   }
 
   async delete(id: string): Promise<boolean> {

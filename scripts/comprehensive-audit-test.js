@@ -134,8 +134,12 @@ async function runComprehensiveAudit() {
       'Past end_date transitions expiring order -> expired');
     assert(simulateReconciliation({ end_date: expiringDate, status: 'active' }) === 'expiring',
       'Order ending within 3 days transitions active -> expiring');
+    assert(simulateReconciliation({ end_date: expiringDate, status: 'expired' }) === 'expiring',
+      'Order ending within 3 days transitions expired -> expiring');
     assert(simulateReconciliation({ end_date: futureDate, status: 'expiring' }) === 'active',
       'Order ending > 3 days ahead transitions expiring -> active');
+    assert(simulateReconciliation({ end_date: futureDate, status: 'expired' }) === 'active',
+      'Order ending > 3 days ahead transitions expired -> active');
 
     // 1.8 Renewal date extension
     const previousActiveEnd = calculateEndDate(today, 10, 'days');
@@ -528,6 +532,26 @@ async function runComprehensiveAudit() {
     const dashRepoContent = fs.readFileSync(path.join(process.cwd(), 'server', 'db', 'repositories', 'dashboard.repository.ts'), 'utf8');
     assert(dashRepoContent.includes('reconcileSubscriptionStatuses'),
       'dashboard.repository.ts synchronizes subscription statuses before computing metrics');
+
+    // Inspect inventory.repository.ts for profile reconciliation
+    const inventoryRepoContent = fs.readFileSync(path.join(process.cwd(), 'server', 'db', 'repositories', 'inventory.repository.ts'), 'utf8');
+    assert(inventoryRepoContent.includes('reconcileServiceProfiles'),
+      'inventory.repository.ts defines reconcileServiceProfiles self-healing logic');
+
+    // Inspect inventory.service.ts for automatic profile creation
+    const inventoryServiceContent = fs.readFileSync(path.join(process.cwd(), 'server', 'services', 'inventory.service.ts'), 'utf8');
+    assert(inventoryServiceContent.includes('payload.create_profiles !== false'),
+      'inventory.service.ts defaults create_profiles to true on account creation');
+
+    // Inspect order.service.ts for on-the-fly profile generation
+    const orderServiceContent = fs.readFileSync(path.join(process.cwd(), 'server', 'services', 'order.service.ts'), 'utf8');
+    assert(orderServiceContent.includes('HAVING COUNT(sp.id) < sa.capacity'),
+      'order.service.ts allocates profiles on-the-fly from active accounts with available capacity');
+
+    // Inspect EditOrderModal.tsx for date input normalization and status sync
+    const editModalContent = fs.readFileSync(path.join(process.cwd(), 'src', 'components', 'EditOrderModal.tsx'), 'utf8');
+    assert(editModalContent.includes('formatDateForInput') && editModalContent.includes('calculateStatusForEndDate'),
+      'EditOrderModal normalizes start/end dates for native date inputs and auto-reconciles status');
 
     // Inspect alerts.ts for reconciliation
     const alertsRouteContent = fs.readFileSync(path.join(process.cwd(), 'server', 'routes', 'alerts.ts'), 'utf8');

@@ -10,6 +10,34 @@ interface EditOrderModalProps {
   onOrderUpdated: (updated: Order) => void;
 }
 
+const formatDateForInput = (d: any): string => {
+  if (!d) return '';
+  if (typeof d === 'string') {
+    if (d.includes('T')) return d.split('T')[0];
+    if (d.includes(' ')) return d.split(' ')[0];
+    return d.slice(0, 10);
+  }
+  if (d instanceof Date && !isNaN(d.getTime())) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+  return '';
+};
+
+const calculateStatusForEndDate = (dateStr: string): 'active' | 'expiring' | 'expired' => {
+  if (!dateStr) return 'active';
+  const clean = dateStr.split('T')[0];
+  const today = new Date().toISOString().split('T')[0];
+  if (clean < today) return 'expired';
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + 3);
+  const threeDays = d.toISOString().split('T')[0];
+  if (clean <= threeDays) return 'expiring';
+  return 'active';
+};
+
 export const EditOrderModal: React.FC<EditOrderModalProps> = ({
   isOpen,
   order,
@@ -59,8 +87,9 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
       setCustomerId(order.customer_id || '');
       setProductId(order.product_id || '');
       setPlanId(order.plan_id || '');
-      setStartDate(order.start_date || '');
-      setEndDate(order.end_date || '');
+      setStartDate(formatDateForInput(order.start_date));
+      const formattedEnd = formatDateForInput(order.end_date);
+      setEndDate(formattedEnd);
       setPrice(order.price !== undefined ? String(order.price) : '0');
       setPaymentStatus((order.payment_status as any) || 'paid');
       setPaymentMethod(order.payment_method || 'cash');
@@ -136,7 +165,9 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
     try {
       const calc = await api.calculateDates(targetPlanId, targetStartDate);
       if (calc.end_date) {
-        setEndDate(calc.end_date);
+        const formattedEnd = formatDateForInput(calc.end_date);
+        setEndDate(formattedEnd);
+        setStatus(calculateStatusForEndDate(formattedEnd));
       }
       if (calc.price !== undefined && (!price || price === '0')) {
         setPrice(String(calc.price));
@@ -170,6 +201,7 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
       if (res.order) {
         onOrderUpdated(res.order);
       }
+      window.dispatchEvent(new CustomEvent('app:data-mutated'));
       onClose();
     } catch (err: any) {
       setError(err.message || 'Failed to update order');
@@ -306,7 +338,11 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
                 type="date"
                 required
                 value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setEndDate(val);
+                  setStatus(calculateStatusForEndDate(val));
+                }}
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-hidden focus:bg-white focus:border-blue-500"
               />
             </div>
