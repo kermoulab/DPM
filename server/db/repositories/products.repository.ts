@@ -17,6 +17,7 @@ export interface ProductRow {
   image_url?: string | null;
   stock_limit?: number | null;
   created_at: string;
+  plan_count?: number;
   plans_count?: number;
   active_orders_count?: number;
   available_inventory?: number;
@@ -27,10 +28,11 @@ export class ProductsRepository {
   async findAll(filters?: { category_id?: string; search?: string; status?: string }): Promise<ProductRow[]> {
     let sql = `
       SELECT p.*, c.name as category_name, c.slug as category_slug,
-             COUNT(DISTINCT pl.id)::int as plans_count
+             COUNT(DISTINCT pl.id)::int as plans_count,
+             COUNT(DISTINCT pl.id)::int as plan_count
       FROM products p
       JOIN categories c ON c.id = p.category_id
-      LEFT JOIN plans pl ON pl.product_id = p.id AND pl.status = 'active'
+      LEFT JOIN plans pl ON pl.product_id = p.id
       WHERE 1=1
     `;
     const params: any[] = [];
@@ -59,10 +61,14 @@ export class ProductsRepository {
 
   async findById(id: string): Promise<ProductRow | null> {
     const res = await query<ProductRow>(
-      `SELECT p.*, c.name as category_name, c.slug as category_slug
+      `SELECT p.*, c.name as category_name, c.slug as category_slug,
+              COUNT(DISTINCT pl.id)::int as plans_count,
+              COUNT(DISTINCT pl.id)::int as plan_count
        FROM products p
        JOIN categories c ON c.id = p.category_id
-       WHERE p.id = $1`,
+       LEFT JOIN plans pl ON pl.product_id = p.id
+       WHERE p.id = $1
+       GROUP BY p.id, c.id`,
       [id]
     );
     return res.rows[0] || null;

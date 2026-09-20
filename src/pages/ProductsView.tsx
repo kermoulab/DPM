@@ -241,6 +241,13 @@ export const ProductsView: React.FC = () => {
       const res = await api.getPlans(activePlanProduct.id);
       setPlans(res.plans);
       setNewPlanName('');
+      setProducts((prev) =>
+        prev.map((p) =>
+          p.id === activePlanProduct.id
+            ? { ...p, plan_count: res.plans.length, plans_count: res.plans.length }
+            : p
+        )
+      );
       window.dispatchEvent(new CustomEvent('app:data-mutated'));
       loadData(false);
     } catch (err: any) {
@@ -258,6 +265,13 @@ export const ProductsView: React.FC = () => {
       if (activePlanProduct) {
         const res = await api.getPlans(activePlanProduct.id);
         setPlans(res.plans);
+        setProducts((prev) =>
+          prev.map((p) =>
+            p.id === activePlanProduct.id
+              ? { ...p, plan_count: res.plans.length, plans_count: res.plans.length }
+              : p
+          )
+        );
       }
       window.dispatchEvent(new CustomEvent('app:data-mutated'));
       loadData(false);
@@ -717,7 +731,7 @@ export const ProductsView: React.FC = () => {
               {/* Bottom stats & Manage Plans button */}
               <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
                 <div className="text-xs text-slate-500">
-                  <span className="font-semibold text-slate-800">{p.plan_count || 0}</span> plans configured
+                  <span className="font-semibold text-slate-800">{p.plan_count ?? p.plans_count ?? 0}</span> plans configured
                 </div>
                 <button
                   onClick={() => handleOpenPlans(p)}
@@ -1821,7 +1835,7 @@ export const ProductsView: React.FC = () => {
                 This action will delete the product, its unassigned subscription plans, and associated credentials from the catalog.
               </p>
               <div className="pt-1 text-[11px] text-slate-500 flex items-center gap-2">
-                <span>Plans configured: <strong className="text-slate-800">{deletingProduct.plan_count || 0}</strong></span>
+                <span>Plans configured: <strong className="text-slate-800">{deletingProduct.plan_count ?? deletingProduct.plans_count ?? 0}</strong></span>
                 <span>•</span>
                 <span>Category: <strong className="text-slate-800">{deletingProduct.category_name}</strong></span>
               </div>

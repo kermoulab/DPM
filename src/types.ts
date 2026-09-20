@@ -51,6 +51,7 @@ export interface Product {
   icon?: string;
   image_url?: string;
   plan_count?: number;
+  plans_count?: number;
   account_count?: number;
   license_count?: number;
   stock_limit?: number | null;

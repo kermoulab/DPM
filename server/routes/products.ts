@@ -21,8 +21,11 @@ productsRouter.get('/', requireAuth, async (req, res, next) => {
     const products = await Promise.all(
       rawProducts.map(async (p) => {
         const inv = await productsRepo.getInventoryCounts(p.id, p.fulfillment_type);
+        const count = Number(p.plan_count ?? p.plans_count ?? 0);
         return {
           ...p,
+          plan_count: count,
+          plans_count: count,
           available_inventory: inv.available,
           in_stock: inv.available > 0
         };
