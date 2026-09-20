@@ -121,7 +121,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
       window.dispatchEvent(new CustomEvent('app:data-mutated'));
       await loadCustomers(false);
     } catch (err: any) {
-      alert(err.message || 'Failed to create customer');
+      setToastMessage(err.message || 'Failed to create customer');
     }
   };
 
@@ -155,7 +155,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
       window.dispatchEvent(new CustomEvent('app:data-mutated'));
       await loadCustomers(false);
     } catch (err: any) {
-      alert(err.message || 'Failed to update customer');
+      setToastMessage(err.message || 'Failed to update customer');
       await loadCustomers(false);
     }
   };
@@ -176,7 +176,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
       setCustomers((prev) =>
         prev.map((c) => (c.id === cust.id ? { ...c, status: cust.status } : c))
       );
-      alert(err.message || 'Failed to update customer status');
+      setToastMessage(err.message || 'Failed to update customer status');
     }
   };
 
@@ -193,7 +193,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
       window.dispatchEvent(new CustomEvent('app:data-mutated'));
       await loadCustomers(false);
     } catch (err: any) {
-      alert(err.message || 'Failed to delete customer');
+      setToastMessage(err.message || 'Failed to delete customer');
       await loadCustomers(false);
     }
   };

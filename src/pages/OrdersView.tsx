@@ -30,7 +30,7 @@ interface OrdersViewProps {
   onRenewOrder: (orderId: string) => Promise<any> | void;
 }
 
-export type OrderStatus =  'active' | 'expiring' | 'expired' ;
+export type OrderStatus = 'active' | 'expiring' | 'expired' | 'pending' | 'cancelled' | 'completed';
 
 export interface StatusConfig {
   label: string;
@@ -82,6 +82,39 @@ export const ORDER_STATUS_CONFIG: Record<OrderStatus, StatusConfig> = {
     activeTabClass: 'bg-rose-600 text-white shadow-xs',
     tabBadgeClass: 'bg-rose-100 text-rose-700',
     description: 'Subscription term ended'
+  },
+  pending: {
+    label: 'Pending',
+    badgeBg: 'bg-slate-50',
+    badgeText: 'text-slate-700',
+    badgeBorder: 'border-slate-200',
+    selectClass: 'bg-slate-50 text-slate-700 border-slate-300 hover:bg-slate-100/80 focus:ring-slate-400',
+    dotClass: 'bg-slate-400',
+    activeTabClass: 'bg-slate-600 text-white shadow-xs',
+    tabBadgeClass: 'bg-slate-100 text-slate-700',
+    description: 'Awaiting fulfillment'
+  },
+  cancelled: {
+    label: 'Cancelled',
+    badgeBg: 'bg-zinc-100',
+    badgeText: 'text-zinc-600',
+    badgeBorder: 'border-zinc-300',
+    selectClass: 'bg-zinc-100 text-zinc-600 border-zinc-300 hover:bg-zinc-200/80 focus:ring-zinc-400',
+    dotClass: 'bg-zinc-400',
+    activeTabClass: 'bg-zinc-700 text-white shadow-xs',
+    tabBadgeClass: 'bg-zinc-200 text-zinc-700',
+    description: 'Order cancelled and stock released'
+  },
+  completed: {
+    label: 'Completed',
+    badgeBg: 'bg-blue-50',
+    badgeText: 'text-blue-700',
+    badgeBorder: 'border-blue-200',
+    selectClass: 'bg-blue-50 text-blue-700 border-blue-300 hover:bg-blue-100/80 focus:ring-blue-400',
+    dotClass: 'bg-blue-500',
+    activeTabClass: 'bg-blue-600 text-white shadow-xs',
+    tabBadgeClass: 'bg-blue-100 text-blue-700',
+    description: 'Order completed'
   }
 };
 
@@ -171,7 +204,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
       window.dispatchEvent(new CustomEvent('app:data-mutated'));
       loadOrders(false);
     } catch (err: any) {
-      alert(err.message || 'Failed to delete order.');
+      setToast({ message: err.message || 'Failed to delete order.' });
       loadOrders(false);
     }
   };
@@ -236,7 +269,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
         });
       }
     } catch (err: any) {
-      alert(err.message || 'Failed to update order status');
+      setToast({ message: err.message || 'Failed to update order status' });
       loadOrders(false); // Rollback on error
     } finally {
       setUpdatingOrderId(null);

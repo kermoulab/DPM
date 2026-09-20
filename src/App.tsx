@@ -218,7 +218,7 @@ export default function App() {
       await loadAppData();
       return res;
     } catch (err: any) {
-      alert(err.message || 'Failed to renew order.');
+      console.error('Failed to renew order:', err);
       throw err;
     }
   };

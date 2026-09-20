@@ -1,4 +1,4 @@
-import { query } from '../connection/pool.js';
+import { query, transaction } from '../connection/pool.js';
 
 export interface OrderRow {
   id: string;
@@ -195,8 +195,34 @@ export class OrdersRepository {
   }
 
   async delete(id: string): Promise<boolean> {
-    const res = await query('DELETE FROM orders WHERE id = $1', [id]);
-    return (res.rowCount ?? 0) > 0;
+    return await transaction(async (client) => {
+      const orderRes = await client.query<OrderRow>('SELECT * FROM orders WHERE id = $1 FOR UPDATE', [id]);
+      const order = orderRes.rows[0];
+      if (!order) return false;
+
+      // Release assigned profile if any
+      if (order.assigned_profile_id) {
+        await client.query(
+          `UPDATE service_profiles
+           SET status = 'available', assigned_customer_id = NULL, assigned_order_id = NULL
+           WHERE id = $1`,
+          [order.assigned_profile_id]
+        );
+      }
+
+      // Release assigned license key if any
+      if (order.assigned_license_key_id) {
+        await client.query(
+          `UPDATE license_keys
+           SET status = 'available', assigned_customer_id = NULL, assigned_order_id = NULL
+           WHERE id = $1`,
+          [order.assigned_license_key_id]
+        );
+      }
+
+      const res = await client.query('DELETE FROM orders WHERE id = $1', [id]);
+      return (res.rowCount ?? 0) > 0;
+    });
   }
 
   async getStatusCounts(): Promise<Record<string, number>> {

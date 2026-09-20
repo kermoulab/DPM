@@ -13,7 +13,8 @@ import {
   Sparkles,
   Phone,
   X,
-  MessageSquare
+  MessageSquare,
+  Globe
 } from 'lucide-react';
 import { api } from '../api';
 
@@ -133,6 +134,22 @@ export const AlertsView: React.FC<AlertsViewProps> = ({
   const [savePhone, setSavePhone] = React.useState(true);
   const [phoneSubmitting, setPhoneSubmitting] = React.useState(false);
 
+  // WhatsApp message language selection (EN, FR, AR, RU)
+  const [selectedLang, setSelectedLang] = React.useState<'en' | 'fr' | 'ar' | 'ru'>(() => {
+    try {
+      return (localStorage.getItem('alerts_wa_lang') as any) || 'en';
+    } catch {
+      return 'en';
+    }
+  });
+
+  const handleSelectLang = (l: 'en' | 'fr' | 'ar' | 'ru') => {
+    setSelectedLang(l);
+    try {
+      localStorage.setItem('alerts_wa_lang', l);
+    } catch {}
+  };
+
   React.useEffect(() => {
     loadAlerts(true);
   }, []);
@@ -204,7 +221,8 @@ export const AlertsView: React.FC<AlertsViewProps> = ({
     try {
       const res = await api.composeWhatsApp({
         order_id: order.id,
-        event_type: eventType
+        event_type: eventType,
+        language: selectedLang
       });
 
       if (res.waUrl) {
@@ -247,6 +265,7 @@ export const AlertsView: React.FC<AlertsViewProps> = ({
       const res = await api.composeWhatsApp({
         order_id: order.id,
         event_type: eventType,
+        language: selectedLang,
         phone: phoneInput.trim(),
         save_phone: savePhone
       });
@@ -275,7 +294,10 @@ export const AlertsView: React.FC<AlertsViewProps> = ({
       setPhonePrompt(null);
     } catch (err: any) {
       console.error('Failed to send WhatsApp after entering phone:', err);
-      alert(err.message || 'Failed to prepare WhatsApp message with provided number.');
+      setFeedback({
+        type: 'error',
+        message: err.message || 'Failed to prepare WhatsApp message with provided number.'
+      });
     } finally {
       setPhoneSubmitting(false);
     }
@@ -302,10 +324,29 @@ export const AlertsView: React.FC<AlertsViewProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
+          {/* WhatsApp Template Language Selector */}
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/80 text-xs">
+            <Globe size={13} className="text-slate-400 ml-1.5 mr-0.5" />
+            {(['en', 'fr', 'ar', 'ru'] as const).map((l) => (
+              <button
+                key={l}
+                onClick={() => handleSelectLang(l)}
+                className={`px-2 py-1 rounded-lg font-bold text-[11px] transition cursor-pointer uppercase ${
+                  selectedLang === l
+                    ? 'bg-white text-emerald-700 shadow-2xs'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+                title={`Send WhatsApp notifications in ${l.toUpperCase()}`}
+              >
+                {l}
+              </button>
+            ))}
+          </div>
+
           <button
             onClick={() => loadAlerts(true)}
             disabled={loading}
-            className="px-3.5 py-2 rounded-xl border border-slate-200 text-slate-700 font-medium text-xs hover:bg-slate-50 flex items-center gap-1.5 transition shadow-2xs"
+            className="px-3.5 py-2 rounded-xl border border-slate-200 text-slate-700 font-medium text-xs hover:bg-slate-50 flex items-center gap-1.5 transition shadow-2xs cursor-pointer"
           >
             <RefreshCw size={14} className={loading ? 'animate-spin text-blue-600' : ''} />
             <span>Refresh</span>
@@ -699,6 +740,28 @@ export const AlertsView: React.FC<AlertsViewProps> = ({
                 <label htmlFor="save-customer-phone" className="text-xs text-slate-600 cursor-pointer">
                   Save this phone number to customer record for future alerts
                 </label>
+              </div>
+
+              <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-200/80 text-xs">
+                <span className="text-slate-600 font-medium flex items-center gap-1.5 text-[11px]">
+                  <Globe size={13} className="text-slate-400" /> Template Language:
+                </span>
+                <div className="flex items-center gap-1">
+                  {(['en', 'fr', 'ar', 'ru'] as const).map((l) => (
+                    <button
+                      type="button"
+                      key={l}
+                      onClick={() => handleSelectLang(l)}
+                      className={`px-2 py-0.5 rounded font-bold text-[10px] uppercase transition cursor-pointer ${
+                        selectedLang === l
+                          ? 'bg-emerald-600 text-white shadow-2xs'
+                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {l}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div className="flex items-center gap-2 pt-2">

@@ -45,7 +45,15 @@ export const InventoryView: React.FC = () => {
   const [savingEdit, setSavingEdit] = React.useState(false);
 
   // Notification message
-  const [toastMessage, setToastMessage] = React.useState<string | null>(null);
+  const [toastMessage, setToastMessage] = React.useState<{ text: string; isError?: boolean } | null>(null);
+  const showToast = (text: string, isError = false) => {
+    setToastMessage({ text, isError });
+    setTimeout(() => setToastMessage(null), 4000);
+  };
+
+  // Delete Account Confirmation Modal
+  const [accountToDelete, setAccountToDelete] = React.useState<ServiceAccount | null>(null);
+  const [deletingAccount, setDeletingAccount] = React.useState(false);
 
   // Modals state
   const [showAddAccount, setShowAddAccount] = React.useState(false);
@@ -118,7 +126,7 @@ export const InventoryView: React.FC = () => {
       window.dispatchEvent(new CustomEvent('app:data-mutated'));
       loadData(false);
     } catch (err: any) {
-      alert(err.message);
+      showToast(err.message || 'Failed to create account.', true);
     }
   };
 
@@ -127,7 +135,7 @@ export const InventoryView: React.FC = () => {
       const res = await api.revealCredentials(accountId);
       setRevealedCreds(res);
     } catch (err: any) {
-      alert(err.message);
+      showToast(err.message || 'Failed to reveal credentials.', true);
     }
   };
 
@@ -159,39 +167,40 @@ export const InventoryView: React.FC = () => {
         notes: editNotes || null
       });
       setEditAccount(null);
-      setToastMessage(`Account ${editLogin} updated successfully in database.`);
-      setTimeout(() => setToastMessage(null), 3500);
+      showToast(`Account ${editLogin} updated successfully in database.`);
       window.dispatchEvent(new CustomEvent('app:data-mutated'));
       await loadData(false);
     } catch (err: any) {
-      alert(err.message || 'Failed to update service account.');
+      showToast(err.message || 'Failed to update service account.', true);
     } finally {
       setSavingEdit(false);
     }
   };
 
-  const handleDeleteAccount = async (acc: ServiceAccount) => {
+  const handleDeleteAccount = (acc: ServiceAccount) => {
     if ((acc.assigned_profiles || 0) > 0) {
-      alert(
-        `Cannot delete service account "${acc.login}". It has ${acc.assigned_profiles} active assigned profile(s). Please unassign or cancel the associated subscriptions before deleting this account from the database.`
+      showToast(
+        `Cannot delete service account "${acc.login}". It has ${acc.assigned_profiles} active assigned profile(s). Please unassign or cancel the associated subscriptions before deleting this account.`,
+        true
       );
       return;
     }
-    if (
-      !window.confirm(
-        `Are you sure you want to delete service account "${acc.login}" (${acc.provider})? This operation will remove it from the database.`
-      )
-    ) {
-      return;
-    }
+    setAccountToDelete(acc);
+  };
+
+  const handleConfirmDeleteAccount = async () => {
+    if (!accountToDelete) return;
+    setDeletingAccount(true);
     try {
-      const res = await api.deleteAccount(acc.id);
-      setToastMessage(res.message || 'Account deleted from database.');
-      setTimeout(() => setToastMessage(null), 3500);
+      const res = await api.deleteAccount(accountToDelete.id);
+      showToast(res.message || 'Account deleted from database.');
+      setAccountToDelete(null);
       window.dispatchEvent(new CustomEvent('app:data-mutated'));
       await loadData(false);
     } catch (err: any) {
-      alert(err.message || 'Failed to delete service account.');
+      showToast(err.message || 'Failed to delete service account.', true);
+    } finally {
+      setDeletingAccount(false);
     }
   };
 
@@ -215,12 +224,11 @@ export const InventoryView: React.FC = () => {
       });
       setShowAddLicenses(false);
       setLicBulkKeys('');
-      setToastMessage(`Successfully added ${res.count} license key${res.count === 1 ? '' : 's'} to stock.`);
-      setTimeout(() => setToastMessage(null), 4000);
+      showToast(`Successfully added ${res.count} license key${res.count === 1 ? '' : 's'} to stock.`);
       window.dispatchEvent(new CustomEvent('app:data-mutated'));
       loadData(false);
     } catch (err: any) {
-      alert(err.message);
+      showToast(err.message || 'Failed to add license keys.', true);
     }
   };
 
@@ -258,14 +266,28 @@ export const InventoryView: React.FC = () => {
 
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-2xl text-xs font-semibold flex items-center justify-between shadow-xs transition">
+        <div
+          className={`border px-4 py-3 rounded-2xl text-xs font-semibold flex items-center justify-between shadow-xs transition ${
+            toastMessage.isError
+              ? 'bg-rose-50 border-rose-200 text-rose-800'
+              : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+          }`}
+        >
           <div className="flex items-center gap-2">
-            <Check size={16} className="text-emerald-600" />
-            <span>{toastMessage}</span>
+            {toastMessage.isError ? (
+              <AlertTriangle size={16} className="text-rose-600 shrink-0" />
+            ) : (
+              <Check size={16} className="text-emerald-600 shrink-0" />
+            )}
+            <span>{toastMessage.text}</span>
           </div>
           <button
             onClick={() => setToastMessage(null)}
-            className="text-emerald-600 hover:text-emerald-900 p-1"
+            className={`p-1 ${
+              toastMessage.isError
+                ? 'text-rose-600 hover:text-rose-900'
+                : 'text-emerald-600 hover:text-emerald-900'
+            }`}
           >
             <X size={14} />
           </button>
@@ -934,6 +956,48 @@ export const InventoryView: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Account Confirmation Modal */}
+      {accountToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-2xl bg-rose-50 flex items-center justify-center text-rose-600 shrink-0">
+                <Trash2 size={20} />
+              </div>
+              <div>
+                <h3 className="font-bold text-sm text-slate-900">Delete Service Account</h3>
+                <p className="text-xs text-slate-500">
+                  Are you sure you want to delete <span className="font-semibold text-slate-800">{accountToDelete.login}</span> ({accountToDelete.provider})?
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-500 bg-slate-50 p-3 rounded-2xl border border-slate-100">
+              This action will permanently delete this service account and its empty profiles from the database. This action cannot be undone.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setAccountToDelete(null)}
+                disabled={deletingAccount}
+                className="px-4 py-2 border border-slate-200 rounded-xl text-xs text-slate-600 hover:bg-slate-50 transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteAccount}
+                disabled={deletingAccount}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-semibold shadow-xs disabled:opacity-50 transition"
+              >
+                {deletingAccount ? 'Deleting...' : 'Delete Account'}
+              </button>
+            </div>
           </div>
         </div>
       )}

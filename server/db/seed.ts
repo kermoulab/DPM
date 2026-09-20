@@ -134,21 +134,36 @@ export async function seedDevelopmentData(pool: pg.Pool): Promise<void> {
       );
     }
 
-    // 6. WhatsApp Templates (English, French, Arabic, Russian)
+    // 6. WhatsApp Templates (English, French, Arabic, Russian across all 3 categories)
     const templates = [
-      { id: 'tpl-order-en', name: 'Order Confirmation (EN)', event: 'order_confirmation', lang: 'en', content: 'Hello {{customer_name}}, your order #{{order_number}} for {{product_name}} is confirmed! Access details: {{credentials}}. Valid until {{end_date}}. Thank you!' },
-      { id: 'tpl-order-fr', name: 'Confirmation de Commande (FR)', event: 'order_confirmation', lang: 'fr', content: 'Bonjour {{customer_name}}, votre commande #{{order_number}} pour {{product_name}} est confirmée! Vos identifiants: {{credentials}}. Valable jusqu au {{end_date}}.' },
-      { id: 'tpl-order-ar', name: 'تأكيد الطلب (AR)', event: 'order_confirmation', lang: 'ar', content: 'مرحباً {{customer_name}}، تم تأكيد طلبك رقم #{{order_number}} لخدمة {{product_name}}! بيانات الدخول: {{credentials}}. تاريخ الانتهاء: {{end_date}}.' },
-      { id: 'tpl-expiry-en', name: 'Subscription Expiry (EN)', event: 'subscription_expiring', lang: 'en', content: 'Hello {{customer_name}}, your subscription for {{product_name}} will expire on {{end_date}}. Please renew to avoid service interruption.' },
-      { id: 'tpl-expiry-fr', name: 'Expiration d Abonnement (FR)', event: 'subscription_expiring', lang: 'fr', content: 'Bonjour {{customer_name}}, votre abonnement à {{product_name}} expire le {{end_date}}. Contactez-nous pour renouveler.' },
-      { id: 'tpl-expiry-ar', name: 'تنبيه انتهاء الاشتراك (AR)', event: 'subscription_expiring', lang: 'ar', content: 'مرحباً {{customer_name}}، سينتهي اشتراكك في {{product_name}} بتاريخ {{end_date}}. يرجى التواصل معنا للتجديد.' }
+      // Order Created / Delivery
+      { id: 'tpl-order-en', name: 'Order Delivery (EN)', event: 'order_created', lang: 'en', content: 'Hello {{customer_name}}! Thank you for your order of {{product_name}} ({{plan_name}}). Your access is active until {{end_date}}. Order ID: #{{order_number}}.\n\nAccess Details:\n{{credentials}}\n\nThank you!' },
+      { id: 'tpl-order-fr', name: 'Confirmation de Commande (FR)', event: 'order_created', lang: 'fr', content: 'Bonjour {{customer_name}}! Merci pour votre commande de {{product_name}} ({{plan_name}}). Votre accès est actif jusqu au {{end_date}}. Commande #{{order_number}}.\n\nIdentifiants:\n{{credentials}}' },
+      { id: 'tpl-order-ar', name: 'تسليم الطلب (AR)', event: 'order_created', lang: 'ar', content: 'مرحباً {{customer_name}}! شكراً لطلبك {{product_name}} ({{plan_name}}). اشتراكك مفعّل حتى {{end_date}}. رقم الطلب: #{{order_number}}.\n\nبيانات الدخول:\n{{credentials}}' },
+      { id: 'tpl-order-ru', name: 'Доставка заказа (RU)', event: 'order_created', lang: 'ru', content: 'Здравствуйте, {{customer_name}}! Спасибо за заказ {{product_name}} ({{plan_name}}). Доступ активен до {{end_date}}. Заказ #{{order_number}}.\n\nДанные:\n{{credentials}}' },
+
+      // Order Expiring / Reminder
+      { id: 'tpl-expiring-en', name: 'Subscription Expiring (EN)', event: 'order_expiring', lang: 'en', content: 'Dear {{customer_name}}, your subscription for {{product_name}} ({{plan_name}}) will expire in {{days_remaining}} days on {{end_date}}. Order #{{order_number}}. Please reply to renew now and ensure uninterrupted service!' },
+      { id: 'tpl-expiring-fr', name: 'Rappel Expiration (FR)', event: 'order_expiring', lang: 'fr', content: 'Bonjour {{customer_name}}, votre abonnement pour {{product_name}} ({{plan_name}}) expire dans {{days_remaining}} jours, le {{end_date}}. Commande #{{order_number}}. Répondez pour renouveler et éviter toute coupure!' },
+      { id: 'tpl-expiring-ar', name: 'تذكير بقرب الانتهاء (AR)', event: 'order_expiring', lang: 'ar', content: 'مرحباً {{customer_name}}، نود تذكيرك بأن اشتراكك في {{product_name}} ({{plan_name}}) سينتهي خلال {{days_remaining}} أيام بتاريخ {{end_date}}. رقم الطلب: #{{order_number}}. يرجى الرد لتجديد اشتراكك!' },
+      { id: 'tpl-expiring-ru', name: 'Напоминание об истечении (RU)', event: 'order_expiring', lang: 'ru', content: 'Уважаемый(ая) {{customer_name}}, ваша подписка на {{product_name}} ({{plan_name}}) истекает через {{days_remaining}} дн. ({{end_date}}). Заказ #{{order_number}}. Напишите нам для продления!' },
+
+      // Order Expired / Follow-up
+      { id: 'tpl-expired-en', name: 'Expired Subscription (EN)', event: 'order_expired', lang: 'en', content: 'Hello {{customer_name}}, your subscription for {{product_name}} ({{plan_name}}) has expired on {{end_date}}. Order #{{order_number}}. Would you like to renew your access today? Reply to this message to reactivate immediately!' },
+      { id: 'tpl-expired-fr', name: 'Abonnement Expiré (FR)', event: 'order_expired', lang: 'fr', content: 'Bonjour {{customer_name}}, votre abonnement pour {{product_name}} ({{plan_name}}) est désormais expiré (terminé le {{end_date}}). Commande #{{order_number}}. Souhaitez-vous renouveler votre accès aujourd\'hui ? Répondez pour le réactiver immédiatement!' },
+      { id: 'tpl-expired-ar', name: 'انتهاء الاشتراك وتجديده (AR)', event: 'order_expired', lang: 'ar', content: 'مرحباً {{customer_name}}، لقد انتهت صلاحية اشتراكك في {{product_name}} ({{plan_name}}) بتاريخ {{end_date}}. رقم الطلب #{{order_number}}. هل ترغب في تجديد اشتراكك اليوم؟ تواصل معنا للرد وإعادة التفعيل فوراً!' },
+      { id: 'tpl-expired-ru', name: 'Истекший доступ (RU)', event: 'order_expired', lang: 'ru', content: 'Здравствуйте, {{customer_name}}! Срок действия вашей подписки на {{product_name}} ({{plan_name}}) по заказу #{{order_number}} истек ({{end_date}}). Хотите продлить доступ прямо сейчас? Ответьте, чтобы возобновить подписку!' }
     ];
 
     for (const t of templates) {
       await client.query(
         `INSERT INTO notification_templates (id, name, event_type, language, content, created_at)
          VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
-         ON CONFLICT (id) DO NOTHING`,
+         ON CONFLICT (id) DO UPDATE SET
+           name = EXCLUDED.name,
+           event_type = EXCLUDED.event_type,
+           language = EXCLUDED.language,
+           content = EXCLUDED.content`,
         [t.id, t.name, t.event, t.lang, t.content]
       );
     }

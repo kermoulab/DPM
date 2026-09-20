@@ -92,7 +92,7 @@ export const DevicesView: React.FC = () => {
       setPairingData(res);
       loadDevices(false);
     } catch (err: any) {
-      alert(err.message || 'Failed to generate pairing token');
+      setToastMessage(err.message || 'Failed to generate pairing token');
     } finally {
       setGenerating(false);
     }

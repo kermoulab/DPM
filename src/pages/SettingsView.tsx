@@ -114,6 +114,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [newPasswordState, setNewPasswordState] = React.useState('');
   const [newRole, setNewRole] = React.useState<UserRole>('agent');
   const [deletingUserId, setDeletingUserId] = React.useState<string | null>(null);
+  const [userPendingDelete, setUserPendingDelete] = React.useState<User | null>(null);
   const [toastMessage, setToastMessage] = React.useState<string | null>(null);
 
   // Audit Logs state
@@ -343,7 +344,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       setSavedSettingsSuccess(true);
       setTimeout(() => setSavedSettingsSuccess(false), 2500);
     } catch (err: any) {
-      alert(err.message);
+      setToastMessage(err.message || 'Failed to save settings.');
     }
   };
 
@@ -368,24 +369,26 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       window.dispatchEvent(new CustomEvent('app:data-mutated'));
       loadTabContent(false);
     } catch (err: any) {
-      alert(err.message);
+      setToastMessage(err.message || 'Failed to create staff user.');
     }
   };
 
-  const handleDeleteUser = async (userToDelete: User) => {
-    const confirmed = window.confirm(
-      `Are you sure you want to delete user "${userToDelete.name}" (@${userToDelete.username}) from the database? This action cannot be undone.`
-    );
-    if (!confirmed) return;
+  const handleDeleteUser = (u: User) => {
+    setUserPendingDelete(u);
+  };
 
-    setDeletingUserId(userToDelete.id);
+  const handleConfirmDeleteUser = async () => {
+    if (!userPendingDelete) return;
+    const targetUser = userPendingDelete;
+    setUserPendingDelete(null);
+    setDeletingUserId(targetUser.id);
     try {
-      await api.deleteUser(userToDelete.id);
-      setToastMessage(`User "${userToDelete.name}" deleted from database.`);
+      await api.deleteUser(targetUser.id);
+      setToastMessage(`User "${targetUser.name}" deleted from database.`);
       window.dispatchEvent(new CustomEvent('app:data-mutated'));
       await loadTabContent(false);
     } catch (err: any) {
-      alert(err.message || 'Failed to delete user.');
+      setToastMessage(err.message || 'Failed to delete user.');
     } finally {
       setDeletingUserId(null);
     }
@@ -1069,6 +1072,48 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete User Confirmation Modal */}
+      {userPendingDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-2xl bg-rose-50 flex items-center justify-center text-rose-600 shrink-0">
+                <Trash2 size={20} />
+              </div>
+              <div>
+                <h3 className="font-bold text-sm text-slate-900">Delete Staff User</h3>
+                <p className="text-xs text-slate-500">
+                  Are you sure you want to delete <span className="font-semibold text-slate-800">{userPendingDelete.name}</span> (@{userPendingDelete.username})?
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-500 bg-slate-50 p-3 rounded-2xl border border-slate-100">
+              This action cannot be undone. The user will immediately lose system access.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setUserPendingDelete(null)}
+                disabled={deletingUserId !== null}
+                className="px-4 py-2 border border-slate-200 rounded-xl text-xs text-slate-600 hover:bg-slate-50 transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteUser}
+                disabled={deletingUserId !== null}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-semibold shadow-xs disabled:opacity-50 transition"
+              >
+                {deletingUserId ? 'Deleting...' : 'Delete User'}
+              </button>
+            </div>
           </div>
         </div>
       )}

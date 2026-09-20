@@ -212,6 +212,62 @@ async function runComprehensiveAudit() {
     };
     const licenseMsg = renderOrderWhatsAppMessage(sampleLicenseOrder);
     assert(licenseMsg.includes('W269N-WFGWX-YVC9B-4J6C9-T83GX'), 'WhatsApp message includes license key');
+
+    // 2.2 Expiring Subscription Message Template (English & Multilingual)
+    function renderExpiringWhatsApp(order, lang = 'en', daysRemaining = 2) {
+      const templates = {
+        en: `Dear {customer_name},\nYour subscription for *{product_name}* (*{plan_name}*) is expiring in *{days_remaining}* day(s) on *{end_date}*.\nTo avoid service interruption, please contact us to renew your subscription.\nOrder #{order_number}.`,
+        fr: `Bonjour {customer_name},\nVotre abonnement *{product_name}* (*{plan_name}*) expire dans *{days_remaining}* jour(s) le *{end_date}*.\nPour continuer a profiter de votre service sans interruption, veuillez nous contacter pour le renouveler.\nCommande #{order_number}.`,
+        ar: `مرحبا {customer_name}،\nنود تذكيرك بأن اشتراكك في *{product_name}* (*{plan_name}*) سينتهي خلال *{days_remaining}* يوم بتاريخ *{end_date}*.\nلتجنب انقطاع الخدمة، يرجى التواصل معنا للتجديد.\nطلب رقم #{order_number}.`,
+        ru: `Здравствуйте, {customer_name}!\nНапоминаем, что ваша подписка на *{product_name}* (*{plan_name}*) истекает через *{days_remaining}* дн. (*{end_date}*).\nЧтобы избежать прерывания доступа, свяжитесь с нами для продления.\nЗаказ #{order_number}.`
+      };
+      let text = templates[lang] || templates.en;
+      return text
+        .replace(/{customer_name}/g, order.customer_name)
+        .replace(/{product_name}/g, order.product_name)
+        .replace(/{plan_name}/g, order.plan_name)
+        .replace(/{days_remaining}/g, String(daysRemaining))
+        .replace(/{end_date}/g, order.end_date)
+        .replace(/{order_number}/g, order.order_number);
+    }
+
+    const expEn = renderExpiringWhatsApp(sampleServiceAccountOrder, 'en', 2);
+    assert(expEn.includes('expiring in *2* day(s)'), 'Expiring template calculates and displays days_remaining');
+    assert(expEn.includes('Netflix Premium 4K'), 'Expiring template includes product name');
+    assert(!expEn.includes('Thank you for your purchase'), 'Expiring template does not fallback to purchase thank you');
+    assert(!expEn.includes('UltraSecurePassword2026!'), 'Expiring template does not leak account password');
+
+    const expFr = renderExpiringWhatsApp(sampleServiceAccountOrder, 'fr', 2);
+    assert(expFr.includes('expire dans *2* jour(s)'), 'French expiring template correctly formatted');
+
+    const expAr = renderExpiringWhatsApp(sampleServiceAccountOrder, 'ar', 2);
+    assert(expAr.includes('سينتهي خلال *2* يوم'), 'Arabic expiring template correctly formatted');
+
+    const expRu = renderExpiringWhatsApp(sampleServiceAccountOrder, 'ru', 2);
+    assert(expRu.includes('истекает через *2* дн.'), 'Russian expiring template correctly formatted');
+
+    // 2.3 Expired Subscription Message Template
+    function renderExpiredWhatsApp(order, lang = 'en', daysExpired = 3) {
+      const templates = {
+        en: `Dear {customer_name},\nYour subscription for *{product_name}* (*{plan_name}*) expired on *{end_date}* ({days_expired} day(s) ago).\nIf you would like to reactivate or renew your access, please reply to this message.\nOrder #{order_number}.`,
+        fr: `Bonjour {customer_name},\nVotre abonnement pour *{product_name}* (*{plan_name}*) a expire le *{end_date}* (il y a {days_expired} jour(s)).\nSi vous souhaitez reactiver votre service, n'hesitez pas a nous recontacter.\nCommande #{order_number}.`,
+        ar: `مرحبا {customer_name}،\nنود إعلامك بأن اشتراكك في *{product_name}* (*{plan_name}*) قد انتهى بتاريخ *{end_date}* (منذ {days_expired} أيام).\nإذا كنت ترغب في تجديد أو استعادة الخدمة، يرجى التواصل معنا.\nطلب رقم #{order_number}.`,
+        ru: `Здравствуйте, {customer_name}!\nВаша подписка на *{product_name}* (*{plan_name}*) завершилась *{end_date}* ({days_expired} дн. назад).\nЕсли вы хотите возобновить доступ, напишите нам.\nЗаказ #{order_number}.`
+      };
+      let text = templates[lang] || templates.en;
+      return text
+        .replace(/{customer_name}/g, order.customer_name)
+        .replace(/{product_name}/g, order.product_name)
+        .replace(/{plan_name}/g, order.plan_name)
+        .replace(/{days_expired}/g, String(daysExpired))
+        .replace(/{end_date}/g, order.end_date)
+        .replace(/{order_number}/g, order.order_number);
+    }
+
+    const expdEn = renderExpiredWhatsApp(sampleServiceAccountOrder, 'en', 3);
+    assert(expdEn.includes('expired on *2026-10-20* (3 day(s) ago)'), 'Expired template calculates and displays days_expired');
+    assert(expdEn.includes('reactivate or renew'), 'Expired template includes call to action for renewal');
+    assert(!expdEn.includes('Thank you for your purchase'), 'Expired template does not fallback to purchase thank you');
   }
 
   // ===========================================================================
@@ -430,7 +486,7 @@ async function runComprehensiveAudit() {
         `Repository ${file} contains zero mock data fallbacks`);
     }
 
-    // Inspect orders.repository.ts specifically for reconcileSubscriptionStatuses
+    // Inspect orders.repository.ts specifically for reconcileSubscriptionStatuses and atomic inventory release
     const ordersRepoContent = fs.readFileSync(path.join(process.cwd(), 'server', 'db', 'repositories', 'orders.repository.ts'), 'utf8');
     assert(ordersRepoContent.includes('reconcileSubscriptionStatuses'),
       'orders.repository.ts defines reconcileSubscriptionStatuses');
@@ -438,6 +494,35 @@ async function runComprehensiveAudit() {
       'reconcileSubscriptionStatuses executes atomic SQL UPDATE for expired status');
     assert(ordersRepoContent.includes("SET status = 'expiring'"),
       'reconcileSubscriptionStatuses executes atomic SQL UPDATE for expiring status');
+    assert(ordersRepoContent.includes('UPDATE service_profiles') && ordersRepoContent.includes("status = 'available', assigned_customer_id = NULL, assigned_order_id = NULL"),
+      'orders.repository.ts atomically releases assigned service profiles upon order deletion');
+    assert(ordersRepoContent.includes('UPDATE license_keys') && ordersRepoContent.includes("status = 'available'"),
+      'orders.repository.ts atomically releases assigned license keys upon order deletion');
+
+    // Inspect inventory.ts for active profile and assigned key deletion guards
+    const inventoryRouteContent = fs.readFileSync(path.join(process.cwd(), 'server', 'routes', 'inventory.ts'), 'utf8');
+    assert(inventoryRouteContent.includes("WHERE service_account_id = $1 AND status = 'assigned'") && inventoryRouteContent.includes('Cannot delete service account with active assigned profiles'),
+      'inventory route guards against deleting service accounts with active assigned profiles');
+    assert(inventoryRouteContent.includes("status === 'assigned'"),
+      'inventory route guards against deleting license keys currently assigned to an order');
+
+    // Inspect whatsapp.ts for multi-event and multi-language engine
+    const whatsappRouteContent = fs.readFileSync(path.join(process.cwd(), 'server', 'routes', 'whatsapp.ts'), 'utf8');
+    assert(whatsappRouteContent.includes('order_expiring') && whatsappRouteContent.includes('order_expired'),
+      'whatsapp route defines dedicated handlers for order_expiring and order_expired');
+    assert(whatsappRouteContent.includes('days_remaining') && whatsappRouteContent.includes('days_expired'),
+      'whatsapp route calculates dynamic days_remaining and days_expired');
+    assert(whatsappRouteContent.includes('order_expiring: {') && whatsappRouteContent.includes('ru: `Здравствуйте'),
+      'whatsapp route contains multilingual default templates across en, fr, ar, ru');
+
+    // Inspect AlertsView.tsx for language persistence & dynamic WhatsApp trigger
+    const alertsViewContent = fs.readFileSync(path.join(process.cwd(), 'src', 'pages', 'AlertsView.tsx'), 'utf8');
+    assert(alertsViewContent.includes('selectedLang') && alertsViewContent.includes('alerts_wa_lang'),
+      'AlertsView tracks and persists WhatsApp notification language');
+    assert(alertsViewContent.includes("handleSendWhatsApp(o, 'order_expiring')") && alertsViewContent.includes("handleSendWhatsApp(o, 'order_expired')"),
+      'AlertsView sends order_expiring for expiring orders and order_expired for expired orders');
+    assert(alertsViewContent.includes('language: selectedLang'),
+      'AlertsView passes selected language to composeWhatsApp endpoint');
 
     // Inspect dashboard.repository.ts for reconciliation
     const dashRepoContent = fs.readFileSync(path.join(process.cwd(), 'server', 'db', 'repositories', 'dashboard.repository.ts'), 'utf8');

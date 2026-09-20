@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import crypto from 'crypto';
+import { query } from '../db/connection/pool.js';
 import { inventoryRepo } from '../db/repositories/inventory.repository.js';
 import { inventoryService } from '../services/inventory.service.js';
 import { auditRepo } from '../db/repositories/audit.repository.js';
@@ -102,6 +103,21 @@ inventoryRouter.put('/accounts/:id', requireAuth, requireRole('manager'), async 
 inventoryRouter.delete('/accounts/:id', requireAuth, requireRole('manager'), async (req: AuthenticatedRequest, res, next) => {
   try {
     const { id } = req.params;
+    const account = await inventoryRepo.findAccountById(id);
+    if (!account) {
+      res.status(404).json({ error: 'Service account not found.' });
+      return;
+    }
+
+    const assignedProfiles = await query<{ count: string }>(
+      "SELECT COUNT(*) as count FROM service_profiles WHERE service_account_id = $1 AND status = 'assigned'",
+      [id]
+    );
+    if (parseInt(assignedProfiles.rows[0]?.count || '0', 10) > 0) {
+      res.status(400).json({ error: 'Cannot delete service account with active assigned profiles. Cancel or reassign customer orders first.' });
+      return;
+    }
+
     await inventoryRepo.deleteAccount(id);
     await auditRepo.log(req.user || null, 'DELETE_SERVICE_ACCOUNT', 'service_account', id, {});
     res.json({ success: true, message: 'Account deleted.' });
@@ -143,6 +159,16 @@ inventoryRouter.post('/licenses', requireAuth, requireRole('manager'), validateB
 inventoryRouter.delete('/licenses/:id', requireAuth, requireRole('manager'), async (req: AuthenticatedRequest, res, next) => {
   try {
     const { id } = req.params;
+    const lic = await query<{ status: string }>('SELECT status FROM license_keys WHERE id = $1', [id]);
+    if (!lic.rows[0]) {
+      res.status(404).json({ error: 'License key not found.' });
+      return;
+    }
+    if (lic.rows[0].status === 'assigned') {
+      res.status(400).json({ error: 'Cannot delete an assigned license key currently in use by an active order.' });
+      return;
+    }
+
     await inventoryRepo.deleteLicense(id);
     await auditRepo.log(req.user || null, 'DELETE_LICENSE', 'license_key', id, {});
     res.json({ success: true, message: 'License key removed.' });

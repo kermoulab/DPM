@@ -211,7 +211,7 @@ export const ProductsView: React.FC = () => {
       window.dispatchEvent(new CustomEvent('app:data-mutated'));
       loadData(false);
     } catch (err: any) {
-      alert(err.message);
+      showNotification(err.message || 'Failed to create product.');
     }
   };
 
@@ -251,7 +251,7 @@ export const ProductsView: React.FC = () => {
       window.dispatchEvent(new CustomEvent('app:data-mutated'));
       loadData(false);
     } catch (err: any) {
-      alert(err.message);
+      showNotification(err.message || 'Failed to create plan.');
     }
   };
 
@@ -276,7 +276,7 @@ export const ProductsView: React.FC = () => {
       window.dispatchEvent(new CustomEvent('app:data-mutated'));
       loadData(false);
     } catch (err: any) {
-      alert(err.message);
+      showNotification(err.message || 'Failed to delete plan.');
     }
   };
 
@@ -291,7 +291,7 @@ export const ProductsView: React.FC = () => {
 
   const handleSaveEditPlan = async (id: string) => {
     if (!editPlanName.trim()) {
-      alert('Plan name is required.');
+      showNotification('Plan name is required.');
       return;
     }
     setSavingPlan(true);
@@ -312,7 +312,7 @@ export const ProductsView: React.FC = () => {
       window.dispatchEvent(new CustomEvent('app:data-mutated'));
       loadData(false);
     } catch (err: any) {
-      alert(err.message || 'Failed to update plan.');
+      showNotification(err.message || 'Failed to update plan.');
     } finally {
       setSavingPlan(false);
     }
@@ -344,7 +344,7 @@ export const ProductsView: React.FC = () => {
         window.dispatchEvent(new CustomEvent('app:data-mutated'));
         loadData(false);
       } catch (err: any) {
-        alert(err.message || 'Failed to create categories.');
+        showNotification(err.message || 'Failed to create categories.');
       } finally {
         setSubmittingCategory(false);
       }
@@ -362,7 +362,7 @@ export const ProductsView: React.FC = () => {
       window.dispatchEvent(new CustomEvent('app:data-mutated'));
       loadData(false);
     } catch (err: any) {
-      alert(err.message);
+      showNotification(err.message || 'Failed to create category.');
     } finally {
       setSubmittingCategory(false);
     }
@@ -412,7 +412,7 @@ export const ProductsView: React.FC = () => {
       showNotification('Category details saved to database.');
       loadData();
     } catch (err: any) {
-      alert(err.message || 'Failed to update category.');
+      showNotification(err.message || 'Failed to update category.');
     } finally {
       setSavingCategory(false);
     }
@@ -461,7 +461,7 @@ export const ProductsView: React.FC = () => {
       showNotification('New subscription plan added and saved to database.');
       loadData();
     } catch (err: any) {
-      alert(err.message || 'Failed to create plan.');
+      showNotification(err.message || 'Failed to create plan.');
     } finally {
       setCreatingCatPlan(false);
     }
@@ -481,7 +481,7 @@ export const ProductsView: React.FC = () => {
       showNotification('Plan price updated in database.');
       loadData();
     } catch (err: any) {
-      alert(err.message || 'Failed to update plan price.');
+      showNotification(err.message || 'Failed to update plan price.');
     } finally {
       setSavingPlanPrice(false);
     }
@@ -499,7 +499,7 @@ export const ProductsView: React.FC = () => {
       showNotification(`Plan "${planName}" deleted from database.`);
       loadData();
     } catch (err: any) {
-      alert(err.message || 'Failed to delete plan.');
+      showNotification(err.message || 'Failed to delete plan.');
     }
   };
 
@@ -521,7 +521,7 @@ export const ProductsView: React.FC = () => {
       setDeletingCategory(null);
       loadData();
     } catch (err: any) {
-      alert(err.message || 'Failed to delete category.');
+      showNotification(err.message || 'Failed to delete category.');
     } finally {
       setIsDeletingCategory(false);
     }
@@ -568,7 +568,7 @@ export const ProductsView: React.FC = () => {
       window.dispatchEvent(new CustomEvent('app:data-mutated'));
       loadData(false);
     } catch (err: any) {
-      alert(err.message || 'Failed to update product.');
+      showNotification(err.message || 'Failed to update product.');
     } finally {
       setSavingProduct(false);
     }
@@ -585,7 +585,7 @@ export const ProductsView: React.FC = () => {
       window.dispatchEvent(new CustomEvent('app:data-mutated'));
       loadData(false);
     } catch (err: any) {
-      alert(err.message || 'Failed to delete product.');
+      showNotification(err.message || 'Failed to delete product.');
     } finally {
       setIsDeletingProduct(false);
     }
