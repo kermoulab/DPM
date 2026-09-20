@@ -269,6 +269,7 @@ export interface DashboardStats {
     inactiveOrBlocked?: number;
     newThisMonth: number;
     growthRate: number;
+    monthly?: Array<{ month: string; count: number }>;
   };
   orders: {
     total: number;
@@ -280,12 +281,22 @@ export interface DashboardStats {
     expiringPercent?: number;
     expiredPercent?: number;
     growthRate: number;
+    dailyOrders?: Array<{ day: string; count: number }>;
   };
   inventory: {
     stockStatus: number;
     turnoverRate: number;
     productsOrdered: number;
     serviceAccountsCount: number;
+    assignedProfilesPercent?: number;
+    unallocatedKeysPercent?: number;
+    activeSubsPercent?: number;
+    totalProfiles?: number;
+    availableProfiles?: number;
+    assignedProfiles?: number;
+    totalLicenses?: number;
+    availableLicenses?: number;
+    assignedLicenses?: number;
   };
   saleAnalytics: {
     totalCompletedRate: number;

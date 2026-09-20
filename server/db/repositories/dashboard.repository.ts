@@ -68,6 +68,31 @@ export class DashboardRepository {
       ? Math.round(((newThisMonthCust - newPrevMonthCust) / newPrevMonthCust) * 100 * 10) / 10
       : (newThisMonthCust > 0 ? 100 : 0);
 
+    // 3b. Customer registrations by month for last 8 months
+    const last8Months: Array<{ label: string; yearMonth: string }> = [];
+    for (let i = 7; i >= 0; i--) {
+      const d = new Date();
+      d.setMonth(d.getMonth() - i);
+      const mStr = d.toLocaleString('en-US', { month: 'short' });
+      const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      last8Months.push({ label: mStr, yearMonth: ym });
+    }
+    const custMonthlyRes = await query<{ ym: string; cnt: string }>(
+      `SELECT TO_CHAR(created_at, 'YYYY-MM') as ym,
+              COUNT(*)::text as cnt
+       FROM customers
+       WHERE created_at >= DATE_TRUNC('month', CURRENT_DATE::timestamp - INTERVAL '7 months')
+       GROUP BY ym`
+    );
+    const custMap: Record<string, number> = {};
+    for (const r of custMonthlyRes.rows) {
+      custMap[r.ym] = parseInt(r.cnt, 10);
+    }
+    const customerMonthly = last8Months.map((m) => ({
+      month: m.label,
+      count: custMap[m.yearMonth] || 0
+    }));
+
     // 4. Order status metrics
     const orderStatuses = await query<{ total: string; active: string; expiring: string; expired: string; cancelled: string }>(
       `SELECT COUNT(*)::text as total,
@@ -86,14 +111,79 @@ export class DashboardRepository {
     const expiringPercent = totalOrdersCount > 0 ? Math.round((expiringOrdersCount / totalOrdersCount) * 100) : 0;
     const expiredPercent = totalOrdersCount > 0 ? Math.round((expiredOrdersCount / totalOrdersCount) * 100) : 0;
 
-    // 5. Inventory summary
-    const accountsCount = await query<{ count: string }>("SELECT COUNT(*)::text as count FROM service_accounts WHERE status = 'active'");
-    const availableProfiles = await query<{ count: string }>("SELECT COUNT(*)::text as count FROM service_profiles WHERE status = 'available'");
-    const availableLicenses = await query<{ count: string }>("SELECT COUNT(*)::text as count FROM license_keys WHERE status = 'available'");
+    // 4b. Daily orders for current week (Mon-Sun)
+    const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const dailyOrdersRes = await query<{ dow: number; order_count: string }>(
+      `SELECT EXTRACT(ISODOW FROM start_date)::int as dow,
+              COUNT(*)::text as order_count
+       FROM orders
+       WHERE start_date >= DATE_TRUNC('week', CURRENT_DATE::timestamp)
+         AND start_date < DATE_TRUNC('week', CURRENT_DATE::timestamp) + INTERVAL '7 days'
+         AND payment_status != 'refunded'
+       GROUP BY dow`
+    );
+    const dailyMap: Record<number, number> = {};
+    for (const r of dailyOrdersRes.rows) {
+      dailyMap[r.dow] = parseInt(r.order_count, 10);
+    }
+    const dailyOrders = dayNames.map((name, idx) => ({
+      day: name,
+      count: dailyMap[idx + 1] || 0
+    }));
 
-    const totalInventoryAvailable =
-      parseInt(availableProfiles.rows[0]?.count || '0', 10) +
-      parseInt(availableLicenses.rows[0]?.count || '0', 10);
+    // 5. Inventory summary (real DB calculations)
+    const accountsCount = await query<{ count: string }>(
+      "SELECT COUNT(*)::text as count FROM service_accounts WHERE status = 'active'"
+    );
+    const profilesStats = await query<{ total: string; available: string; assigned: string }>(
+      `SELECT COUNT(*)::text as total,
+              COUNT(CASE WHEN status = 'available' THEN 1 END)::text as available,
+              COUNT(CASE WHEN status = 'assigned' THEN 1 END)::text as assigned
+       FROM service_profiles`
+    );
+    const licensesStats = await query<{ total: string; available: string; assigned: string }>(
+      `SELECT COUNT(*)::text as total,
+              COUNT(CASE WHEN status = 'available' THEN 1 END)::text as available,
+              COUNT(CASE WHEN status = 'assigned' THEN 1 END)::text as assigned
+       FROM license_keys`
+    );
+
+    const totalProfiles = parseInt(profilesStats.rows[0]?.total || '0', 10);
+    const availableProfiles = parseInt(profilesStats.rows[0]?.available || '0', 10);
+    const assignedProfiles = parseInt(profilesStats.rows[0]?.assigned || '0', 10);
+
+    const totalLicenses = parseInt(licensesStats.rows[0]?.total || '0', 10);
+    const availableLicenses = parseInt(licensesStats.rows[0]?.available || '0', 10);
+    const assignedLicenses = parseInt(licensesStats.rows[0]?.assigned || '0', 10);
+
+    const totalInventory = totalProfiles + totalLicenses;
+    const totalAvailable = availableProfiles + availableLicenses;
+    const totalAssigned = assignedProfiles + assignedLicenses;
+
+    // Stock Status % = available inventory items / total inventory items (0% if none)
+    const stockStatus = totalInventory > 0
+      ? Math.round((totalAvailable / totalInventory) * 100)
+      : 0;
+
+    // Turnover % = allocated/assigned items / total inventory items (0% if none)
+    const turnoverRate = totalInventory > 0
+      ? Math.round((totalAssigned / totalInventory) * 100)
+      : 0;
+
+    // Ordered % = active orders / total orders (0% if none)
+    const productsOrdered = totalOrdersCount > 0
+      ? Math.round((activeOrdersCount / totalOrdersCount) * 100)
+      : 0;
+
+    // Assigned Profiles % = assigned / total profiles (0% if none)
+    const assignedProfilesPercent = totalProfiles > 0
+      ? Math.round((assignedProfiles / totalProfiles) * 100)
+      : 0;
+
+    // Unallocated Keys % = available / total licenses (0% if none)
+    const unallocatedKeysPercent = totalLicenses > 0
+      ? Math.round((availableLicenses / totalLicenses) * 100)
+      : 0;
 
     // 6. Sale analytics
     const saleStatsRow = await query<{ total: string; completed: string; returned: string }>(
@@ -157,7 +247,8 @@ export class DashboardRepository {
         blocked: parseInt(customerStats.rows[0]?.blocked || '0', 10),
         inactive: parseInt(customerStats.rows[0]?.inactive || '0', 10),
         newThisMonth: newThisMonthCust,
-        growthRate: customerGrowthRate
+        growthRate: customerGrowthRate,
+        monthly: customerMonthly
       },
       orders: {
         total: totalOrdersCount,
@@ -168,13 +259,23 @@ export class DashboardRepository {
         activePercent,
         expiringPercent,
         expiredPercent,
-        growthRate: revenueGrowth
+        growthRate: revenueGrowth,
+        dailyOrders
       },
       inventory: {
-        stockStatus: totalInventoryAvailable,
-        turnoverRate: totalOrdersCount,
-        productsOrdered: totalOrdersCount,
-        serviceAccountsCount: parseInt(accountsCount.rows[0]?.count || '0', 10)
+        stockStatus,
+        turnoverRate,
+        productsOrdered,
+        serviceAccountsCount: parseInt(accountsCount.rows[0]?.count || '0', 10),
+        assignedProfilesPercent,
+        unallocatedKeysPercent,
+        activeSubsPercent: activePercent,
+        totalProfiles,
+        availableProfiles,
+        assignedProfiles,
+        totalLicenses,
+        availableLicenses,
+        assignedLicenses
       },
       saleAnalytics: {
         totalCompletedRate,

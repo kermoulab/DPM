@@ -15,6 +15,24 @@ export class CurrenciesRepository {
     const res = await query<CurrencyRow>(
       'SELECT * FROM currencies ORDER BY is_base DESC, code ASC'
     );
+    if (res.rows.length > 0 && !res.rows.some((c) => c.code === 'MAD')) {
+      try {
+        await this.upsert({
+          code: 'MAD',
+          symbol: 'MAD',
+          name: 'Moroccan Dirham',
+          exchange_rate: 10.0,
+          decimal_precision: 2,
+          is_base: false
+        });
+        const refreshed = await query<CurrencyRow>(
+          'SELECT * FROM currencies ORDER BY is_base DESC, code ASC'
+        );
+        return refreshed.rows;
+      } catch {
+        // Fall back to original results if transparent insertion is prevented
+      }
+    }
     return res.rows;
   }
 

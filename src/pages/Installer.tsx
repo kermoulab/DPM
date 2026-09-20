@@ -802,6 +802,7 @@ export const Installer: React.FC<InstallerProps> = ({ onInstallComplete, onInsta
                     <option value="USD">USD ($) — US Dollar</option>
                     <option value="EUR">EUR (€) — Euro</option>
                     <option value="GBP">GBP (£) — British Pound</option>
+                    <option value="MAD">MAD — Moroccan Dirham</option>
                     <option value="CAD">CAD — Canadian Dollar</option>
                     <option value="AED">AED — UAE Dirham</option>
                     <option value="SAR">SAR — Saudi Riyal</option>

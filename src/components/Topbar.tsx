@@ -134,7 +134,7 @@ export const Topbar: React.FC<TopbarProps> = ({
               id="topbar-currency-switcher-btn"
               onClick={() => setCurrencyOpen(!currencyOpen)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300 text-xs font-semibold text-slate-700 transition shadow-2xs cursor-pointer"
-              title={`Active Currency: ${activeCurrencyCode} (Saved to your profile in database)`}
+              title={`Active Currency: ${activeCurrencyCode}`}
             >
               <Coins size={14} className="text-amber-500 shrink-0" />
               <span className="font-bold">{activeCurrencyCode}</span>
@@ -149,11 +149,8 @@ export const Topbar: React.FC<TopbarProps> = ({
                 id="topbar-currency-dropdown"
                 className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-slate-200 py-1.5 z-50 text-xs animate-in fade-in zoom-in-95 duration-100 divide-y divide-slate-100"
               >
-                <div className="px-3.5 py-2 flex items-center justify-between">
+                <div className="px-3.5 py-2">
                   <span className="font-semibold text-slate-700 text-[11px]">System Currency</span>
-                  <span className="text-[10px] text-emerald-600 bg-emerald-50 font-medium px-2 py-0.5 rounded-full border border-emerald-200/60">
-                    Saves to DB
-                  </span>
                 </div>
                 <div className="max-h-64 overflow-y-auto py-1">
                   {availableCurrencies.map((c) => (
@@ -183,11 +180,6 @@ export const Topbar: React.FC<TopbarProps> = ({
                       )}
                     </button>
                   ))}
-                </div>
-                <div className="px-3.5 py-2 bg-slate-50/70 rounded-b-2xl">
-                  <p className="text-[10px] text-slate-400 leading-tight">
-                    Each user's currency is saved to their profile and converts amounts across the whole system.
-                  </p>
                 </div>
               </div>
             )}

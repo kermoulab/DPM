@@ -514,6 +514,7 @@ installRouter.post('/create-admin', validateBody({
           ['USD', '$',   'US Dollar',       1.0,  2, currency === 'USD'],
           ['EUR', '€',   'Euro',            0.92, 2, currency === 'EUR'],
           ['GBP', '£',   'British Pound',   0.78, 2, currency === 'GBP'],
+          ['MAD', 'MAD', 'Moroccan Dirham', 10.0, 2, currency === 'MAD'],
           ['AED', 'AED', 'UAE Dirham',      3.67, 2, currency === 'AED'],
           ['SAR', 'SAR', 'Saudi Riyal',     3.75, 2, currency === 'SAR'],
           ['CAD', 'CA$', 'Canadian Dollar', 1.35, 2, currency === 'CAD']
@@ -719,7 +720,7 @@ installRouter.post('/setup', validateBody({
           [k, v]
         );
       }
-      const currencies = [['USD','$','US Dollar',1.0,2,true],['EUR','€','Euro',0.92,2,false],['GBP','£','British Pound',0.78,2,false],['AED','AED','UAE Dirham',3.67,2,false],['SAR','SAR','Saudi Riyal',3.75,2,false],['CAD','CA$','Canadian Dollar',1.35,2,false]];
+      const currencies = [['USD','$','US Dollar',1.0,2,true],['EUR','€','Euro',0.92,2,false],['GBP','£','British Pound',0.78,2,false],['MAD','MAD','Moroccan Dirham',10.0,2,false],['AED','AED','UAE Dirham',3.67,2,false],['SAR','SAR','Saudi Riyal',3.75,2,false],['CAD','CA$','Canadian Dollar',1.35,2,false]];
       for (const [c,s,n,r,p,b] of currencies) {
         await client.query(`INSERT INTO currencies (code,symbol,name,exchange_rate,decimal_precision,is_base,updated_at) VALUES ($1,$2,$3,$4,$5,$6,CURRENT_TIMESTAMP) ON CONFLICT (code) DO NOTHING`, [c,s,n,r,p,b]);
       }

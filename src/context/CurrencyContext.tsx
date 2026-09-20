@@ -24,6 +24,7 @@ const FALLBACK_CURRENCIES: Currency[] = [
   { code: 'USD', symbol: '$', name: 'US Dollar', exchange_rate: 1.0, decimal_precision: 2, is_base: 1, updated_at: '' },
   { code: 'EUR', symbol: '€', name: 'Euro', exchange_rate: 0.92, decimal_precision: 2, is_base: 0, updated_at: '' },
   { code: 'GBP', symbol: '£', name: 'British Pound', exchange_rate: 0.78, decimal_precision: 2, is_base: 0, updated_at: '' },
+  { code: 'MAD', symbol: 'MAD', name: 'Moroccan Dirham', exchange_rate: 10.0, decimal_precision: 2, is_base: 0, updated_at: '' },
   { code: 'AED', symbol: 'AED', name: 'UAE Dirham', exchange_rate: 3.67, decimal_precision: 2, is_base: 0, updated_at: '' },
   { code: 'SAR', symbol: 'SAR', name: 'Saudi Riyal', exchange_rate: 3.75, decimal_precision: 2, is_base: 0, updated_at: '' },
   { code: 'CAD', symbol: 'CA$', name: 'Canadian Dollar', exchange_rate: 1.35, decimal_precision: 2, is_base: 0, updated_at: '' },

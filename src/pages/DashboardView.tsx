@@ -391,53 +391,85 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-[#EAF8F5] border border-emerald-100/60 text-emerald-700 shrink-0">
               <TrendingUp size={15} className="text-emerald-600 stroke-[2.2]" />
               <div className="flex flex-col leading-none">
-                <span className="text-xs font-bold text-emerald-800">{orders.total || 7}</span>
+                <span className="text-xs font-bold text-emerald-800">{orders.total ?? 0}</span>
                 <span className="text-[10px] font-semibold text-emerald-700 mt-0.5">Total</span>
               </div>
             </div>
           </div>
 
-          {/* Spline Wave Chart with Axis & Area fill matching screenshot */}
+          {/* Spline Wave Chart dynamically computed from real DB daily orders */}
           <div className="py-2.5 my-auto">
-            <svg viewBox="0 0 310 120" className="w-full h-28 overflow-visible select-none">
-              <defs>
-                <linearGradient id="orderDevelopmentGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#10B981" stopOpacity="0.28" />
-                  <stop offset="70%" stopColor="#10B981" stopOpacity="0.08" />
-                  <stop offset="100%" stopColor="#10B981" stopOpacity="0.0" />
-                </linearGradient>
-              </defs>
+            {(() => {
+              const days = orders.dailyOrders && orders.dailyOrders.length === 7
+                ? orders.dailyOrders
+                : [
+                    { day: 'Mon', count: 0 },
+                    { day: 'Tue', count: 0 },
+                    { day: 'Wed', count: 0 },
+                    { day: 'Thu', count: 0 },
+                    { day: 'Fri', count: 0 },
+                    { day: 'Sat', count: 0 },
+                    { day: 'Sun', count: 0 }
+                  ];
 
-              {/* Y-axis labels */}
-              <text x="14" y="20" textAnchor="end" className="text-[11px] fill-slate-400 font-normal">4</text>
-              <text x="14" y="58" textAnchor="end" className="text-[11px] fill-slate-400 font-normal">2</text>
-              <text x="14" y="96" textAnchor="end" className="text-[11px] fill-slate-400 font-normal">0</text>
+              const counts = days.map((d) => d.count);
+              const maxCount = Math.max(...counts, 0);
+              const yMax = Math.max(maxCount, 4);
+              const yMid = Math.round(yMax / 2);
 
-              {/* Area Gradient Fill */}
-              <path
-                d="M 50 78 L 92 78 C 108 78, 118 96, 130 96 C 142 96, 154 78, 167 78 C 182 78, 192 56, 205 56 C 218 56, 228 78, 240 78 L 285 78 L 285 98 L 50 98 Z"
-                fill="url(#orderDevelopmentGradient)"
-              />
+              const xs = [50, 89, 128, 167, 206, 245, 284];
+              const getY = (count: number) => 96 - (count / yMax) * 76;
+              const points = xs.map((x, i) => ({ x, y: getY(counts[i]) }));
 
-              {/* Spline Line */}
-              <path
-                d="M 50 78 L 92 78 C 108 78, 118 96, 130 96 C 142 96, 154 78, 167 78 C 182 78, 192 56, 205 56 C 218 56, 228 78, 240 78 L 285 78"
-                fill="none"
-                stroke="#10B981"
-                strokeWidth="3.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
+              const linePath = points.reduce((acc, p, i, arr) => {
+                if (i === 0) return `M ${p.x} ${p.y}`;
+                const prev = arr[i - 1];
+                const cx1 = prev.x + (p.x - prev.x) / 2;
+                const cy1 = prev.y;
+                const cx2 = prev.x + (p.x - prev.x) / 2;
+                const cy2 = p.y;
+                return `${acc} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${p.x} ${p.y}`;
+              }, '');
 
-              {/* X-axis days */}
-              <text x="50" y="112" textAnchor="middle" className="text-[10px] fill-slate-400 font-normal">Mon</text>
-              <text x="89" y="112" textAnchor="middle" className="text-[10px] fill-slate-400 font-normal">Tue</text>
-              <text x="128" y="112" textAnchor="middle" className="text-[10px] fill-slate-400 font-normal">Wed</text>
-              <text x="167" y="112" textAnchor="middle" className="text-[10px] fill-slate-400 font-normal">Thu</text>
-              <text x="206" y="112" textAnchor="middle" className="text-[10px] fill-slate-400 font-normal">Fri</text>
-              <text x="245" y="112" textAnchor="middle" className="text-[10px] fill-slate-400 font-normal">Sat</text>
-              <text x="284" y="112" textAnchor="middle" className="text-[10px] fill-slate-400 font-normal">Sun</text>
-            </svg>
+              const areaPath = `${linePath} L ${xs[xs.length - 1]} 98 L ${xs[0]} 98 Z`;
+
+              return (
+                <svg viewBox="0 0 310 120" className="w-full h-28 overflow-visible select-none">
+                  <defs>
+                    <linearGradient id="orderDevelopmentGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#10B981" stopOpacity="0.28" />
+                      <stop offset="70%" stopColor="#10B981" stopOpacity="0.08" />
+                      <stop offset="100%" stopColor="#10B981" stopOpacity="0.0" />
+                    </linearGradient>
+                  </defs>
+
+                  {/* Y-axis labels */}
+                  <text x="14" y="20" textAnchor="end" className="text-[11px] fill-slate-400 font-normal">{yMax}</text>
+                  <text x="14" y="58" textAnchor="end" className="text-[11px] fill-slate-400 font-normal">{yMid}</text>
+                  <text x="14" y="96" textAnchor="end" className="text-[11px] fill-slate-400 font-normal">0</text>
+
+                  {/* Area Gradient Fill */}
+                  <path d={areaPath} fill="url(#orderDevelopmentGradient)" />
+
+                  {/* Spline Line */}
+                  <path
+                    d={linePath}
+                    fill="none"
+                    stroke="#10B981"
+                    strokeWidth="3.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+
+                  {/* X-axis days */}
+                  {days.map((d, i) => (
+                    <text key={d.day} x={xs[i]} y="112" textAnchor="middle" className="text-[10px] fill-slate-400 font-normal">
+                      {d.day}
+                    </text>
+                  ))}
+                </svg>
+              );
+            })()}
           </div>
         </div>
 
@@ -455,42 +487,52 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
           </div>
 
-          {/* Bar Chart matching screenshot */}
+          {/* Bar Chart matching screenshot, driven by real DB data */}
           <div className="py-2.5 my-auto">
-            <svg viewBox="0 0 310 115" className="w-full h-28 overflow-visible select-none">
-              {/* Y-axis labels */}
-              <text x="14" y="20" textAnchor="end" className="text-[11px] fill-slate-300 font-normal">8</text>
-              <text x="14" y="58" textAnchor="end" className="text-[11px] fill-slate-300 font-normal">4</text>
-              <text x="14" y="96" textAnchor="end" className="text-[11px] fill-slate-300 font-normal">0</text>
+            {(() => {
+              const months = customers.monthly && customers.monthly.length > 0
+                ? customers.monthly
+                : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug'].map((m) => ({ month: m, count: 0 }));
 
-              {/* X-axis months & bars */}
-              {/* Jan */}
-              <text x="45" y="112" textAnchor="middle" className="text-[10.5px] fill-slate-400 font-normal">Jan</text>
-              
-              {/* Feb */}
-              <text x="78" y="112" textAnchor="middle" className="text-[10.5px] fill-slate-400 font-normal">Feb</text>
-              
-              {/* Mar */}
-              <text x="111" y="112" textAnchor="middle" className="text-[10.5px] fill-slate-400 font-normal">Mar</text>
-              
-              {/* Apr */}
-              <text x="144" y="112" textAnchor="middle" className="text-[10.5px] fill-slate-400 font-normal">Apr</text>
-              
-              {/* May */}
-              <text x="177" y="112" textAnchor="middle" className="text-[10.5px] fill-slate-400 font-normal">May</text>
-              
-              {/* Jun - small bar */}
-              <rect x="200" y="82" width="22" height="14" rx="4" fill="#3B82F6" />
-              <text x="211" y="112" textAnchor="middle" className="text-[10.5px] fill-slate-400 font-normal">Jun</text>
-              
-              {/* Jul - medium bar */}
-              <rect x="233" y="60" width="22" height="36" rx="5" fill="#3B82F6" />
-              <text x="244" y="112" textAnchor="middle" className="text-[10.5px] fill-slate-400 font-normal">Jul</text>
-              
-              {/* Aug - tall bar */}
-              <rect x="266" y="40" width="22" height="56" rx="5" fill="#3B82F6" />
-              <text x="277" y="112" textAnchor="middle" className="text-[10.5px] fill-slate-400 font-normal">Aug</text>
-            </svg>
+              const counts = months.map((m) => m.count);
+              const maxCount = Math.max(...counts, 0);
+              const yMax = Math.max(maxCount, 8);
+              const yMid = Math.round(yMax / 2);
+              const xs = [45, 78, 111, 144, 177, 210, 243, 276];
+              const barWidth = 18;
+
+              return (
+                <svg viewBox="0 0 310 115" className="w-full h-28 overflow-visible select-none">
+                  {/* Y-axis labels */}
+                  <text x="14" y="20" textAnchor="end" className="text-[11px] fill-slate-300 font-normal">{yMax}</text>
+                  <text x="14" y="58" textAnchor="end" className="text-[11px] fill-slate-300 font-normal">{yMid}</text>
+                  <text x="14" y="96" textAnchor="end" className="text-[11px] fill-slate-300 font-normal">0</text>
+
+                  {months.map((m, i) => {
+                    const x = xs[i];
+                    const barHeight = m.count > 0 ? Math.max(4, Math.round((m.count / yMax) * 60)) : 0;
+                    const y = 96 - barHeight;
+                    return (
+                      <g key={m.month}>
+                        {barHeight > 0 && (
+                          <rect
+                            x={x - barWidth / 2}
+                            y={y}
+                            width={barWidth}
+                            height={barHeight}
+                            rx={4}
+                            fill="#3B82F6"
+                          />
+                        )}
+                        <text x={x} y="112" textAnchor="middle" className="text-[10.5px] fill-slate-400 font-normal">
+                          {m.month}
+                        </text>
+                      </g>
+                    );
+                  })}
+                </svg>
+              );
+            })()}
           </div>
 
           {/* Bottom 3 Metric Pills */}
@@ -804,40 +846,50 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div className="grid grid-cols-3 gap-2 text-center py-2 bg-slate-50 rounded-2xl border border-slate-150">
             <div>
               <p className="text-[10px] text-slate-400 uppercase font-medium">Stock Status</p>
-              <p className="text-sm font-bold text-slate-800">{inventory.stockStatus}%</p>
+              <p className="text-sm font-bold text-slate-800">{inventory.stockStatus ?? 0}%</p>
             </div>
             <div>
               <p className="text-[10px] text-slate-400 uppercase font-medium">Turnover</p>
-              <p className="text-sm font-bold text-slate-800">{inventory.turnoverRate}%</p>
+              <p className="text-sm font-bold text-slate-800">{inventory.turnoverRate ?? 0}%</p>
             </div>
             <div>
               <p className="text-[10px] text-slate-400 uppercase font-medium">Ordered</p>
-              <p className="text-sm font-bold text-slate-800">{inventory.productsOrdered}%</p>
+              <p className="text-sm font-bold text-slate-800">{inventory.productsOrdered ?? 0}%</p>
             </div>
           </div>
 
-          {/* Multi-month stacked progress bars */}
+          {/* Multi-month stacked progress bars computed from real DB data */}
           <div className="space-y-3 pt-2">
-            {['Active Subscriptions', 'Assigned Profiles', 'Unallocated Keys'].map((label, i) => {
-              const percentages = [72, 58, 85];
-              const pct = percentages[i];
-              return (
-                <div key={label} className="space-y-1">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-600 font-medium">{label}</span>
-                    <span className="font-semibold text-slate-800">{pct}%</span>
-                  </div>
-                  <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
-                    <div
-                      className={`h-full rounded-full ${
-                        i === 0 ? 'bg-blue-600' : i === 1 ? 'bg-emerald-500' : 'bg-purple-500'
-                      }`}
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
+            {[
+              {
+                label: 'Active Subscriptions',
+                pct: inventory.activeSubsPercent ?? activePct,
+                color: 'bg-blue-600'
+              },
+              {
+                label: 'Assigned Profiles',
+                pct: inventory.assignedProfilesPercent ?? 0,
+                color: 'bg-emerald-500'
+              },
+              {
+                label: 'Unallocated Keys',
+                pct: inventory.unallocatedKeysPercent ?? 0,
+                color: 'bg-purple-500'
+              }
+            ].map((item) => (
+              <div key={item.label} className="space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-600 font-medium">{item.label}</span>
+                  <span className="font-semibold text-slate-800">{item.pct}%</span>
                 </div>
-              );
-            })}
+                <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
+                  <div
+                    className={`h-full rounded-full ${item.color}`}
+                    style={{ width: `${item.pct}%` }}
+                  />
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
