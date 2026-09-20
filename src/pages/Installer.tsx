@@ -629,7 +629,7 @@ export const Installer: React.FC<InstallerProps> = ({ onInstallComplete, onInsta
                     <div className="flex items-center justify-between">
                       <span className="font-semibold text-slate-800 flex items-center gap-1.5">
                         <Server size={13} className="text-blue-600" />
-                        Hosting on Render, Railway, or Fly.io?
+                        Universal Cloud & Container Hosting Tip
                       </span>
                       {effectiveDbUrl && (
                         <button
@@ -646,7 +646,7 @@ export const Installer: React.FC<InstallerProps> = ({ onInstallComplete, onInsta
                       )}
                     </div>
                     <p className="text-[11px] text-slate-500 leading-relaxed">
-                      Cloud platforms have ephemeral storage and reset local files when your server restarts or spins down. To keep your database permanently connected across restarts, add <code className="bg-slate-200 px-1 py-0.5 rounded text-slate-800">DATABASE_URL</code> in your host's <strong>Environment Variables</strong> dashboard.
+                      Container and cloud hosts (Render, Railway, Fly.io, Heroku, AWS, Docker, Kubernetes, etc.) use <strong>ephemeral filesystems</strong> that reset local files when the server restarts or scales. To ensure your database connection remains permanently active across all restarts, define <code className="bg-slate-200 px-1 py-0.5 rounded text-slate-800 font-mono">DATABASE_URL</code> in your hosting provider's <strong>Environment Variables</strong> settings.
                     </p>
                   </div>
                 </>

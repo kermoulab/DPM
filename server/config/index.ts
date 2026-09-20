@@ -16,8 +16,48 @@
  *   The installer detects they are already configured and skips those steps.
  */
 
-import 'dotenv/config';
+import dotenv from 'dotenv';
+import path from 'path';
+import os from 'os';
+import fs from 'fs';
 import crypto from 'crypto';
+
+/**
+ * Universal multi-path environment loader:
+ * Resolves .env files across different hosting environments:
+ * - DPM_CONFIG_PATH / DATA_DIR (Custom paths, Docker, Kubernetes)
+ * - /data/.env (Standard cloud/Docker persistent volume mounts)
+ * - ~/.dpm/.env (User home directory storage)
+ * - ./data/.env and ./.env (Local project and volume directories)
+ */
+function loadUniversalDotenv(): void {
+  const candidatePaths: string[] = [];
+
+  if (process.env.DPM_CONFIG_PATH) candidatePaths.push(process.env.DPM_CONFIG_PATH);
+  if (process.env.DATA_DIR) candidatePaths.push(path.join(process.env.DATA_DIR, '.env'));
+  candidatePaths.push(path.join(process.cwd(), '.env'));
+  candidatePaths.push(path.join(process.cwd(), 'data', '.env'));
+
+  if (process.platform !== 'win32') {
+    candidatePaths.push('/data/.env');
+  }
+
+  try {
+    const home = os.homedir();
+    if (home) candidatePaths.push(path.join(home, '.dpm', '.env'));
+  } catch {}
+
+  // Load from candidate paths without overwriting existing process.env variables
+  for (const p of candidatePaths) {
+    try {
+      if (fs.existsSync(p)) {
+        dotenv.config({ path: p });
+      }
+    } catch {}
+  }
+}
+
+loadUniversalDotenv();
 
 export interface AppConfig {
   port: number;

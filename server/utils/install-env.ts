@@ -15,46 +15,87 @@
 
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import crypto from 'crypto';
 
-const ENV_PATH = path.join(process.cwd(), '.env');
-const ENV_TMP_PATH = path.join(process.cwd(), '.env.tmp');
+/**
+ * Universal candidate paths for configuration persistence across different hosting environments:
+ * 1. Explicit DPM_CONFIG_PATH or DATA_DIR (Docker, Kubernetes, custom PaaS)
+ * 2. Standard working directory .env (VPS, PM2, systemd, local)
+ * 3. ./data/.env (Docker mounted volume)
+ * 4. /data/.env (Standard cloud container volume mount on Linux)
+ * 5. ~/.dpm/.env (User home directory storage)
+ */
+export function getEnvPaths(): string[] {
+  const paths: string[] = [];
+
+  if (process.env.DPM_CONFIG_PATH) paths.push(process.env.DPM_CONFIG_PATH);
+  if (process.env.DATA_DIR) paths.push(path.join(process.env.DATA_DIR, '.env'));
+  paths.push(path.join(process.cwd(), '.env'));
+  paths.push(path.join(process.cwd(), 'data', '.env'));
+
+  if (process.platform !== 'win32') {
+    paths.push('/data/.env');
+  }
+
+  try {
+    const homeDir = os.homedir();
+    if (homeDir) {
+      paths.push(path.join(homeDir, '.dpm', '.env'));
+    }
+  } catch {}
+
+  return Array.from(new Set(paths));
+}
 
 /**
- * Read the current .env file, returning an empty string if it doesn't exist.
+ * Read from a specific .env file, returning an empty string if it doesn't exist.
  */
-function readEnvFile(): string {
+function readEnvFile(targetPath: string): string {
   try {
-    return fs.readFileSync(ENV_PATH, 'utf-8');
+    return fs.readFileSync(targetPath, 'utf-8');
   } catch {
     return '';
   }
 }
 
 /**
- * Write or update a single key in the .env file atomically.
+ * Write or update a single key in .env files atomically.
+ * Writes to project root .env and any configured persistent volume directories.
  * Values are always double-quoted for safety with special characters.
  */
 export function writeEnvVar(key: string, value: string): void {
-  let content = readEnvFile();
-
-  // Escape any embedded double-quotes in the value
+  const candidatePaths = getEnvPaths();
   const escaped = value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
   const newLine = `${key}="${escaped}"`;
-
-  // Replace existing key or append new one
   const regex = new RegExp(`^${key}\\s*=.*$`, 'gm');
-  if (regex.test(content)) {
-    content = content.replace(regex, newLine);
-  } else {
-    content = content
-      ? `${content.trimEnd()}\n${newLine}\n`
-      : `${newLine}\n`;
-  }
 
-  // Atomic write: write to .env.tmp, then rename over .env
-  fs.writeFileSync(ENV_TMP_PATH, content, { encoding: 'utf-8', flag: 'w' });
-  fs.renameSync(ENV_TMP_PATH, ENV_PATH);
+  for (const envPath of candidatePaths) {
+    try {
+      const dir = path.dirname(envPath);
+      // Ensure target directory exists if it's a persistent folder
+      if (!fs.existsSync(dir)) {
+        if (envPath.includes('.dpm') || envPath.includes('data')) {
+          try { fs.mkdirSync(dir, { recursive: true }); } catch { continue; }
+        } else {
+          continue;
+        }
+      }
+
+      let content = readEnvFile(envPath);
+      if (regex.test(content)) {
+        content = content.replace(regex, newLine);
+      } else {
+        content = content ? `${content.trimEnd()}\n${newLine}\n` : `${newLine}\n`;
+      }
+
+      const tmpPath = `${envPath}.tmp`;
+      fs.writeFileSync(tmpPath, content, { encoding: 'utf-8', flag: 'w' });
+      fs.renameSync(tmpPath, envPath);
+    } catch {
+      // Ignored for inaccessible or read-only candidate paths
+    }
+  }
 }
 
 /**
