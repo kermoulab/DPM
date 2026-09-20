@@ -20,56 +20,82 @@ export const PortalDropdown: React.FC<PortalDropdownProps> = ({
   className = '',
   placement = 'auto'
 }) => {
-  const [coords, setCoords] = React.useState<{ top: number; left: number }>({ top: 0, left: 0 });
-  const [mounted, setMounted] = React.useState(false);
-  const dropdownRef = React.useRef<HTMLDivElement>(null);
+  const dropdownRef = React.useRef<HTMLDivElement | null>(null);
 
-  React.useEffect(() => {
-    setMounted(true);
-  }, []);
+  const calculatePosition = React.useCallback(
+    (node?: HTMLElement | null) => {
+      const trigger = triggerRef.current;
+      if (!trigger) return null;
 
-  const updatePosition = React.useCallback(() => {
-    if (!triggerRef.current) return;
-    const rect = triggerRef.current.getBoundingClientRect();
-    const dropdownWidth = typeof width === 'number' ? width : 220;
-    const dropdownHeight = dropdownRef.current ? dropdownRef.current.offsetHeight : 240;
+      const rect = trigger.getBoundingClientRect();
+      const el = node || dropdownRef.current;
+      const dropdownWidth = typeof width === 'number' ? width : (el?.offsetWidth || 160);
+      // Realistic default height for action dropdown (2-3 items) if not yet rendered
+      const dropdownHeight = el && el.offsetHeight > 0 ? el.offsetHeight : 80;
 
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const spaceAbove = rect.top;
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
 
-    let showAbove = false;
-    if (placement === 'top-end' || placement === 'top-start') {
-      showAbove = true;
-    } else if (placement === 'auto') {
-      showAbove = spaceBelow < dropdownHeight + 10 && spaceAbove > spaceBelow;
-    }
+      let showAbove = false;
+      if (placement === 'top-end' || placement === 'top-start') {
+        showAbove = true;
+      } else if (placement === 'auto') {
+        showAbove = spaceBelow < dropdownHeight + 10 && spaceAbove > spaceBelow;
+      }
 
-    let top = showAbove ? rect.top - dropdownHeight - 6 : rect.bottom + 6;
+      let top = showAbove ? rect.top - dropdownHeight - 6 : rect.bottom + 6;
 
-    // Boundary protection for top
-    if (top < 8) top = 8;
-    if (top + dropdownHeight > window.innerHeight - 8) {
-      top = Math.max(8, window.innerHeight - dropdownHeight - 8);
-    }
+      // Boundary protection for top and bottom
+      if (top < 8) top = 8;
+      if (top + dropdownHeight > window.innerHeight - 8) {
+        top = Math.max(8, window.innerHeight - dropdownHeight - 8);
+      }
 
-    // Default right-aligned to trigger button
-    let left = rect.right - dropdownWidth;
+      // Default right-aligned to trigger button
+      let left = rect.right - dropdownWidth;
 
-    // If overflowing left edge of viewport
-    if (left < 10) {
-      left = 10;
-    }
+      // Viewport horizontal edge boundaries
+      if (left < 10) left = 10;
+      if (left + dropdownWidth > window.innerWidth - 10) {
+        left = window.innerWidth - dropdownWidth - 10;
+      }
 
-    // If overflowing right edge of viewport
-    if (left + dropdownWidth > window.innerWidth - 10) {
-      left = window.innerWidth - dropdownWidth - 10;
-    }
+      return {
+        top: Math.round(top),
+        left: Math.round(left)
+      };
+    },
+    [triggerRef, width, placement]
+  );
 
-    setCoords({
-      top: Math.round(top),
-      left: Math.round(left)
-    });
-  }, [triggerRef, width, placement]);
+  const [coords, setCoords] = React.useState<{ top: number; left: number }>(() => {
+    const initial = calculatePosition();
+    return initial || { top: 0, left: 0 };
+  });
+
+  const updatePosition = React.useCallback(
+    (node?: HTMLElement | null) => {
+      const pos = calculatePosition(node);
+      if (!pos) return;
+      const el = node || dropdownRef.current;
+      if (el) {
+        el.style.top = `${pos.top}px`;
+        el.style.left = `${pos.left}px`;
+      }
+      setCoords(pos);
+    },
+    [calculatePosition]
+  );
+
+  const setDropdownNode = React.useCallback(
+    (node: HTMLDivElement | null) => {
+      dropdownRef.current = node;
+      if (node) {
+        updatePosition(node);
+      }
+    },
+    [updatePosition]
+  );
 
   React.useLayoutEffect(() => {
     if (isOpen) {
@@ -114,11 +140,11 @@ export const PortalDropdown: React.FC<PortalDropdownProps> = ({
     };
   }, [isOpen, onClose, triggerRef, updatePosition]);
 
-  if (!isOpen || !mounted) return null;
+  if (!isOpen || typeof document === 'undefined') return null;
 
   return createPortal(
     <div
-      ref={dropdownRef}
+      ref={setDropdownNode}
       style={{
         position: 'fixed',
         top: `${coords.top}px`,
