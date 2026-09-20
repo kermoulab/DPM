@@ -68,7 +68,7 @@ alertsRouter.get('/', requireAuth, async (req, res, next) => {
     const lowStockAccounts = lowStockAccountsRes.rows;
     const lowInventory = lowInventoryRes.rows;
 
-    const badgeCount = expiringOrders.length + expiredOrders.length + lowStockAccounts.length + lowInventory.length;
+    const badgeCount = expiringOrders.length + expiredOrders.length;
 
     res.json({
       badgeCount,

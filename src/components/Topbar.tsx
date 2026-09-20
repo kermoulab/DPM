@@ -191,7 +191,7 @@ export const Topbar: React.FC<TopbarProps> = ({
           id="notification-bell-btn"
           onClick={onOpenAlerts}
           className="relative p-2.5 rounded-full hover:bg-slate-100 text-slate-600 transition"
-          title={`Action Center: ${alertCount} total alerts (expiring, expired, low stock)`}
+          title={`Action Center: ${alertCount} active alert${alertCount === 1 ? '' : 's'}`}
           aria-label={`${alertCount} active alerts`}
         >
           <Bell size={19} />
