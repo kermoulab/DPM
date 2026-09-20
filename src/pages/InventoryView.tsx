@@ -232,9 +232,10 @@ export const InventoryView: React.FC = () => {
         product_id: licProductId,
         keys: licBulkKeys
       });
-      alert(`Successfully added ${res.count} license keys to stock.`);
       setShowAddLicenses(false);
       setLicBulkKeys('');
+      setToastMessage(`Successfully added ${res.count} license key${res.count === 1 ? '' : 's'} to stock.`);
+      setTimeout(() => setToastMessage(null), 4000);
       window.dispatchEvent(new CustomEvent('app:data-mutated'));
       loadData(false);
     } catch (err: any) {
@@ -380,10 +381,53 @@ export const InventoryView: React.FC = () => {
                         </span>
                       </td>
                       <td className="py-3.5 px-5 text-right">
-                        <div className="flex items-center justify-end">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleViewProfiles(acc)}
+                            className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-indigo-600 transition"
+                            title={`Profiles (${acc.assigned_profiles || 0}/${acc.capacity})`}
+                          >
+                            <Users size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRevealCredentials(acc.id)}
+                            className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-amber-600 transition"
+                            title="Reveal Credentials"
+                          >
+                            <Key size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditAccount(acc)}
+                            className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-blue-600 transition"
+                            title="Edit Account"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteAccount(acc)}
+                            disabled={(acc.assigned_profiles || 0) > 0}
+                            className={`p-1.5 rounded-lg border transition ${
+                              (acc.assigned_profiles || 0) > 0
+                                ? 'border-slate-100 text-slate-300 cursor-not-allowed'
+                                : 'border-slate-200 text-slate-600 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200'
+                            }`}
+                            title={
+                              (acc.assigned_profiles || 0) > 0
+                                ? `Cannot delete: ${acc.assigned_profiles} active assigned profile(s)`
+                                : 'Delete Account'
+                            }
+                          >
+                            <Trash2 size={14} />
+                          </button>
+
                           {/* 3 dots with toggle dropdown */}
                           <div className="relative inline-block text-left account-actions-menu">
                             <button
+                              type="button"
                               id={`account-menu-btn-${acc.id}`}
                               onClick={(e) => {
                                 e.stopPropagation();

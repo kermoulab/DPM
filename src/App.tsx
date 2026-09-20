@@ -203,6 +203,7 @@ export default function App() {
   const handleOrderCreated = (order: Order) => {
     setOrderBuilderOpen(false);
     setActiveReceiptOrder(order);
+    window.dispatchEvent(new CustomEvent('app:data-mutated'));
     loadAppData();
   };
 

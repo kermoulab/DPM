@@ -95,15 +95,20 @@ export const DeliveryReceiptModal: React.FC<DeliveryReceiptModalProps> = ({
           <div className="p-4 rounded-2xl bg-slate-50 border border-slate-150 grid grid-cols-2 gap-3 text-xs">
             <div>
               <span className="text-slate-400 block text-[10px] uppercase font-semibold">Customer</span>
-              <span className="font-semibold text-slate-800">{order.customer_name}</span>
+              <span className="font-semibold text-slate-800">{order.customer_name || 'Customer'}</span>
             </div>
             <div>
               <span className="text-slate-400 block text-[10px] uppercase font-semibold">Product & Plan</span>
-              <span className="font-semibold text-slate-800">{order.product_name} ({order.plan_name})</span>
+              <span className="font-semibold text-slate-800">
+                {order.product_name || 'Product'} {order.plan_name ? `(${order.plan_name})` : ''}
+              </span>
             </div>
             <div>
               <span className="text-slate-400 block text-[10px] uppercase font-semibold">Start & End Date</span>
-              <span className="font-semibold text-slate-800">{order.start_date} → {order.end_date}</span>
+              <span className="font-semibold text-slate-800">
+                {order.start_date ? String(order.start_date).split('T')[0].split(' ')[0] : '—'} →{' '}
+                {order.end_date ? String(order.end_date).split('T')[0].split(' ')[0] : '—'}
+              </span>
             </div>
             <div>
               <span className="text-slate-400 block text-[10px] uppercase font-semibold">Amount Paid</span>

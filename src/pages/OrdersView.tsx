@@ -112,6 +112,17 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
     loadOrders(true);
   }, [statusFilter]);
 
+  // Listen for data mutations across the app so newly created/updated orders appear immediately
+  React.useEffect(() => {
+    const handleDataMutated = () => {
+      loadOrders(false);
+    };
+    window.addEventListener('app:data-mutated', handleDataMutated);
+    return () => {
+      window.removeEventListener('app:data-mutated', handleDataMutated);
+    };
+  }, [statusFilter]);
+
   React.useEffect(() => {
     if (toast) {
       const timer = setTimeout(() => setToast(null), 5000);

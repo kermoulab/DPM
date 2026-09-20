@@ -197,7 +197,16 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
         fulfillment_meta: fulfillmentMeta
       });
 
-      onOrderCreated(res.order);
+      const selectedCustomer = customers.find((c) => c.id === selectedCustomerId);
+      const selectedPlan = plans.find((pl) => pl.id === selectedPlanId);
+      const fullOrder = {
+        ...res.order,
+        customer_name: res.order?.customer_name || selectedCustomer?.name || 'Customer',
+        product_name: res.order?.product_name || currentProduct?.name || 'Product',
+        plan_name: res.order?.plan_name || selectedPlan?.name || 'Plan'
+      };
+
+      onOrderCreated(fullOrder);
       onClose();
     } catch (err: any) {
       setError(err.message);

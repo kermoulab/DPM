@@ -183,25 +183,6 @@ export const DevicesView: React.FC = () => {
                     {pairingData.pairingCode}
                   </div>
                 </div>
-
-                <div className="pt-2">
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      try {
-                        await api.confirmPair(pairingData.deviceId, 'Samsung Galaxy S24 Ultra (Android 14)');
-                        setPairingData(null);
-                        await loadDevices();
-                        setToastMessage('Connected: Samsung Galaxy S24 Ultra');
-                      } catch (e: any) {
-                        alert(e.message || 'Failed to pair test device');
-                      }
-                    }}
-                    className="text-[11px] text-blue-300/80 hover:text-white underline decoration-dotted transition cursor-pointer"
-                  >
-                    Simulate Android Device Scan (Test)
-                  </button>
-                </div>
               </div>
 
               <div className="bg-white p-4 rounded-3xl shadow-2xl shrink-0 flex flex-col items-center">

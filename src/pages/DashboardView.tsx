@@ -932,30 +932,38 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {paginatedTopProducts.map((p) => (
-                  <tr key={p.id} className="hover:bg-slate-50/60 transition">
-                    <td className="py-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-sm shrink-0">
-                          {p.name.charAt(0)}
-                        </div>
-                        <div>
-                          <p className="font-semibold text-slate-800">{p.name}</p>
-                          <p className="text-[10px] text-slate-400 font-mono">#{p.slug}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-3 text-slate-600">
-                      <span className="px-2 py-0.5 rounded-md bg-slate-100 text-[10px] font-medium">
-                        {p.brand || 'Digital'}
-                      </span>
-                    </td>
-                    <td className="py-3 text-right font-bold text-slate-800">{p.orderCount}</td>
-                    <td className="py-3 text-right font-bold text-emerald-600">
-                      {formatMoney(p.totalRevenue, 'USD')}
+                {paginatedTopProducts.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="py-6 text-center text-xs text-slate-400">
+                      No products recorded yet.
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  paginatedTopProducts.map((p) => (
+                    <tr key={p.id} className="hover:bg-slate-50/60 transition">
+                      <td className="py-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-sm shrink-0">
+                            {p.name.charAt(0)}
+                          </div>
+                          <div>
+                            <p className="font-semibold text-slate-800">{p.name}</p>
+                            <p className="text-[10px] text-slate-400 font-mono">#{p.slug || p.name.toLowerCase().replace(/\s+/g, '-')}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-3 text-slate-600">
+                        <span className="px-2 py-0.5 rounded-md bg-slate-100 text-[10px] font-medium">
+                          {p.brand || 'Digital'}
+                        </span>
+                      </td>
+                      <td className="py-3 text-right font-bold text-slate-800">{p.orderCount ?? (p as any).sales_count ?? 0}</td>
+                      <td className="py-3 text-right font-bold text-emerald-600">
+                        {formatMoney(p.totalRevenue ?? (p as any).revenue ?? 0)}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

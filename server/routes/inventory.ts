@@ -5,7 +5,7 @@ import { inventoryService } from '../services/inventory.service.js';
 import { auditRepo } from '../db/repositories/audit.repository.js';
 import { requireAuth, requireRole, type AuthenticatedRequest } from '../middleware/auth.middleware.js';
 import { validateBody, v } from '../middleware/validation.middleware.js';
-import { maskSecret } from '../utils/crypto.js';
+import { maskSecret, encryptCredential } from '../utils/crypto.js';
 
 export const inventoryRouter = Router();
 
@@ -82,8 +82,16 @@ inventoryRouter.put('/profiles/:id', requireAuth, requireRole('manager'), async 
 inventoryRouter.put('/accounts/:id', requireAuth, requireRole('manager'), async (req: AuthenticatedRequest, res, next) => {
   try {
     const { id } = req.params;
-    const updated = await inventoryRepo.updateAccount(id, req.body);
-    await auditRepo.log(req.user || null, 'UPDATE_SERVICE_ACCOUNT', 'service_account', id, req.body);
+    const updates = { ...req.body };
+    if (updates.password && typeof updates.password === 'string' && updates.password.trim()) {
+      const enc = encryptCredential(updates.password.trim());
+      updates.encrypted_credential = enc.encrypted;
+      updates.iv = enc.iv;
+      updates.tag = enc.tag;
+      delete updates.password;
+    }
+    const updated = await inventoryRepo.updateAccount(id, updates);
+    await auditRepo.log(req.user || null, 'UPDATE_SERVICE_ACCOUNT', 'service_account', id, { ...updates, encrypted_credential: '[HIDDEN]' });
     res.json({ success: true, account: updated });
   } catch (err) {
     next(err);

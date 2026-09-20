@@ -50,7 +50,8 @@ export class InventoryRepository {
     let sql = `
       SELECT sa.*, p.name as product_name,
              COUNT(sp.id)::int as profile_count,
-             COUNT(CASE WHEN sp.status = 'available' THEN 1 END)::int as available_profiles
+             COUNT(CASE WHEN sp.status = 'available' THEN 1 END)::int as available_profiles,
+             COUNT(CASE WHEN sp.status != 'available' THEN 1 END)::int as assigned_profiles
       FROM service_accounts sa
       JOIN products p ON p.id = sa.product_id
       LEFT JOIN service_profiles sp ON sp.service_account_id = sa.id
@@ -102,21 +103,23 @@ export class InventoryRepository {
   async updateAccount(id: string, updates: Partial<ServiceAccountRow>): Promise<ServiceAccountRow | null> {
     const res = await query<ServiceAccountRow>(
       `UPDATE service_accounts
-       SET provider = COALESCE($1, provider),
-           login = COALESCE($2, login),
-           encrypted_credential = COALESCE($3, encrypted_credential),
-           iv = COALESCE($4, iv),
-           tag = COALESCE($5, tag),
-           status = COALESCE($6, status),
-           expiry_date = COALESCE($7, expiry_date),
-           capacity = COALESCE($8, capacity),
-           notes = COALESCE($9, notes)
-       WHERE id = $10
+       SET product_id = COALESCE($1, product_id),
+           provider = COALESCE($2, provider),
+           login = COALESCE($3, login),
+           encrypted_credential = COALESCE($4, encrypted_credential),
+           iv = COALESCE($5, iv),
+           tag = COALESCE($6, tag),
+           status = COALESCE($7, status),
+           expiry_date = COALESCE($8, expiry_date),
+           capacity = COALESCE($9, capacity),
+           notes = COALESCE($10, notes)
+       WHERE id = $11
        RETURNING *`,
       [
-        updates.provider ?? null, updates.login ?? null, updates.encrypted_credential ?? null,
-        updates.iv ?? null, updates.tag ?? null, updates.status ?? null,
-        updates.expiry_date ?? null, updates.capacity ?? null, updates.notes ?? null, id
+        updates.product_id ?? null, updates.provider ?? null, updates.login ?? null,
+        updates.encrypted_credential ?? null, updates.iv ?? null, updates.tag ?? null,
+        updates.status ?? null, updates.expiry_date ?? null, updates.capacity ?? null,
+        updates.notes ?? null, id
       ]
     );
     return res.rows[0] || null;

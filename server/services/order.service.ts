@@ -198,7 +198,27 @@ export class OrderService {
         ]
       );
 
-      return orderRes.rows[0];
+      // Return fully joined order so receipt and notifications have customer_name, product_name, and plan_name
+      const fullOrderRes = await client.query<OrderRow>(
+        `SELECT o.*,
+                c.name as customer_name, c.email as customer_email, c.whatsapp as customer_whatsapp,
+                p.name as product_name,
+                pl.name as plan_name,
+                lk.license_key as license_key,
+                sa.login as account_login,
+                sp.profile_name as profile_name, sp.pin as profile_pin
+         FROM orders o
+         JOIN customers c ON c.id = o.customer_id
+         JOIN products p ON p.id = o.product_id
+         JOIN plans pl ON pl.id = o.plan_id
+         LEFT JOIN license_keys lk ON lk.id = o.assigned_license_key_id
+         LEFT JOIN service_accounts sa ON sa.id = o.assigned_service_account_id
+         LEFT JOIN service_profiles sp ON sp.id = o.assigned_profile_id
+         WHERE o.id = $1`,
+        [orderId]
+      );
+
+      return fullOrderRes.rows[0] || orderRes.rows[0];
     });
   }
 
