@@ -12,6 +12,8 @@ alertsRouter.get('/', requireAuth, async (req, res, next) => {
     // 1. Orders expiring in <= 3 days
     const expiringOrdersRes = await query<any>(
       `SELECT o.*,
+              o.start_date::text as start_date,
+              o.end_date::text as end_date,
               c.name as customer_name, c.whatsapp as customer_whatsapp, c.email as customer_email,
               p.name as product_name,
               pl.name as plan_name,
@@ -29,6 +31,8 @@ alertsRouter.get('/', requireAuth, async (req, res, next) => {
     // 2. Expired orders within last 30 days
     const expiredOrdersRes = await query<any>(
       `SELECT o.*,
+              o.start_date::text as start_date,
+              o.end_date::text as end_date,
               c.name as customer_name, c.whatsapp as customer_whatsapp, c.email as customer_email,
               p.name as product_name,
               pl.name as plan_name,

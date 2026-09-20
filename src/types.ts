@@ -357,3 +357,18 @@ export interface DashboardStats {
     items?: any[];
   }>;
 }
+
+/**
+ * Sanitizes WhatsApp phone inputs: only allows digits (0-9) and '+' (at the start).
+ * Rejects all alphabetic letters, spaces, and other symbols.
+ */
+export function sanitizeWhatsAppPhone(val: string): string {
+  if (!val) return '';
+  let cleaned = val.replace(/[^\d+]/g, '');
+  if (cleaned.startsWith('+')) {
+    cleaned = '+' + cleaned.slice(1).replace(/\+/g, '');
+  } else {
+    cleaned = cleaned.replace(/\+/g, '');
+  }
+  return cleaned;
+}

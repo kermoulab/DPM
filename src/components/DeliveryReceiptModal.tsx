@@ -2,6 +2,7 @@ import React from 'react';
 import { X, Check, Copy, MessageSquare, Shield, Key, ExternalLink, Download } from 'lucide-react';
 import { api } from '../api';
 import { useCurrency } from '../context/CurrencyContext';
+import { sanitizeWhatsAppPhone } from '../types';
 
 interface DeliveryReceiptModalProps {
   isOpen?: boolean;
@@ -289,7 +290,7 @@ export const DeliveryReceiptModal: React.FC<DeliveryReceiptModalProps> = ({
                   type="tel"
                   placeholder="Enter recipient WhatsApp number (e.g. +212600000000)"
                   value={phoneInput}
-                  onChange={(e) => setPhoneInput(e.target.value)}
+                  onChange={(e) => setPhoneInput(sanitizeWhatsAppPhone(e.target.value))}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-hidden focus:bg-white"
                 />
               </div>

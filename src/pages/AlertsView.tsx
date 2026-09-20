@@ -17,6 +17,13 @@ import {
   Globe
 } from 'lucide-react';
 import { api } from '../api';
+import { sanitizeWhatsAppPhone } from '../types';
+
+const formatDateOnly = (d: any) => {
+  if (!d) return '—';
+  if (d instanceof Date) return d.toISOString().split('T')[0];
+  return String(d).split('T')[0].split(' ')[0];
+};
 
 interface AlertsViewProps {
   onRenewOrder?: (orderId: string) => Promise<any> | void;
@@ -408,9 +415,9 @@ export const AlertsView: React.FC<AlertsViewProps> = ({
               <p className="text-slate-600 text-[11px] mt-0.5">
                 New order duration:{' '}
                 <span className="font-semibold text-blue-800">
-                  {renewalFeedback.startDate} → {renewalFeedback.newEndDate}
+                  {formatDateOnly(renewalFeedback.startDate)} → {formatDateOnly(renewalFeedback.newEndDate)}
                 </span>{' '}
-                (+{renewalFeedback.duration} {renewalFeedback.durationUnit} from {renewalFeedback.previousEndDate ? `expiration ${renewalFeedback.previousEndDate}` : 'current date'})
+                (+{renewalFeedback.duration} {renewalFeedback.durationUnit} from {renewalFeedback.previousEndDate ? `expiration ${formatDateOnly(renewalFeedback.previousEndDate)}` : 'current date'})
               </p>
             </div>
           </div>
@@ -509,7 +516,7 @@ export const AlertsView: React.FC<AlertsViewProps> = ({
                         <div className="flex items-center gap-2">
                           <span className="font-mono text-xs font-bold text-slate-900">#{o.order_number}</span>
                           <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold">
-                            Expires: {o.end_date} {o.days_remaining !== undefined && (o.days_remaining <= 0 ? '(Today)' : `(${o.days_remaining}d left)`)}
+                            Expires: {formatDateOnly(o.end_date)} {o.days_remaining !== undefined && (o.days_remaining <= 0 ? '(Today)' : `(${o.days_remaining}d left)`)}
                           </span>
                         </div>
                         <p className="text-xs font-medium text-slate-800">
@@ -601,7 +608,7 @@ export const AlertsView: React.FC<AlertsViewProps> = ({
                         <div className="flex items-center gap-2">
                           <span className="font-mono text-xs font-bold text-slate-900">#{o.order_number}</span>
                           <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 text-[10px] font-bold">
-                            Expired: {o.end_date} {o.days_expired !== undefined && `(${o.days_expired}d ago)`}
+                            Expired: {formatDateOnly(o.end_date)} {o.days_expired !== undefined && `(${o.days_expired}d ago)`}
                           </span>
                         </div>
                         <p className="text-xs font-medium text-slate-800">
@@ -720,7 +727,7 @@ export const AlertsView: React.FC<AlertsViewProps> = ({
                     autoFocus
                     placeholder="e.g. +14155552671 or 4155552671"
                     value={phoneInput}
-                    onChange={(e) => setPhoneInput(e.target.value)}
+                    onChange={(e) => setPhoneInput(sanitizeWhatsAppPhone(e.target.value))}
                     className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-hidden focus:bg-white focus:border-emerald-500 transition"
                   />
                 </div>

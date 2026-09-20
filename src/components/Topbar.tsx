@@ -62,7 +62,7 @@ export const Topbar: React.FC<TopbarProps> = ({
   };
 
   const displayName = activeUser.name || activeUser.username || 'Admin';
-  const displayRole = activeUser.role === 'owner' ? 'Store Owner' : (activeUser.role || 'Staff');
+  const displayRole = (activeUser.role === 'owner' || activeUser.role === 'admin') ? 'Admin' : (activeUser.role || 'Staff');
   const initials = displayName
     .split(' ')
     .map((n) => n[0])

@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import { api } from '../api';
 import { useCurrency } from '../context/CurrencyContext';
-import type { User, AuditLog, UserRole } from '../types';
+import { User, AuditLog, UserRole, sanitizeWhatsAppPhone } from '../types';
 
 interface SettingsViewProps {
   initialTab?: 'profile' | 'general' | 'team' | 'audit';
@@ -588,7 +588,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         type="text"
                         disabled
                         readOnly
-                        value={profileRole.toUpperCase()}
+                        value={(profileRole === 'owner' ? 'admin' : profileRole).toUpperCase()}
                         className="w-full bg-slate-100 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-500 font-bold uppercase cursor-not-allowed select-none"
                       />
                       <div className="absolute right-3 top-2.5 text-slate-400">
@@ -596,7 +596,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       </div>
                     </div>
                     <p className="text-[10px] text-slate-400 leading-tight mt-1">
-                      Role modifications are restricted to organizational owners and admins in the Staff tab.
+                      Role modifications are restricted to administrators in the Staff tab.
                     </p>
                   </div>
 
@@ -780,9 +780,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <div className="space-y-1">
               <label className="text-xs font-semibold text-slate-700">WhatsApp Support Number</label>
               <input
-                type="text"
+                type="tel"
                 value={settings.support_phone || ''}
-                onChange={(e) => setSettings({ ...settings, support_phone: e.target.value })}
+                onChange={(e) => setSettings({ ...settings, support_phone: sanitizeWhatsAppPhone(e.target.value) })}
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800"
               />
             </div>
@@ -893,7 +893,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                               : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                           }`}
                         >
-                          {u.role}
+                          {u.role === 'owner' ? 'admin' : u.role}
                         </span>
                       </td>
                       <td className="py-3.5 px-4">

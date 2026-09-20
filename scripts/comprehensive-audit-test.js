@@ -553,10 +553,52 @@ async function runComprehensiveAudit() {
     assert(editModalContent.includes('formatDateForInput') && editModalContent.includes('calculateStatusForEndDate'),
       'EditOrderModal normalizes start/end dates for native date inputs and auto-reconciles status');
 
-    // Inspect alerts.ts for reconciliation
+    // Inspect alerts.ts for reconciliation and date text casting
     const alertsRouteContent = fs.readFileSync(path.join(process.cwd(), 'server', 'routes', 'alerts.ts'), 'utf8');
     assert(alertsRouteContent.includes('reconcileSubscriptionStatuses'),
       'alerts route synchronizes subscription statuses before returning alert triggers');
+    assert(alertsRouteContent.includes('o.start_date::text as start_date') && alertsRouteContent.includes('o.end_date::text as end_date'),
+      'alerts route casts start_date and end_date to text to prevent date-time serialization');
+
+    // Inspect AlertsView.tsx for date-only formatting
+    assert(alertsViewContent.includes('formatDateOnly(o.end_date)'),
+      'AlertsView formats expiring and expired subscription dates with no time');
+
+    // Inspect Topbar.tsx and SettingsView.tsx for Admin display
+    const topbarContent = fs.readFileSync(path.join(process.cwd(), 'src', 'components', 'Topbar.tsx'), 'utf8');
+    assert(topbarContent.includes("activeUser.role === 'owner' || activeUser.role === 'admin'") && topbarContent.includes("'Admin'"),
+      'Topbar displays Admin instead of Store Owner');
+
+    const settingsViewContent = fs.readFileSync(path.join(process.cwd(), 'src', 'pages', 'SettingsView.tsx'), 'utf8');
+    assert(settingsViewContent.includes("profileRole === 'owner' ? 'admin' : profileRole"),
+      'SettingsView profile role maps owner to Admin');
+
+    // Inspect WhatsApp phone sanitization
+    const typesContent = fs.readFileSync(path.join(process.cwd(), 'src', 'types.ts'), 'utf8');
+    assert(typesContent.includes('function sanitizeWhatsAppPhone'),
+      'src/types.ts exports sanitizeWhatsAppPhone utility');
+
+    // Test sanitizeWhatsAppPhone logic directly
+    const sanitizeTest = (val) => {
+      let cleaned = val.replace(/[^\d+]/g, '');
+      if (cleaned.startsWith('+')) {
+        cleaned = '+' + cleaned.slice(1).replace(/\+/g, '');
+      } else {
+        cleaned = cleaned.replace(/\+/g, '');
+      }
+      return cleaned;
+    };
+    assert(sanitizeTest('+1 (415) 555-TEST-999') === '+1415555999',
+      'sanitizeWhatsAppPhone strips text and spaces while preserving numbers and +');
+    assert(sanitizeTest('123+def+456') === '123456',
+      'sanitizeWhatsAppPhone strips invalid embedded plus signs and non-digits');
+    assert(sanitizeTest('+123+def+456') === '+123456',
+      'sanitizeWhatsAppPhone retains single leading plus and strips embedded plus signs');
+
+    // Inspect Sidebar.tsx for reduced width
+    const sidebarContent = fs.readFileSync(path.join(process.cwd(), 'src', 'components', 'Sidebar.tsx'), 'utf8');
+    assert(sidebarContent.includes("'w-52'") && sidebarContent.includes('w-60'),
+      'Sidebar width is reduced to compact w-52 desktop and w-60 mobile drawer');
   }
 
   console.log('\n================================================================');

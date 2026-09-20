@@ -12,7 +12,7 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import { api } from '../api';
-import type { Customer } from '../types';
+import { Customer, sanitizeWhatsAppPhone } from '../types';
 import { useCurrency } from '../context/CurrencyContext';
 import { PortalDropdown } from '../components/PortalDropdown';
 
@@ -450,10 +450,10 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
               <div>
                 <label className="text-xs font-semibold text-slate-700 block mb-1">WhatsApp Phone (International)</label>
                 <input
-                  type="text"
+                  type="tel"
                   placeholder="+12025550198"
                   value={editWhatsapp}
-                  onChange={(e) => setEditWhatsapp(e.target.value)}
+                  onChange={(e) => setEditWhatsapp(sanitizeWhatsAppPhone(e.target.value))}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:bg-white focus:outline-hidden"
                 />
               </div>
@@ -585,10 +585,10 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
               <div>
                 <label className="text-xs font-semibold text-slate-700 block mb-1">WhatsApp Phone (International)</label>
                 <input
-                  type="text"
+                  type="tel"
                   placeholder="+12025550198"
                   value={whatsapp}
-                  onChange={(e) => setWhatsapp(e.target.value)}
+                  onChange={(e) => setWhatsapp(sanitizeWhatsAppPhone(e.target.value))}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:bg-white focus:outline-hidden"
                 />
               </div>

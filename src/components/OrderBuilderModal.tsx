@@ -1,7 +1,7 @@
 import React from 'react';
 import { X, Check, AlertCircle, Sparkles, User, Box, Calendar, CreditCard, Shield, Plus } from 'lucide-react';
 import { api } from '../api';
-import type { Customer, Product, Plan } from '../types';
+import { Customer, Product, Plan, sanitizeWhatsAppPhone } from '../types';
 import { useCurrency } from '../context/CurrencyContext';
 
 interface OrderBuilderModalProps {
@@ -296,10 +296,10 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                     className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800"
                   />
                   <input
-                    type="text"
+                    type="tel"
                     placeholder="WhatsApp (+1202...)"
                     value={newCustWhatsapp}
-                    onChange={(e) => setNewCustWhatsapp(e.target.value)}
+                    onChange={(e) => setNewCustWhatsapp(sanitizeWhatsAppPhone(e.target.value))}
                     className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800"
                   />
                 </div>

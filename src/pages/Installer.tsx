@@ -22,7 +22,7 @@ import {
   Check
 } from 'lucide-react';
 import { api } from '../api';
-import type { User as UserType } from '../types';
+import { sanitizeWhatsAppPhone, User as UserType } from '../types';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -811,7 +811,7 @@ export const Installer: React.FC<InstallerProps> = ({ onInstallComplete, onInsta
                 <div className="space-y-1.5">
                   <FieldLabel>Support WhatsApp Number</FieldLabel>
                   <FieldInput
-                    type="text" value={supportPhone} onChange={(e) => setSupportPhone(e.target.value)}
+                    type="tel" value={supportPhone} onChange={(e) => setSupportPhone(sanitizeWhatsAppPhone(e.target.value))}
                     placeholder="+1 555 000 0000" />
                 </div>
               </div>

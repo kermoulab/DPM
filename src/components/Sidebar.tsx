@@ -91,7 +91,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <aside
         id="mobile-sidebar-drawer"
         onClick={(e) => e.stopPropagation()}
-        className={`fixed inset-y-0 left-0 w-72 bg-[#151828] text-slate-400 flex flex-col justify-between z-50 shadow-2xl transition-transform duration-300 lg:hidden ${
+        className={`fixed inset-y-0 left-0 w-60 bg-[#151828] text-slate-400 flex flex-col justify-between z-50 shadow-2xl transition-transform duration-300 lg:hidden ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -166,19 +166,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <aside
         id="erp-sidebar"
         className={`hidden lg:flex bg-[#151828] text-slate-400 border-r border-slate-800 flex-col justify-between transition-all duration-200 z-30 shrink-0 sticky top-0 h-screen select-none overflow-y-auto ${
-          collapsed ? 'w-20' : 'w-64'
+          collapsed ? 'w-16' : 'w-52'
         }`}
       >
         {/* Top Logo / App header */}
         <div>
-          <div className="h-16 flex items-center justify-between px-4 border-b border-slate-800/80">
-            <div className="flex items-center gap-3 overflow-hidden">
-              <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-blue-600/30 shrink-0">
+          <div className="h-16 flex items-center justify-between px-3 border-b border-slate-800/80">
+            <div className="flex items-center gap-2.5 overflow-hidden">
+              <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white font-bold text-base shadow-lg shadow-blue-600/30 shrink-0">
                 ⚡
               </div>
               {!collapsed && (
                 <div className="truncate">
-                  <h1 className="font-semibold text-white text-sm tracking-tight">
+                  <h1 className="font-semibold text-white text-xs tracking-tight">
                     Vectis SYSTEM
                   </h1>
                 </div>
@@ -190,27 +190,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
               className="text-slate-500 hover:text-white p-1 rounded-lg hover:bg-slate-800/60 transition"
               title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             >
-              {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+              {collapsed ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
             </button>
           </div>
 
           {/* Quick Create Order Button */}
-          <div className="p-3">
+          <div className="p-2.5">
             <button
               id="quick-create-order-btn"
               onClick={onOpenOrderBuilder}
-              className={`w-full bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-medium text-xs flex items-center justify-center gap-2 py-3 shadow-md shadow-blue-600/20 transition group ${
+              className={`w-full bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-medium text-xs flex items-center justify-center gap-2 py-2.5 shadow-md shadow-blue-600/20 transition group ${
                 collapsed ? 'px-0' : 'px-3'
               }`}
               title="Create New Order (Universal Engine)"
             >
-              <Plus size={18} className="group-hover:rotate-90 transition-transform duration-200" />
+              <Plus size={16} className="group-hover:rotate-90 transition-transform duration-200" />
               {!collapsed && <span>New Order</span>}
             </button>
           </div>
 
           {/* Nav Items */}
-          <nav className="px-3 space-y-1.5 py-2">
+          <nav className="px-2.5 space-y-1 py-1.5">
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = selectedTab === item.id;
@@ -219,7 +219,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   key={item.id}
                   id={`nav-${item.id}`}
                   onClick={() => onSelectTab(item.id)}
-                  className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-2xl text-xs font-medium transition-all relative group ${
+                  className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-medium transition-all relative group ${
                     isActive
                       ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/25'
                       : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
@@ -227,7 +227,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   title={collapsed ? item.label : undefined}
                 >
                   <div className="relative shrink-0 flex items-center justify-center">
-                    <Icon size={20} className={isActive ? 'text-white' : 'text-slate-400 group-hover:text-white'} />
+                    <Icon size={18} className={isActive ? 'text-white' : 'text-slate-400 group-hover:text-white'} />
                     {item.badge !== undefined && item.badge > 0 && collapsed && (
                       <span className="absolute -top-1.5 -right-2 min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[10px] font-bold flex items-center justify-center ring-2 ring-[#151828] shadow-xs">
                         {item.badge > 99 ? '99+' : item.badge}
@@ -238,7 +238,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <span className="truncate text-left flex-1">{item.label}</span>
                   )}
                   {!collapsed && item.badge !== undefined && item.badge > 0 && (
-                    <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-red-600 text-white text-[10px] font-bold flex items-center justify-center shadow-xs">
+                    <span className="min-w-[18px] h-4.5 px-1 rounded-full bg-red-600 text-white text-[10px] font-bold flex items-center justify-center shadow-xs">
                       {item.badge > 99 ? '99+' : item.badge}
                     </span>
                   )}
