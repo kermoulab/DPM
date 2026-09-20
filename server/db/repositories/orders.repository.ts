@@ -193,21 +193,46 @@ export class OrdersRepository {
       }
     }
 
+    const cleanStartDate = updates.start_date ? String(updates.start_date).split('T')[0] : null;
+    const cleanEndDate = updates.end_date ? String(updates.end_date).split('T')[0] : null;
+    const notesJson = (updates as any).notes !== undefined
+      ? JSON.stringify({ notes: (updates as any).notes })
+      : (updates.fulfillment_data ? JSON.stringify(updates.fulfillment_data) : null);
+
     await query<OrderRow>(
       `UPDATE orders
        SET status = COALESCE($1, status),
            payment_status = COALESCE($2, payment_status),
            payment_method = COALESCE($3, payment_method),
-           end_date = COALESCE($4, end_date),
-           price = COALESCE($5, price),
-           cost = COALESCE($6, cost),
-           whatsapp_contacted_at = COALESCE($7, whatsapp_contacted_at)
-       WHERE id = $8`,
+           start_date = COALESCE($4, start_date),
+           end_date = COALESCE($5, end_date),
+           price = COALESCE($6, price),
+           cost = COALESCE($7, cost),
+           whatsapp_contacted_at = COALESCE($8, whatsapp_contacted_at),
+           customer_id = COALESCE($9, customer_id),
+           product_id = COALESCE($10, product_id),
+           plan_id = COALESCE($11, plan_id),
+           fulfillment_data = CASE
+             WHEN $12::jsonb IS NOT NULL THEN COALESCE(fulfillment_data, '{}'::jsonb) || $12::jsonb
+             ELSE fulfillment_data
+           END,
+           created_at = COALESCE($13, created_at)
+       WHERE id = $14`,
       [
-        newStatus, updates.payment_status ?? null, updates.payment_method ?? null,
-        updates.end_date ? String(updates.end_date).split('T')[0] : null,
-        updates.price ?? null, updates.cost ?? null,
-        updates.whatsapp_contacted_at ?? null, id
+        newStatus,
+        updates.payment_status ?? null,
+        updates.payment_method ?? null,
+        cleanStartDate,
+        cleanEndDate,
+        updates.price !== undefined ? updates.price : null,
+        updates.cost !== undefined ? updates.cost : null,
+        updates.whatsapp_contacted_at ?? null,
+        updates.customer_id ?? null,
+        updates.product_id ?? null,
+        updates.plan_id ?? null,
+        notesJson,
+        updates.created_at ?? null,
+        id
       ]
     );
     await this.reconcileSubscriptionStatuses();

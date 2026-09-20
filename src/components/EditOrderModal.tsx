@@ -190,6 +190,7 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
         product_id: productId,
         plan_id: planId,
         start_date: startDate,
+        created_at: startDate,
         end_date: endDate,
         price: parseFloat(price) || 0,
         payment_status: paymentStatus,
@@ -316,7 +317,7 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1">
                 <Calendar size={13} className="text-slate-400" />
-                Start Date
+                Start Date / Creation Date
               </label>
               <input
                 type="date"

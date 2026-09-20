@@ -500,6 +500,8 @@ async function runComprehensiveAudit() {
       'reconcileSubscriptionStatuses executes atomic SQL UPDATE for expiring status');
     assert(ordersRepoContent.includes('+ 7'),
       'orders.repository.ts uses 7-day threshold for expiring subscriptions');
+    assert(ordersRepoContent.includes('start_date = COALESCE') && ordersRepoContent.includes('end_date = COALESCE'),
+      'orders.repository.ts persists start_date and end_date on order updates');
     assert(ordersRepoContent.includes('UPDATE service_profiles') && ordersRepoContent.includes("status = 'available', assigned_customer_id = NULL, assigned_order_id = NULL"),
       'orders.repository.ts atomically releases assigned service profiles upon order deletion');
     assert(ordersRepoContent.includes('UPDATE license_keys') && ordersRepoContent.includes("status = 'available'"),
