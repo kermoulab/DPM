@@ -86,6 +86,12 @@ customersRouter.delete('/:id', requireAuth, requireRole('manager'), async (req: 
       return;
     }
 
+    const customerOrders = await ordersRepo.findAll({ customer_id: id });
+    if (customerOrders.length > 0) {
+      res.status(400).json({ error: 'Cannot delete customer with existing orders. Please cancel or remove customer orders first.' });
+      return;
+    }
+
     await customersRepo.delete(id);
     await auditRepo.log(req.user || null, 'DELETE_CUSTOMER', 'customer', id, { name: customer.name });
     res.json({ success: true, message: 'Customer deleted successfully.' });

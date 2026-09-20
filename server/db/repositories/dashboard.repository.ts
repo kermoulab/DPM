@@ -1,7 +1,10 @@
 import { query } from '../connection/pool.js';
+import { ordersRepo } from './orders.repository.js';
 
 export class DashboardRepository {
   async getStats(): Promise<any> {
+    await ordersRepo.reconcileSubscriptionStatuses();
+
     // 1. Financial summary
     const revRes = await query<{ total_rev: string; total_cost: string }>(
       `SELECT COALESCE(SUM(price), 0)::text as total_rev,

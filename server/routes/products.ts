@@ -2,6 +2,7 @@ import { Router } from 'express';
 import crypto from 'crypto';
 import { productsRepo } from '../db/repositories/products.repository.js';
 import { plansRepo } from '../db/repositories/plans.repository.js';
+import { ordersRepo } from '../db/repositories/orders.repository.js';
 import { auditRepo } from '../db/repositories/audit.repository.js';
 import { requireAuth, requireRole, type AuthenticatedRequest } from '../middleware/auth.middleware.js';
 import { validateBody, v } from '../middleware/validation.middleware.js';
@@ -120,6 +121,12 @@ productsRouter.delete('/:id', requireAuth, requireRole('admin'), async (req: Aut
     const product = await productsRepo.findById(id);
     if (!product) {
       res.status(404).json({ error: 'Product not found.' });
+      return;
+    }
+
+    const productOrders = await ordersRepo.findAll({ product_id: id });
+    if (productOrders.length > 0) {
+      res.status(400).json({ error: 'Cannot delete product with existing orders. Please cancel or remove associated orders first.' });
       return;
     }
 

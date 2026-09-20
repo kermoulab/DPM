@@ -218,7 +218,7 @@ export const DevicesView: React.FC = () => {
               <span>{generating ? 'Generating...' : 'Pair New Android Device'}</span>
             </button>
             <button
-              onClick={loadDevices}
+              onClick={() => loadDevices(true)}
               className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition cursor-pointer"
               title="Refresh list"
             >

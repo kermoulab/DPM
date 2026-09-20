@@ -11,7 +11,7 @@
     "preview": "vite preview",
     "clean": "node scripts/clean.js",
     "lint": "tsc --noEmit",
-    "test": "node scripts/regression-test.js",
+    "test": "node scripts/regression-test.js && node scripts/comprehensive-audit-test.js",
     "db:migrate": "tsx server/db/cli.ts migrate",
     "db:import": "tsx server/db/cli.ts import",
     "db:setup": "tsx server/db/cli.ts setup",

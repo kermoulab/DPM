@@ -303,7 +303,7 @@ export const AlertsView: React.FC<AlertsViewProps> = ({
 
         <div className="flex items-center gap-2">
           <button
-            onClick={loadAlerts}
+            onClick={() => loadAlerts(true)}
             disabled={loading}
             className="px-3.5 py-2 rounded-xl border border-slate-200 text-slate-700 font-medium text-xs hover:bg-slate-50 flex items-center gap-1.5 transition shadow-2xs"
           >

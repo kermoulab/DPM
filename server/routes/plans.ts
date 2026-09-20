@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import crypto from 'crypto';
+import { query } from '../db/connection/pool.js';
 import { plansRepo } from '../db/repositories/plans.repository.js';
 import { auditRepo } from '../db/repositories/audit.repository.js';
 import { calculateEndDate } from '../services/order.service.js';
@@ -103,6 +104,12 @@ plansRouter.delete('/:id', requireAuth, requireRole('admin'), async (req: Authen
     const plan = await plansRepo.findById(id);
     if (!plan) {
       res.status(404).json({ error: 'Plan not found.' });
+      return;
+    }
+
+    const ordersRes = await query<{ count: string }>('SELECT COUNT(*) as count FROM orders WHERE plan_id = $1', [id]);
+    if (parseInt(ordersRes.rows[0]?.count || '0', 10) > 0) {
+      res.status(400).json({ error: 'Cannot delete plan with existing orders. Please cancel or remove associated orders first.' });
       return;
     }
 

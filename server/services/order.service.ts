@@ -7,27 +7,33 @@ import { decryptCredential } from '../utils/crypto.js';
 import { auditRepo } from '../db/repositories/audit.repository.js';
 
 export function calculateEndDate(startDateStr: string, duration: number, unit: string): string {
-  const start = new Date(startDateStr);
-  const end = new Date(start);
+  // Normalize startDateStr: if it contains 'T', take just the YYYY-MM-DD part
+  const cleanDateStr = startDateStr.split('T')[0];
+  const [yearStr, monthStr, dayStr] = cleanDateStr.split('-');
+  const year = parseInt(yearStr, 10);
+  const month = parseInt(monthStr, 10) - 1; // 0-indexed month
+  const day = parseInt(dayStr, 10);
+
+  const end = new Date(Date.UTC(year, month, day));
 
   switch (unit) {
     case 'hours':
-      end.setHours(end.getHours() + duration);
+      end.setUTCHours(end.getUTCHours() + duration);
       break;
     case 'days':
-      end.setDate(end.getDate() + duration);
+      end.setUTCDate(end.getUTCDate() + duration);
       break;
     case 'weeks':
-      end.setDate(end.getDate() + duration * 7);
+      end.setUTCDate(end.getUTCDate() + duration * 7);
       break;
     case 'months':
-      end.setMonth(end.getMonth() + duration);
+      end.setUTCMonth(end.getUTCMonth() + duration);
       break;
     case 'years':
-      end.setFullYear(end.getFullYear() + duration);
+      end.setUTCFullYear(end.getUTCFullYear() + duration);
       break;
     default:
-      end.setDate(end.getDate() + duration);
+      end.setUTCDate(end.getUTCDate() + duration);
   }
 
   return end.toISOString().split('T')[0];
@@ -289,9 +295,11 @@ export class OrderService {
       }
 
       // New end date calculated from previous end date or today, whichever is later
-      const previousEnd = new Date(order.end_date);
-      const today = new Date();
-      const baseDate = previousEnd > today ? order.end_date : today.toISOString().split('T')[0];
+      const previousEndStr = typeof order.end_date === 'string'
+        ? order.end_date.split('T')[0]
+        : new Date(order.end_date).toISOString().split('T')[0];
+      const todayStr = new Date().toISOString().split('T')[0];
+      const baseDate = previousEndStr > todayStr ? previousEndStr : todayStr;
       const newEndDate = calculateEndDate(baseDate, plan.duration, plan.duration_unit);
 
       const renewalPrice = customPrice !== undefined ? customPrice : Number(plan.price);

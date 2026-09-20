@@ -49,7 +49,33 @@ export interface OrderRenewalRow {
 }
 
 export class OrdersRepository {
+  async reconcileSubscriptionStatuses(): Promise<void> {
+    try {
+      await query(`
+        UPDATE orders
+        SET status = 'expired'
+        WHERE status IN ('active', 'expiring') AND end_date < CURRENT_DATE
+      `);
+      await query(`
+        UPDATE orders
+        SET status = 'expiring'
+        WHERE status = 'active'
+          AND end_date >= CURRENT_DATE
+          AND end_date <= (CURRENT_DATE + INTERVAL '3 days')
+      `);
+      await query(`
+        UPDATE orders
+        SET status = 'active'
+        WHERE status = 'expiring'
+          AND end_date > (CURRENT_DATE + INTERVAL '3 days')
+      `);
+    } catch (err) {
+      console.error('[OrdersRepository] Failed to reconcile subscription statuses:', err);
+    }
+  }
+
   async findAll(filters?: { status?: string; customer_id?: string; product_id?: string; search?: string }): Promise<OrderRow[]> {
+    await this.reconcileSubscriptionStatuses();
     let sql = `
       SELECT o.*,
              c.name as customer_name, c.email as customer_email, c.whatsapp as customer_whatsapp,
@@ -94,6 +120,7 @@ export class OrdersRepository {
   }
 
   async findById(id: string): Promise<OrderRow | null> {
+    await this.reconcileSubscriptionStatuses();
     const res = await query<OrderRow>(
       `SELECT o.*,
               c.name as customer_name, c.email as customer_email, c.whatsapp as customer_whatsapp,
@@ -173,6 +200,7 @@ export class OrdersRepository {
   }
 
   async getStatusCounts(): Promise<Record<string, number>> {
+    await this.reconcileSubscriptionStatuses();
     const res = await query<{ status: string; count: string }>(
       'SELECT status, COUNT(*)::int as count FROM orders GROUP BY status'
     );

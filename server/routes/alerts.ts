@@ -1,11 +1,14 @@
 import { Router } from 'express';
 import { query } from '../db/connection/pool.js';
+import { ordersRepo } from '../db/repositories/orders.repository.js';
 import { requireAuth } from '../middleware/auth.middleware.js';
 
 export const alertsRouter = Router();
 
 alertsRouter.get('/', requireAuth, async (req, res, next) => {
   try {
+    await ordersRepo.reconcileSubscriptionStatuses();
+
     // 1. Orders expiring in <= 3 days
     const expiringOrdersRes = await query<any>(
       `SELECT o.*,
