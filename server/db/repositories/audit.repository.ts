@@ -13,7 +13,39 @@ export interface AuditLogRow {
   created_at: string;
 }
 
+export interface FindLogsOptions {
+  entity?: string;
+  action?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface PaginatedAuditLogs {
+  logs: AuditLogRow[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
 export class AuditRepository {
+  /**
+   * Automatically purges audit logs older than retentionDays (default 30 days max).
+   */
+  async purgeOldLogs(retentionDays: number = 30): Promise<number> {
+    try {
+      const res = await query(
+        `DELETE FROM audit_logs
+         WHERE created_at < CURRENT_TIMESTAMP - ($1 || ' days')::interval`,
+        [retentionDays]
+      );
+      return res.rowCount || 0;
+    } catch (err) {
+      console.error('[Audit] Failed to purge old logs:', err);
+      return 0;
+    }
+  }
+
   async log(
     user: { id?: string; username?: string } | null,
     action: string,
@@ -52,25 +84,45 @@ export class AuditRepository {
     }
   }
 
-  async findLogs(filters?: { entity?: string; action?: string; limit?: number }): Promise<AuditLogRow[]> {
-    let sql = 'SELECT * FROM audit_logs WHERE 1=1';
+  async findLogs(filters?: FindLogsOptions): Promise<PaginatedAuditLogs> {
+    // Enforce 30-day retention: auto-delete stale logs before fetching
+    await this.purgeOldLogs(30);
+
+    const rawLimit = filters?.limit ?? 30;
+    const limit = Math.max(1, Math.min(rawLimit, 30)); // Capped at 30 events max per page
+    const page = Math.max(1, filters?.page ?? 1);
+    const offset = (page - 1) * limit;
+
+    let whereClause = " WHERE created_at >= CURRENT_TIMESTAMP - INTERVAL '30 days'";
     const params: any[] = [];
     let idx = 1;
 
     if (filters?.entity) {
-      sql += ` AND entity = $${idx++}`;
+      whereClause += ` AND entity = $${idx++}`;
       params.push(filters.entity);
     }
     if (filters?.action) {
-      sql += ` AND action = $${idx++}`;
+      whereClause += ` AND action = $${idx++}`;
       params.push(filters.action);
     }
 
-    sql += ` ORDER BY created_at DESC LIMIT $${idx}`;
-    params.push(filters?.limit || 100);
+    const countSql = `SELECT COUNT(*)::int AS total FROM audit_logs${whereClause}`;
+    const countRes = await query<{ total: number }>(countSql, params);
+    const total = countRes.rows[0]?.total || 0;
 
-    const res = await query<AuditLogRow>(sql, params);
-    return res.rows;
+    const dataSql = `SELECT * FROM audit_logs${whereClause} ORDER BY created_at DESC LIMIT $${idx++} OFFSET $${idx}`;
+    const dataParams = [...params, limit, offset];
+    const dataRes = await query<AuditLogRow>(dataSql, dataParams);
+
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+
+    return {
+      logs: dataRes.rows,
+      total,
+      page,
+      limit,
+      totalPages
+    };
   }
 }
 

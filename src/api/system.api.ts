@@ -5,7 +5,8 @@ import type {
   Currency,
   User,
   PairedDevice,
-  AuditLog
+  AuditLog,
+  PaginatedAuditLogsResponse
 } from '../types';
 
 export const systemApi = {
@@ -183,9 +184,14 @@ export const systemApi = {
   },
 
   // Audit
-  getAuditLogs(params?: { entity?: string; action?: string; limit?: number }) {
-    const query = new URLSearchParams(params as any).toString();
-    return request<{ logs: AuditLog[] }>(`/api/audit?${query}`);
+  getAuditLogs(params?: { entity?: string; action?: string; page?: number; limit?: number }) {
+    const searchParams = new URLSearchParams();
+    if (params?.entity) searchParams.set('entity', params.entity);
+    if (params?.action) searchParams.set('action', params.action);
+    if (params?.page) searchParams.set('page', String(params.page));
+    if (params?.limit) searchParams.set('limit', String(params.limit));
+    const query = searchParams.toString();
+    return request<PaginatedAuditLogsResponse>(`/api/audit${query ? `?${query}` : ''}`);
   },
 
   // Settings

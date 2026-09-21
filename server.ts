@@ -25,6 +25,7 @@ import { devicesRouter } from './server/routes/devices.js';
 import { auditRouter } from './server/routes/audit.js';
 import { settingsRouter } from './server/routes/settings.js';
 import { searchRouter } from './server/routes/search.js';
+import { auditRepo } from './server/db/repositories/audit.repository.js';
 
 async function startServer() {
   const app = express();
@@ -40,6 +41,12 @@ async function startServer() {
     } catch (migErr) {
       console.error('[DB] Migration error on startup:', migErr);
     }
+
+    // Auto-purge audit logs older than 30 days on startup and every 24 hours
+    auditRepo.purgeOldLogs(30).catch(err => console.error('[Audit] Startup purge failed:', err));
+    setInterval(() => {
+      auditRepo.purgeOldLogs(30).catch(err => console.error('[Audit] Scheduled purge failed:', err));
+    }, 24 * 60 * 60 * 1000).unref();
   }
 
   // Middleware

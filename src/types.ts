@@ -228,6 +228,14 @@ export interface AuditLog {
   created_at: string;
 }
 
+export interface PaginatedAuditLogsResponse {
+  logs: AuditLog[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
 export interface MerchMockup {
   id: string;
   customer_id?: string;

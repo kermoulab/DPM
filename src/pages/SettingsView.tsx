@@ -18,7 +18,9 @@ import {
   KeyRound,
   ShieldAlert,
   Coins,
-  ChevronDown
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { api } from '../api';
 import { useCurrency } from '../context/CurrencyContext';
@@ -119,6 +121,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
   // Audit Logs state
   const [auditLogs, setAuditLogs] = React.useState<AuditLog[]>([]);
+  const [auditPage, setAuditPage] = React.useState(1);
+  const [auditTotal, setAuditTotal] = React.useState(0);
+  const [auditTotalPages, setAuditTotalPages] = React.useState(1);
+  const [auditLoading, setAuditLoading] = React.useState(false);
 
   // Keyboard shortcut for modals
   React.useEffect(() => {
@@ -137,6 +143,21 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       return () => clearTimeout(timer);
     }
   }, [toastMessage]);
+
+  const loadAuditLogs = async (pageToLoad: number) => {
+    setAuditLoading(true);
+    try {
+      const res = await api.getAuditLogs({ page: pageToLoad, limit: 30 });
+      setAuditLogs(res.logs || []);
+      setAuditTotal(res.total ?? (res.logs?.length || 0));
+      setAuditTotalPages(res.totalPages ?? 1);
+      setAuditPage(res.page ?? pageToLoad);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setAuditLoading(false);
+    }
+  };
 
   React.useEffect(() => {
     loadTabContent(true);
@@ -157,8 +178,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         const res = await api.getUsers();
         setUsers(res.users);
       } else if (activeTab === 'audit') {
-        const res = await api.getAuditLogs({ limit: 50 });
-        setAuditLogs(res.logs);
+        await loadAuditLogs(1);
       }
     } catch (err) {
       console.error(err);
@@ -936,9 +956,21 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       {/* Tab 5: Security Audit Log */}
       {activeTab === 'audit' && (
         <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
-          <div className="p-5 border-b border-slate-100">
-            <h3 className="text-sm font-bold text-slate-800">Immutable Security Audit Trail</h3>
-            <p className="text-xs text-slate-400">Chronological ledger of logins, credential decryptions, and orders</p>
+          <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-slate-800">Immutable Security Audit Trail</h3>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                  30-Day Retention
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Chronological ledger of logins, decryptions, and orders • Automatically purged after 30 days • Max 30 events per page
+              </p>
+            </div>
+            <div className="text-xs font-medium text-slate-500 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100 self-start sm:self-auto">
+              Total: <span className="font-bold text-slate-800">{auditTotal}</span> events
+            </div>
           </div>
 
           <div className="overflow-x-auto">
@@ -953,22 +985,72 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-[11px]">
-                {auditLogs.map((log) => (
-                  <tr key={log.id} className="hover:bg-slate-50/60 transition">
-                    <td className="py-3 px-5 text-slate-500 whitespace-nowrap">
-                      {new Date(log.created_at).toLocaleString()}
-                    </td>
-                    <td className="py-3 px-4 font-semibold text-slate-800">{log.username || 'System'}</td>
-                    <td className="py-3 px-4 font-bold text-blue-700">{log.action}</td>
-                    <td className="py-3 px-4 text-slate-600">{log.entity} #{log.entity_id?.slice(0, 8)}</td>
-                    <td className="py-3 px-5 text-slate-400 truncate max-w-xs">
-                      {JSON.stringify(log.details)}
+                {auditLogs.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-12 text-center text-slate-400">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <ShieldCheck size={28} className="text-slate-300" />
+                        <p className="text-xs font-medium">No security events found within the 30-day retention window.</p>
+                      </div>
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  auditLogs.map((log) => (
+                    <tr key={log.id} className="hover:bg-slate-50/60 transition">
+                      <td className="py-3 px-5 text-slate-500 whitespace-nowrap">
+                        {new Date(log.created_at).toLocaleString()}
+                      </td>
+                      <td className="py-3 px-4 font-semibold text-slate-800">{log.username || 'System'}</td>
+                      <td className="py-3 px-4 font-bold text-blue-700">{log.action}</td>
+                      <td className="py-3 px-4 text-slate-600">{log.entity} #{log.entity_id?.slice(0, 8)}</td>
+                      <td className="py-3 px-5 text-slate-400 truncate max-w-xs">
+                        {JSON.stringify(log.details)}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
+
+          {/* Pagination Controls */}
+          {auditTotal > 0 && (
+            <div className="p-4 bg-slate-50/70 border-t border-slate-100 flex items-center justify-between gap-3 text-xs">
+              <span className="text-slate-500 text-[11px]">
+                Showing <strong className="text-slate-700">{(auditPage - 1) * 30 + 1}</strong> to{' '}
+                <strong className="text-slate-700">{Math.min(auditPage * 30, auditTotal)}</strong> of{' '}
+                <strong className="text-slate-700">{auditTotal}</strong> events
+              </span>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  id="audit-prev-btn"
+                  onClick={() => loadAuditLogs(auditPage - 1)}
+                  disabled={auditPage <= 1 || auditLoading}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-700 font-medium hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                >
+                  <ChevronLeft size={14} />
+                  <span>Previous</span>
+                </button>
+
+                <span className="px-3 py-1 rounded-xl bg-slate-100 text-slate-700 font-semibold text-[11px]">
+                  {auditPage} / {auditTotalPages}
+                </span>
+
+                <button
+                  type="button"
+                  id="audit-next-btn"
+                  onClick={() => loadAuditLogs(auditPage + 1)}
+                  disabled={auditPage >= auditTotalPages || auditLoading}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-700 font-medium hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                >
+                  <span>Next</span>
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

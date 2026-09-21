@@ -635,6 +635,34 @@ async function runComprehensiveAudit() {
     const inventoryViewContent = fs.readFileSync(path.join(process.cwd(), 'src', 'pages', 'InventoryView.tsx'), 'utf8');
     assert(inventoryViewContent.includes('account-row-') && inventoryViewContent.includes('license-row-'),
       'InventoryView.tsx identifies account and license rows and scrolls/highlights into view');
+
+    // Inspect Security Audit Log 30-day retention and pagination
+    const auditRepoContent = fs.readFileSync(path.join(process.cwd(), 'server', 'db', 'repositories', 'audit.repository.ts'), 'utf8');
+    assert(auditRepoContent.includes('purgeOldLogs(retentionDays: number = 30)') && auditRepoContent.includes("created_at < CURRENT_TIMESTAMP - ($1 || ' days')::interval"),
+      'audit.repository.ts defines purgeOldLogs with 30-day retention cutoff');
+    assert(auditRepoContent.includes('await this.purgeOldLogs(30)'),
+      'audit.repository.ts auto-purges logs older than 30 days before executing findLogs');
+    assert(auditRepoContent.includes('Math.min(rawLimit, 30)'),
+      'audit.repository.ts caps pagination limit to a maximum of 30 events per page');
+    assert(auditRepoContent.includes('totalPages = Math.max(1, Math.ceil(total / limit))'),
+      'audit.repository.ts calculates pagination metadata (total, page, limit, totalPages)');
+
+    const auditRouteFileContent = fs.readFileSync(path.join(process.cwd(), 'server', 'routes', 'audit.ts'), 'utf8');
+    assert(auditRouteFileContent.includes('req.query') && auditRouteFileContent.includes('page') && auditRouteFileContent.includes('Math.min'),
+      'audit route accepts page and limit query params capped at 30 events max' || auditRouteFileContent.includes('limit ? parseInt(limit as string, 10) : 30'));
+
+    const serverFileContent = fs.readFileSync(path.join(process.cwd(), 'server.ts'), 'utf8');
+    assert(serverFileContent.includes('auditRepo.purgeOldLogs(30)') && serverFileContent.includes('setInterval'),
+      'server.ts executes audit log purge on startup and schedules 24-hour background cleanup');
+
+    const systemApiContent = fs.readFileSync(path.join(process.cwd(), 'src', 'api', 'system.api.ts'), 'utf8');
+    assert(systemApiContent.includes("searchParams.set('page', String(params.page))") && systemApiContent.includes("searchParams.set('limit', String(params.limit))"),
+      'system.api.ts passes page and limit query parameters to /api/audit');
+
+    assert(settingsViewContent.includes('30-Day Retention') && settingsViewContent.includes('Max 30 events per page'),
+      'SettingsView displays 30-day retention policy and 30-event page capacity');
+    assert(settingsViewContent.includes('audit-prev-btn') && settingsViewContent.includes('audit-next-btn') && settingsViewContent.includes('{auditPage} / {auditTotalPages}'),
+      'SettingsView renders Previous/Next pagination controls and page indicator');
   }
 
   console.log('\n================================================================');

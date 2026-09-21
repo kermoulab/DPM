@@ -33,9 +33,9 @@ customersRouter.get('/:id', requireAuth, async (req, res, next) => {
     }
 
     const orders = await ordersRepo.findAll({ customer_id: id });
-    const auditLogs = await auditRepo.findLogs({ entity: 'customer', limit: 50 });
+    const auditResult = await auditRepo.findLogs({ entity: 'customer', limit: 30 });
 
-    res.json({ customer, orders, auditLogs });
+    res.json({ customer, orders, auditLogs: auditResult.logs });
   } catch (err) {
     next(err);
   }

@@ -6,13 +6,14 @@ export const auditRouter = Router();
 
 auditRouter.get('/', requireAuth, requireRole('admin'), async (req, res, next) => {
   try {
-    const { entity, action, limit } = req.query;
-    const logs = await auditRepo.findLogs({
+    const { entity, action, page, limit } = req.query;
+    const result = await auditRepo.findLogs({
       entity: entity as string,
       action: action as string,
-      limit: limit ? parseInt(limit as string, 10) : 100
+      page: page ? parseInt(page as string, 10) : 1,
+      limit: limit ? Math.min(parseInt(limit as string, 10) || 30, 30) : 30
     });
-    res.json({ logs });
+    res.json(result);
   } catch (err) {
     next(err);
   }
