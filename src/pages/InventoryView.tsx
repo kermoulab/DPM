@@ -21,12 +21,44 @@ import { api } from '../api';
 import type { ServiceAccount, LicenseKey, Product } from '../types';
 import { PortalDropdown } from '../components/PortalDropdown';
 
-export const InventoryView: React.FC = () => {
+interface InventoryViewProps {
+  highlightId?: string | null;
+}
+
+export const InventoryView: React.FC<InventoryViewProps> = ({ highlightId }) => {
   const [activeTab, setActiveTab] = React.useState<'accounts' | 'licenses'>('accounts');
   const [accounts, setAccounts] = React.useState<ServiceAccount[]>([]);
   const [licenses, setLicenses] = React.useState<LicenseKey[]>([]);
   const [products, setProducts] = React.useState<Product[]>([]);
   const [loading, setLoading] = React.useState(true);
+  const [activeHighlightId, setActiveHighlightId] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (!highlightId) return;
+    setActiveHighlightId(highlightId);
+
+    if (licenses.some((l) => l.id === highlightId)) {
+      setActiveTab('licenses');
+    } else if (accounts.some((a) => a.id === highlightId)) {
+      setActiveTab('accounts');
+    }
+
+    const timer = setTimeout(() => setActiveHighlightId(null), 4000);
+    return () => clearTimeout(timer);
+  }, [highlightId, accounts, licenses]);
+
+  React.useEffect(() => {
+    if (!activeHighlightId || loading) return;
+    const timer = setTimeout(() => {
+      const el =
+        document.getElementById(`account-row-${activeHighlightId}`) ||
+        document.getElementById(`license-row-${activeHighlightId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [activeHighlightId, loading, accounts, licenses, activeTab]);
 
   // 3-dots dropdown menu state
   const [openMenuAccountId, setOpenMenuAccountId] = React.useState<string | null>(null);
@@ -345,7 +377,15 @@ export const InventoryView: React.FC = () => {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {accounts.map((acc) => (
-                    <tr key={acc.id} className="hover:bg-slate-50/60 transition">
+                    <tr
+                      key={acc.id}
+                      id={`account-row-${acc.id}`}
+                      className={`transition-all duration-700 ${
+                        activeHighlightId === acc.id
+                          ? 'bg-blue-50/90 ring-2 ring-blue-500 shadow-md shadow-blue-500/10 scale-[1.005]'
+                          : 'hover:bg-slate-50/60'
+                      }`}
+                    >
                       <td className="py-3.5 px-5">
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
@@ -529,7 +569,15 @@ export const InventoryView: React.FC = () => {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {licenses.map((lic) => (
-                    <tr key={lic.id} className="hover:bg-slate-50/60 transition">
+                    <tr
+                      key={lic.id}
+                      id={`license-row-${lic.id}`}
+                      className={`transition-all duration-700 ${
+                        activeHighlightId === lic.id
+                          ? 'bg-blue-50/90 ring-2 ring-blue-500 shadow-md shadow-blue-500/10 scale-[1.005]'
+                          : 'hover:bg-slate-50/60'
+                      }`}
+                    >
                       <td className="py-3.5 px-5 font-mono font-bold text-slate-800">{lic.license_key}</td>
                       <td className="py-3.5 px-4 font-medium text-slate-700">{lic.product_name}</td>
                       <td className="py-3.5 px-4">

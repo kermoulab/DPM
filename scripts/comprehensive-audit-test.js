@@ -610,6 +610,31 @@ async function runComprehensiveAudit() {
     const sidebarContent = fs.readFileSync(path.join(process.cwd(), 'src', 'components', 'Sidebar.tsx'), 'utf8');
     assert(sidebarContent.includes("'w-52'") && sidebarContent.includes('w-60'),
       'Sidebar width is reduced to compact w-52 desktop and w-60 mobile drawer');
+
+    // Inspect search and item highlight navigation
+    const searchRouteContent = fs.readFileSync(path.join(process.cwd(), 'server', 'routes', 'search.ts'), 'utf8');
+    assert(searchRouteContent.includes('license_keys') && searchRouteContent.includes("type: 'license'"),
+      'search.ts indexes license keys alongside customers, orders, products, and accounts');
+
+    const appContent = fs.readFileSync(path.join(process.cwd(), 'src', 'App.tsx'), 'utf8');
+    assert(appContent.includes('highlightId={highlightId}') && appContent.includes('setHighlightId'),
+      'App.tsx tracks and propagates highlightId to child views');
+
+    const customersViewContent = fs.readFileSync(path.join(process.cwd(), 'src', 'pages', 'CustomersView.tsx'), 'utf8');
+    assert(customersViewContent.includes('customer-row-') && customersViewContent.includes('scrollIntoView'),
+      'CustomersView.tsx identifies target customer row and scrolls/highlights into view');
+
+    const ordersViewContent = fs.readFileSync(path.join(process.cwd(), 'src', 'pages', 'OrdersView.tsx'), 'utf8');
+    assert(ordersViewContent.includes('order-row-') && ordersViewContent.includes('scrollIntoView'),
+      'OrdersView.tsx identifies target order row and scrolls/highlights into view');
+
+    const productsViewContent = fs.readFileSync(path.join(process.cwd(), 'src', 'pages', 'ProductsView.tsx'), 'utf8');
+    assert(productsViewContent.includes('product-card-') && productsViewContent.includes('scrollIntoView'),
+      'ProductsView.tsx identifies target product card and scrolls/highlights into view');
+
+    const inventoryViewContent = fs.readFileSync(path.join(process.cwd(), 'src', 'pages', 'InventoryView.tsx'), 'utf8');
+    assert(inventoryViewContent.includes('account-row-') && inventoryViewContent.includes('license-row-'),
+      'InventoryView.tsx identifies account and license rows and scrolls/highlights into view');
   }
 
   console.log('\n================================================================');

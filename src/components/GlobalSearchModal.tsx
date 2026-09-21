@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, X, User, ShoppingBag, Box, Layers, ArrowRight } from 'lucide-react';
+import { Search, X, User, ShoppingBag, Box, Layers, ArrowRight, Key } from 'lucide-react';
 import { api } from '../api';
 
 interface GlobalSearchModalProps {
@@ -68,6 +68,8 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
         return <ShoppingBag size={15} className="text-blue-500" />;
       case 'product':
         return <Box size={15} className="text-purple-500" />;
+      case 'license':
+        return <Key size={15} className="text-purple-500" />;
       default:
         return <Layers size={15} className="text-amber-500" />;
     }
@@ -121,7 +123,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
                   key={i}
                   onClick={() => {
                     onClose();
-                    const tab = res.type === 'customer' ? 'customers' : res.type === 'order' ? 'orders' : res.type === 'product' ? 'products' : 'inventory';
+                    const tab = res.route || (res.type === 'customer' ? 'customers' : res.type === 'order' ? 'orders' : res.type === 'product' ? 'products' : 'inventory');
                     onNavigate(tab, res.id);
                   }}
                   className="flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 cursor-pointer transition group"

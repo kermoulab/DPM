@@ -28,6 +28,7 @@ interface OrdersViewProps {
   onViewOrder: (order: Order) => void;
   onComposeWhatsApp: (orderId: string) => void;
   onRenewOrder: (orderId: string) => Promise<any> | void;
+  highlightId?: string | null;
 }
 
 export type OrderStatus = 'active' | 'expiring' | 'expired' | 'pending' | 'cancelled' | 'completed';
@@ -128,7 +129,8 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
   onOpenOrderBuilder,
   onViewOrder,
   onComposeWhatsApp,
-  onRenewOrder
+  onRenewOrder,
+  highlightId
 }) => {
   const { format: formatMoney } = useCurrency();
   const [orders, setOrders] = React.useState<Order[]>([]);
@@ -139,6 +141,27 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
   });
   const [loading, setLoading] = React.useState(true);
   const [statusFilter, setStatusFilter] = React.useState('active');
+  const [activeHighlightId, setActiveHighlightId] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (!highlightId) return;
+    setActiveHighlightId(highlightId);
+    setStatusFilter('all');
+    const timer = setTimeout(() => setActiveHighlightId(null), 4000);
+    return () => clearTimeout(timer);
+  }, [highlightId]);
+
+  React.useEffect(() => {
+    if (!activeHighlightId || loading) return;
+    const timer = setTimeout(() => {
+      const el = document.getElementById(`order-row-${activeHighlightId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [activeHighlightId, loading, orders]);
+
   const [activeMenuOrderId, setActiveMenuOrderId] = React.useState<string | null>(null);
   const menuTriggerRef = React.useRef<HTMLButtonElement | null>(null);
   const [editingOrder, setEditingOrder] = React.useState<Order | null>(null);
@@ -415,7 +438,15 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
                   const isRowUpdating = updatingOrderId === o.id;
 
                   return (
-                    <tr key={o.id} className="hover:bg-slate-50/60 transition">
+                    <tr
+                      key={o.id}
+                      id={`order-row-${o.id}`}
+                      className={`transition-all duration-700 ${
+                        activeHighlightId === o.id
+                          ? 'bg-blue-50/90 ring-2 ring-blue-500 shadow-md shadow-blue-500/10 scale-[1.005]'
+                          : 'hover:bg-slate-50/60'
+                      }`}
+                    >
                       <td className="py-3.5 px-5">
                         <span className="font-mono font-bold text-slate-800">#{o.order_number}</span>
                       </td>

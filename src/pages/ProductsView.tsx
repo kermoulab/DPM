@@ -24,13 +24,37 @@ import type { Product, Category, Plan, ProductCapability } from '../types';
 import { useCurrency } from '../context/CurrencyContext';
 import { PortalDropdown } from '../components/PortalDropdown';
 
-export const ProductsView: React.FC = () => {
+interface ProductsViewProps {
+  highlightId?: string | null;
+}
+
+export const ProductsView: React.FC<ProductsViewProps> = ({ highlightId }) => {
   const { format: formatMoney } = useCurrency();
   const [products, setProducts] = React.useState<Product[]>([]);
   const [categories, setCategories] = React.useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = React.useState('all');
   const [loading, setLoading] = React.useState(true);
   const [toastMessage, setToastMessage] = React.useState<string | null>(null);
+  const [activeHighlightId, setActiveHighlightId] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (!highlightId) return;
+    setActiveHighlightId(highlightId);
+    setSelectedCategory('all');
+    const timer = setTimeout(() => setActiveHighlightId(null), 4000);
+    return () => clearTimeout(timer);
+  }, [highlightId]);
+
+  React.useEffect(() => {
+    if (!activeHighlightId || loading) return;
+    const timer = setTimeout(() => {
+      const el = document.getElementById(`product-card-${activeHighlightId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [activeHighlightId, loading, products]);
 
   // Product Actions Dropdown
   const [openProductMenuId, setOpenProductMenuId] = React.useState<string | null>(null);
@@ -674,7 +698,12 @@ export const ProductsView: React.FC = () => {
           {products.map((p) => (
             <div
               key={p.id}
-              className="bg-white rounded-3xl border border-slate-200/80 p-5 shadow-xs flex flex-col justify-between space-y-4 hover:border-slate-300 transition group"
+              id={`product-card-${p.id}`}
+              className={`rounded-3xl border p-5 shadow-xs flex flex-col justify-between space-y-4 transition-all duration-700 ${
+                activeHighlightId === p.id
+                  ? 'bg-blue-50/70 border-blue-500 ring-4 ring-blue-500/20 shadow-lg shadow-blue-500/10 scale-[1.02]'
+                  : 'bg-white border-slate-200/80 hover:border-slate-300 group'
+              }`}
             >
               <div>
                 <div className="flex items-start justify-between">

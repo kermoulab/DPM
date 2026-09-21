@@ -84,6 +84,25 @@ searchRouter.get('/', requireAuth, async (req, res, next) => {
       });
     }
 
+    // 5. License Keys
+    const licenses = await query<any>(
+      `SELECT lk.id, lk.license_key, lk.status, p.name as product_name
+       FROM license_keys lk
+       JOIN products p ON p.id = lk.product_id
+       WHERE lk.license_key ILIKE $1
+       LIMIT 5`,
+      [term]
+    );
+    for (const l of licenses.rows) {
+      results.push({
+        id: l.id,
+        title: l.license_key,
+        subtitle: `${l.product_name} (${l.status})`,
+        type: 'license',
+        route: 'inventory'
+      });
+    }
+
     res.json({ results: results.slice(0, 15) });
   } catch (err) {
     next(err);

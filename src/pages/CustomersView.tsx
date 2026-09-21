@@ -19,16 +19,38 @@ import { PortalDropdown } from '../components/PortalDropdown';
 interface CustomersViewProps {
   onComposeWhatsApp: (orderId: string) => void;
   onOpenOrderForCustomer: (customerId: string) => void;
+  highlightId?: string | null;
 }
 
 export const CustomersView: React.FC<CustomersViewProps> = ({
   onComposeWhatsApp,
-  onOpenOrderForCustomer
+  onOpenOrderForCustomer,
+  highlightId
 }) => {
   const { format: formatMoney } = useCurrency();
   const [customers, setCustomers] = React.useState<Customer[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [searchTerm, setSearchTerm] = React.useState('');
+  const [activeHighlightId, setActiveHighlightId] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (!highlightId) return;
+    setActiveHighlightId(highlightId);
+    setSearchTerm('');
+    const timer = setTimeout(() => setActiveHighlightId(null), 4000);
+    return () => clearTimeout(timer);
+  }, [highlightId]);
+
+  React.useEffect(() => {
+    if (!activeHighlightId || loading) return;
+    const timer = setTimeout(() => {
+      const el = document.getElementById(`customer-row-${activeHighlightId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [activeHighlightId, loading, customers]);
 
   // 3-dots action menu state
   const [openActionMenuId, setOpenActionMenuId] = React.useState<string | null>(null);
@@ -258,7 +280,15 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
                   const isActive = cust.status === 'active';
 
                   return (
-                    <tr key={cust.id} className="hover:bg-slate-50/60 transition">
+                    <tr
+                      key={cust.id}
+                      id={`customer-row-${cust.id}`}
+                      className={`transition-all duration-700 ${
+                        activeHighlightId === cust.id
+                          ? 'bg-blue-50/90 ring-2 ring-blue-500 shadow-md shadow-blue-500/10 scale-[1.005]'
+                          : 'hover:bg-slate-50/60'
+                      }`}
+                    >
                       <td className="py-3.5 px-5">
                         <div className="flex items-center gap-3">
                           <div className="w-9 h-9 rounded-2xl bg-blue-50 text-blue-600 font-bold flex items-center justify-center text-xs shrink-0">

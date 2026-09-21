@@ -49,6 +49,7 @@ export default function App() {
 
   // Global modals & drawers
   const [searchModalOpen, setSearchModalOpen] = React.useState(false);
+  const [highlightId, setHighlightId] = React.useState<string | null>(null);
   const [alertsDrawerOpen, setAlertsDrawerOpen] = React.useState(false);
   const [orderBuilderOpen, setOrderBuilderOpen] = React.useState(false);
   const [activeReceiptOrder, setActiveReceiptOrder] = React.useState<Order | null>(null);
@@ -334,6 +335,7 @@ export default function App() {
 
           {activeTab === 'orders' && (
             <OrdersView
+              highlightId={highlightId}
               onOpenOrderBuilder={() => {
                 setPreselectedCustomerId(undefined);
                 setOrderBuilderOpen(true);
@@ -346,12 +348,13 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'products' && <ProductsView />}
+          {activeTab === 'products' && <ProductsView highlightId={highlightId} />}
 
-          {activeTab === 'inventory' && <InventoryView />}
+          {activeTab === 'inventory' && <InventoryView highlightId={highlightId} />}
 
           {activeTab === 'customers' && (
             <CustomersView
+              highlightId={highlightId}
               onComposeWhatsApp={(orderId) => setActiveTab('whatsapp')}
               onOpenOrderForCustomer={handleOpenOrderForCustomer}
             />
@@ -395,8 +398,12 @@ export default function App() {
       <GlobalSearchModal
         isOpen={searchModalOpen}
         onClose={() => setSearchModalOpen(false)}
-        onNavigate={(tab, payload) => {
+        onNavigate={(tab, id) => {
           setActiveTab(tab);
+          setHighlightId(null);
+          if (id) {
+            setTimeout(() => setHighlightId(id), 20);
+          }
           setSearchModalOpen(false);
         }}
       />
