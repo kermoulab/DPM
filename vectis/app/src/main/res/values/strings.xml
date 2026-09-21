@@ -1,0 +1,15 @@
+<resources>
+    <string name="app_name">Vectis ERP</string>
+    <string name="connect_device">Connect this device</string>
+    <string name="scan_qr">Scan QR Code</string>
+    <string name="enter_pairing_code">Enter Pairing Code</string>
+    <string name="login_title">Staff Authentication</string>
+    <string name="dashboard_title">Dashboard</string>
+    <string name="orders_title">Orders</string>
+    <string name="customers_title">Customers</string>
+    <string name="inventory_title">Inventory Bank</string>
+    <string name="alerts_title">Alerts</string>
+    <string name="settings_title">Settings</string>
+    <string name="offline_error">You\'re offline. Check your network connection.</string>
+    <string name="retry">Retry</string>
+</resources>
