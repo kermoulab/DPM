@@ -688,6 +688,26 @@ async function runComprehensiveAudit() {
     const dashboardRepoContent = fs.readFileSync(path.join(process.cwd(), 'server', 'db', 'repositories', 'dashboard.repository.ts'), 'utf8');
     assert(dashboardRepoContent.includes('recentOrders') && dashboardRepoContent.includes('ORDER BY o.created_at DESC') && dashboardRepoContent.includes('LIMIT 5'),
       'dashboard.repository.ts queries and returns recentOrders with LIMIT 5');
+
+    // --- SECTION 6: Mobile Device Pairing & Revocation Security ---
+    const devicesRouteContent = fs.readFileSync(path.join(process.cwd(), 'server', 'routes', 'devices.ts'), 'utf8');
+    assert(devicesRouteContent.includes("devicesRouter.post('/pair'") && !devicesRouteContent.includes("devicesRouter.post('/pair', requireAuth"),
+      'devices.ts defines public POST /api/devices/pair endpoint for Android pairing');
+    assert(devicesRouteContent.includes('pairAttempts') && devicesRouteContent.includes('PAIR_MAX_ATTEMPTS') && devicesRouteContent.includes('429'),
+      'devices.ts enforces rate-limiting on device pairing attempts (HTTP 429)');
+    
+    const devicesRepoContent = fs.readFileSync(path.join(process.cwd(), 'server', 'db', 'repositories', 'devices.repository.ts'), 'utf8');
+    assert(devicesRepoContent.includes('findByPairingCode') && devicesRepoContent.includes('pairing_code = NULL'),
+      'devices.repository.ts immediately nullifies pairing_code upon successful pairing (single-use)');
+
+    const authMiddlewareContent = fs.readFileSync(path.join(process.cwd(), 'server', 'middleware', 'auth.middleware.ts'), 'utf8');
+    assert(authMiddlewareContent.includes('x-device-id') && authMiddlewareContent.includes('X-Device-Revoked') && authMiddlewareContent.includes("status === 'revoked'"),
+      'auth.middleware.ts checks device status and returns HTTP 401 with X-Device-Revoked header for revoked devices');
+
+    const androidPairingApi = fs.existsSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'data', 'api', 'PairingApiService.kt'));
+    const androidPairingVm = fs.existsSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'feature', 'pairing', 'PairingViewModel.kt'));
+    assert(androidPairingApi && androidPairingVm,
+      'Android app implements PairingApiService, PairingRepositoryImpl, and PairingViewModel');
   }
 
   console.log('\n================================================================');

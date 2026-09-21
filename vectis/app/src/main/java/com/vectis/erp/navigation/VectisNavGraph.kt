@@ -35,6 +35,31 @@ fun VectisNavGraph(
         }
     }
 
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val app = context.applicationContext as com.vectis.erp.VectisApplication
+
+    LaunchedEffect(Unit) {
+        app.networkClient.deviceRevokedEvents.collect {
+            navController.navigate(Screen.Pairing.route) {
+                popUpTo(0) { inclusive = true }
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        app.networkClient.unauthorizedEvents.collect {
+            if (secureStorage.isDevicePaired()) {
+                navController.navigate(Screen.Login.route) {
+                    popUpTo(0) { inclusive = true }
+                }
+            } else {
+                navController.navigate(Screen.Pairing.route) {
+                    popUpTo(0) { inclusive = true }
+                }
+            }
+        }
+    }
+
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
@@ -121,7 +146,51 @@ fun VectisNavGraph(
             modifier = Modifier.padding(paddingValues)
         ) {
             composable(Screen.Pairing.route) {
-                PlaceholderScreen("Pairing Screen (Phase 2)")
+                val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as com.vectis.erp.VectisApplication
+                val pairingRepo = remember { com.vectis.erp.data.repository.PairingRepositoryImpl(app.networkClient, secureStorage) }
+                val viewModel: com.vectis.erp.feature.pairing.PairingViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+                    factory = com.vectis.erp.feature.pairing.PairingViewModel.Factory(pairingRepo, secureStorage)
+                )
+
+                com.vectis.erp.feature.pairing.PairingScreen(
+                    viewModel = viewModel,
+                    onNavigateToScanQr = { navController.navigate(Screen.ScanQr.route) },
+                    onNavigateToEnterCode = { navController.navigate(Screen.EnterCode.route) }
+                )
+            }
+            composable(Screen.EnterCode.route) {
+                val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as com.vectis.erp.VectisApplication
+                val pairingRepo = remember { com.vectis.erp.data.repository.PairingRepositoryImpl(app.networkClient, secureStorage) }
+                val viewModel: com.vectis.erp.feature.pairing.PairingViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+                    factory = com.vectis.erp.feature.pairing.PairingViewModel.Factory(pairingRepo, secureStorage)
+                )
+
+                com.vectis.erp.feature.pairing.EnterCodeScreen(
+                    viewModel = viewModel,
+                    onNavigateBack = { navController.popBackStack() },
+                    onPairingSuccess = {
+                        navController.navigate(Screen.Login.route) {
+                            popUpTo(Screen.Pairing.route) { inclusive = true }
+                        }
+                    }
+                )
+            }
+            composable(Screen.ScanQr.route) {
+                val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as com.vectis.erp.VectisApplication
+                val pairingRepo = remember { com.vectis.erp.data.repository.PairingRepositoryImpl(app.networkClient, secureStorage) }
+                val viewModel: com.vectis.erp.feature.pairing.PairingViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+                    factory = com.vectis.erp.feature.pairing.PairingViewModel.Factory(pairingRepo, secureStorage)
+                )
+
+                com.vectis.erp.feature.pairing.ScanQrScreen(
+                    viewModel = viewModel,
+                    onNavigateBack = { navController.popBackStack() },
+                    onPairingSuccess = {
+                        navController.navigate(Screen.Login.route) {
+                            popUpTo(Screen.Pairing.route) { inclusive = true }
+                        }
+                    }
+                )
             }
             composable(Screen.Login.route) {
                 PlaceholderScreen("Login Screen (Phase 3)")

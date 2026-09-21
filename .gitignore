@@ -27,7 +27,7 @@ pnpm-debug.log*
 *.db
 *.db-wal
 *.db-shm
-data/
+/data/
 
 # OS and Editor Artifacts
 .DS_Store

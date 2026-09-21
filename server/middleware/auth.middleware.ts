@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
 import { config } from '../config/index.js';
 import { usersRepo, type UserRow } from '../db/repositories/users.repository.js';
+import { devicesRepo } from '../db/repositories/devices.repository.js';
 
 export interface AuthUser {
   id: string;
@@ -103,6 +104,15 @@ export async function requireAuth(req: AuthenticatedRequest, res: Response, next
 
   // Always re-verify user status and authoritative role from PostgreSQL
   try {
+    const deviceId = req.headers['x-device-id'] as string | undefined;
+    if (deviceId) {
+      const device = await devicesRepo.findById(deviceId);
+      if (!device || device.status === 'revoked') {
+        res.status(401).header('X-Device-Revoked', 'true').json({ error: 'Device has been revoked or unlinked.' });
+        return;
+      }
+    }
+
     const dbUser = await usersRepo.findById(tokenUser.id);
     if (!dbUser || dbUser.status !== 'active') {
       res.status(401).json({ error: 'User account is inactive or revoked.' });

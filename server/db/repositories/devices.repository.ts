@@ -65,6 +65,42 @@ export class DevicesRepository {
     return res.rows[0] || null;
   }
 
+  async findByPairingCode(code: string): Promise<PairedDeviceRow | null> {
+    const res = await query<PairedDeviceRow>(
+      `SELECT * FROM paired_devices
+       WHERE pairing_code = $1
+         AND status = 'pending'
+         AND code_expires_at > CURRENT_TIMESTAMP
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [code]
+    );
+    return res.rows[0] || null;
+  }
+
+  async pairDevice(id: string, deviceName: string, deviceTokenHash: string): Promise<PairedDeviceRow | null> {
+    const res = await query<PairedDeviceRow>(
+      `UPDATE paired_devices
+       SET status = 'paired',
+           device_name = $1,
+           device_token_hash = $2,
+           pairing_code = NULL,
+           last_seen = CURRENT_TIMESTAMP
+       WHERE id = $3 AND status = 'pending'
+       RETURNING *`,
+      [deviceName, deviceTokenHash, id]
+    );
+    return res.rows[0] || null;
+  }
+
+  async revoke(id: string): Promise<boolean> {
+    const res = await query(
+      `UPDATE paired_devices SET status = 'revoked', last_seen = CURRENT_TIMESTAMP WHERE id = $1`,
+      [id]
+    );
+    return (res.rowCount ?? 0) > 0;
+  }
+
   async delete(id: string): Promise<boolean> {
     const res = await query('DELETE FROM paired_devices WHERE id = $1', [id]);
     return (res.rowCount ?? 0) > 0;
@@ -72,3 +108,4 @@ export class DevicesRepository {
 }
 
 export const devicesRepo = new DevicesRepository();
+

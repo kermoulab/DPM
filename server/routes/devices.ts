@@ -17,6 +17,79 @@ devicesRouter.get('/', requireAuth, async (req, res, next) => {
   }
 });
 
+// In-memory rate limiting for pairing attempts (max 5 attempts per 15 mins per IP)
+const pairAttempts: Record<string, { count: number; lastAttempt: number }> = {};
+const PAIR_MAX_ATTEMPTS = 5;
+const PAIR_WINDOW_MS = 15 * 60 * 1000;
+
+// POST /api/devices/pair (Public - used by Android app on first launch)
+devicesRouter.post('/pair', async (req, res, next) => {
+  const ip = req.ip || '127.0.0.1';
+  const now = Date.now();
+  const attempt = pairAttempts[ip] || { count: 0, lastAttempt: now };
+
+  if (now - attempt.lastAttempt > PAIR_WINDOW_MS) {
+    attempt.count = 0;
+  }
+
+  if (attempt.count >= PAIR_MAX_ATTEMPTS && now - attempt.lastAttempt < PAIR_WINDOW_MS) {
+    res.status(429).json({ error: 'Too many failed pairing attempts. Please wait 15 minutes.' });
+    return;
+  }
+
+  try {
+    const { code, device_name, device_model } = req.body;
+    if (!code || typeof code !== 'string') {
+      attempt.count += 1;
+      attempt.lastAttempt = now;
+      pairAttempts[ip] = attempt;
+      res.status(400).json({ error: 'Pairing code is required.' });
+      return;
+    }
+
+    const cleanCode = code.trim();
+    const pendingDevice = await devicesRepo.findByPairingCode(cleanCode);
+
+    if (!pendingDevice) {
+      attempt.count += 1;
+      attempt.lastAttempt = now;
+      pairAttempts[ip] = attempt;
+      res.status(400).json({ error: 'Invalid or expired pairing code.' });
+      return;
+    }
+
+    // Generate cryptographically secure 256-bit device token
+    const deviceToken = 'dev_tok_' + crypto.randomBytes(32).toString('hex');
+    const deviceTokenHash = crypto.createHash('sha256').update(deviceToken).digest('hex');
+
+    const finalDeviceName = device_name?.trim() || (device_model ? `Android (${device_model})` : 'Android Device');
+    const paired = await devicesRepo.pairDevice(pendingDevice.id, finalDeviceName, deviceTokenHash);
+
+    if (!paired) {
+      res.status(500).json({ error: 'Failed to complete device registration.' });
+      return;
+    }
+
+    // Reset rate limiter on successful pair
+    delete pairAttempts[ip];
+
+    await auditRepo.log(null, 'DEVICE_PAIRED_MOBILE', 'device', paired.id, {
+      device_name: finalDeviceName,
+      device_model: device_model || null
+    }, ip);
+
+    res.json({
+      success: true,
+      deviceId: paired.id,
+      deviceToken,
+      deviceName: paired.device_name,
+      message: 'Device successfully paired and authorized.'
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // POST /api/devices/generate-pairing-code
 devicesRouter.post('/generate-pairing-code', requireAuth, requireRole('manager'), async (req: AuthenticatedRequest, res, next) => {
   try {
@@ -94,15 +167,22 @@ devicesRouter.delete('/:id', requireAuth, requireRole('manager'), async (req: Au
   try {
     const { id } = req.params;
     const existing = await devicesRepo.findById(id);
-    await devicesRepo.delete(id);
-    await auditRepo.log(req.user || null, 'DELETE_DEVICE', 'device', id, { device_name: existing?.device_name });
+    if (!existing) {
+      res.status(404).json({ error: 'Device not found.' });
+      return;
+    }
+
+    // Revoke device access immediately
+    await devicesRepo.revoke(id);
+    await auditRepo.log(req.user || null, 'REVOKE_DEVICE', 'device', id, { device_name: existing.device_name });
 
     res.json({
       success: true,
-      message: existing?.status === 'paired' ? `Device "${existing.device_name}" deleted.` : 'Pending pairing request deleted.',
-      unpaired: existing?.status === 'paired'
+      message: existing.status === 'paired' ? `Device "${existing.device_name}" revoked.` : 'Pending pairing request deleted.',
+      unpaired: true
     });
   } catch (err) {
     next(err);
   }
 });
+
