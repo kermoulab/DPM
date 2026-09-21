@@ -111,9 +111,14 @@ devicesRouter.post('/generate-pairing-code', requireAuth, requireRole('manager')
       code_expires_at: expiresAt
     });
 
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const host = req.get('host');
+    const serverUrl = req.headers.origin || `${protocol}://${host}`;
+
     const qrPayload = JSON.stringify({
       version: '1.0',
       action: 'pair_device',
+      serverUrl,
       deviceId,
       code: pairingCode,
       expiresAt

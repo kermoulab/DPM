@@ -50,6 +50,9 @@ data class QrPairingPayload(
     @SerializedName("action")
     val action: String? = "pair_device",
 
+    @SerializedName("serverUrl")
+    val serverUrl: String? = null,
+
     @SerializedName("deviceId")
     val deviceId: String? = null,
 

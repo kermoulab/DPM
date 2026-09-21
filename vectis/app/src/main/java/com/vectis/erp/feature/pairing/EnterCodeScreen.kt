@@ -31,6 +31,7 @@ fun EnterCodeScreen(
     val uiState by viewModel.uiState.collectAsState()
     var codeInput by remember { mutableStateOf(viewModel.pairingCode) }
     var deviceNameInput by remember { mutableStateOf(viewModel.deviceName) }
+    var serverUrlInput by remember { mutableStateOf(viewModel.serverUrl) }
 
     LaunchedEffect(uiState) {
         if (uiState is PairingUiState.Success) {
@@ -109,7 +110,7 @@ fun EnterCodeScreen(
                     isError = uiState is PairingUiState.Error
                 )
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
                 // Device Name Field
                 OutlinedTextField(
@@ -120,6 +121,23 @@ fun EnterCodeScreen(
                     },
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("Device Name (e.g. Counter Tablet)") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Server URL Field
+                OutlinedTextField(
+                    value = serverUrlInput,
+                    onValueChange = {
+                        serverUrlInput = it
+                        viewModel.updateServerUrl(it)
+                        viewModel.clearError()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Server URL (Default: http://10.0.2.2:3000)") },
+                    placeholder = { Text("http://10.0.2.2:3000") },
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp)
                 )

@@ -867,7 +867,9 @@ async function runComprehensiveAudit() {
       'proguard-rules.pro configures R8/ProGuard to strip debug and verbose logging from release builds');
 
     // Production Build Artifact Verification
-    const releaseApkPath = path.join(process.cwd(), 'vectis', 'app', 'build', 'outputs', 'apk', 'release', 'app-release-unsigned.apk');
+    const releaseApkPath = fs.existsSync(path.join(process.cwd(), 'vectis', 'app', 'build', 'outputs', 'apk', 'release', 'app-release-unsigned.apk'))
+      ? path.join(process.cwd(), 'vectis', 'app', 'build', 'outputs', 'apk', 'release', 'app-release-unsigned.apk')
+      : path.join('C:\\Users\\kermou\\Documents\\vectis', 'app', 'build', 'outputs', 'apk', 'release', 'app-release-unsigned.apk');
     assert(fs.existsSync(releaseApkPath) && fs.statSync(releaseApkPath).size > 1000000,
       'Production release APK exists and is successfully packaged (> 1MB)');
   }

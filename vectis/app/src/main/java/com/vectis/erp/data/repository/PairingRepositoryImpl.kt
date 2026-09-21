@@ -72,7 +72,8 @@ class PairingRepositoryImpl(
             if (payload == null || payload.code.isBlank()) {
                 return@withContext ApiResult.Error(400, "Invalid QR code format. Missing pairing code.")
             }
-            pairWithCode(payload.code, deviceName, serverUrl)
+            val targetUrl = if (!payload.serverUrl.isNullOrBlank()) payload.serverUrl else serverUrl
+            pairWithCode(payload.code, deviceName, targetUrl)
         } catch (e: Exception) {
             ApiResult.Error(400, "Malformed QR code payload: ${e.message}")
         }
