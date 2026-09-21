@@ -47,12 +47,16 @@ class SecureStorage(private val prefs: SharedPreferences) {
 
     fun isAuthenticated(): Boolean = !getAuthToken().isNullOrBlank()
 
+    fun getPreferredCurrency(): String = prefs.getString(KEY_PREFERRED_CURRENCY, "MAD") ?: "MAD"
+    fun setPreferredCurrency(currency: String) = prefs.edit().putString(KEY_PREFERRED_CURRENCY, currency).apply()
+
     fun clearSession() {
         prefs.edit()
             .remove(KEY_AUTH_TOKEN)
             .remove(KEY_USER_ID)
             .remove(KEY_USER_ROLE)
             .remove(KEY_USER_NAME)
+            .remove(KEY_PREFERRED_CURRENCY)
             .apply()
     }
 
@@ -69,6 +73,7 @@ class SecureStorage(private val prefs: SharedPreferences) {
         private const val KEY_USER_ID = "authenticated_user_id"
         private const val KEY_USER_ROLE = "authenticated_user_role"
         private const val KEY_USER_NAME = "authenticated_user_name"
+        private const val KEY_PREFERRED_CURRENCY = "user_preferred_currency"
 
         // Default local development base URL (points to 10.0.2.2 for Android emulator)
         const val DEFAULT_SERVER_URL = "http://10.0.2.2:3000"

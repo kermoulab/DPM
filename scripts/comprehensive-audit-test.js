@@ -750,6 +750,22 @@ async function runComprehensiveAudit() {
       'DashboardScreen displays real-time KPI metrics (Revenue, Active Subscriptions, Expiring soon)');
     assert(dashboardScreenContent.includes('Recent Orders') && dashboardScreenContent.includes('Top Selling Products'),
       'DashboardScreen renders Recent Orders and Top Selling Products sections');
+
+    // --- SECTION 10: Mobile Customer Directory & Contacts ---
+    const androidCustomerApi = fs.existsSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'data', 'api', 'CustomerApiService.kt'));
+    const androidCustomerVm = fs.existsSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'feature', 'customers', 'CustomerViewModel.kt'));
+    const androidCustomerList = fs.existsSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'feature', 'customers', 'CustomerListScreen.kt'));
+    const androidCustomerDetail = fs.existsSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'feature', 'customers', 'CustomerDetailScreen.kt'));
+    assert(androidCustomerApi && androidCustomerVm && androidCustomerList && androidCustomerDetail,
+      'Android app implements CustomerApiService, CustomerViewModel, CustomerListScreen, and CustomerDetailScreen');
+
+    const customerListContent = fs.readFileSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'feature', 'customers', 'CustomerListScreen.kt'), 'utf8');
+    assert(customerListContent.includes('openWhatsApp') && customerListContent.includes('WhatsApp Chat'),
+      'CustomerListScreen integrates direct WhatsApp click-to-chat action on customer cards');
+
+    const customerDetailContent = fs.readFileSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'feature', 'customers', 'CustomerDetailScreen.kt'), 'utf8');
+    assert(customerDetailContent.includes('openWhatsApp') && customerDetailContent.includes('tel:') && customerDetailContent.includes('mailto:'),
+      'CustomerDetailScreen provides direct WhatsApp, Phone Call, and Email action deep links');
   }
 
   console.log('\n================================================================');

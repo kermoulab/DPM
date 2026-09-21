@@ -231,7 +231,37 @@ fun VectisNavGraph(
                 PlaceholderScreen("Orders Screen (Phase 8)")
             }
             composable(Screen.Customers.route) {
-                PlaceholderScreen("Customers Screen (Phase 6)")
+                val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as com.vectis.erp.VectisApplication
+                val customerRepo = remember { com.vectis.erp.data.repository.CustomerRepositoryImpl(app.networkClient) }
+                val permissionManager = remember { com.vectis.erp.core.authorization.PermissionManager(secureStorage) }
+                val viewModel: com.vectis.erp.feature.customers.CustomerViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+                    factory = com.vectis.erp.feature.customers.CustomerViewModel.Factory(customerRepo, secureStorage, permissionManager)
+                )
+
+                com.vectis.erp.feature.customers.CustomerListScreen(
+                    viewModel = viewModel,
+                    onCustomerClick = { customerId ->
+                        navController.navigate(Screen.CustomerDetail.createRoute(customerId))
+                    }
+                )
+            }
+            composable(Screen.CustomerDetail.route) { backStackEntry ->
+                val customerId = backStackEntry.arguments?.getString("customerId") ?: ""
+                val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as com.vectis.erp.VectisApplication
+                val customerRepo = remember { com.vectis.erp.data.repository.CustomerRepositoryImpl(app.networkClient) }
+                val permissionManager = remember { com.vectis.erp.core.authorization.PermissionManager(secureStorage) }
+                val viewModel: com.vectis.erp.feature.customers.CustomerViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+                    factory = com.vectis.erp.feature.customers.CustomerViewModel.Factory(customerRepo, secureStorage, permissionManager)
+                )
+
+                com.vectis.erp.feature.customers.CustomerDetailScreen(
+                    customerId = customerId,
+                    viewModel = viewModel,
+                    onNavigateBack = { navController.popBackStack() },
+                    onOrderClick = { orderId ->
+                        navController.navigate(Screen.OrderDetail.createRoute(orderId))
+                    }
+                )
             }
             composable(Screen.Inventory.route) {
                 PlaceholderScreen("Inventory Bank Screen (Phase 7)")
