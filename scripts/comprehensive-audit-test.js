@@ -766,6 +766,23 @@ async function runComprehensiveAudit() {
     const customerDetailContent = fs.readFileSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'feature', 'customers', 'CustomerDetailScreen.kt'), 'utf8');
     assert(customerDetailContent.includes('openWhatsApp') && customerDetailContent.includes('tel:') && customerDetailContent.includes('mailto:'),
       'CustomerDetailScreen provides direct WhatsApp, Phone Call, and Email action deep links');
+
+    // --- SECTION 11: Products, Plans & Inventory Bank ---
+    const androidInventoryApi = fs.existsSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'data', 'api', 'ProductInventoryApiService.kt'));
+    const androidInventoryVm = fs.existsSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'feature', 'inventory', 'InventoryViewModel.kt'));
+    const androidInventoryScreen = fs.existsSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'feature', 'inventory', 'InventoryScreen.kt'));
+    assert(androidInventoryApi && androidInventoryVm && androidInventoryScreen,
+      'Android app implements ProductInventoryApiService, InventoryViewModel, and InventoryScreen');
+
+    const productModelContent = fs.readFileSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'data', 'model', 'ProductInventoryModels.kt'), 'utf8');
+    assert(productModelContent.includes('capabilities') && productModelContent.includes('isSubscription') && productModelContent.includes('isServiceAccount') && productModelContent.includes('isLicenseKey'),
+      'ProductInventoryModels respects dynamic capability flags (subscription, service_account, profiles, license_key)');
+    assert(productModelContent.includes('maskedCredential') && productModelContent.includes('RevealCredentialResponse'),
+      'Service account credentials masked by default and require authenticated on-demand reveal endpoint');
+
+    const inventoryScreenContent = fs.readFileSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'feature', 'inventory', 'InventoryScreen.kt'), 'utf8');
+    assert(inventoryScreenContent.includes('revealCredential') && inventoryScreenContent.includes('Profile Slots'),
+      'InventoryScreen implements master credential reveal and expandable profile slots');
   }
 
   console.log('\n================================================================');

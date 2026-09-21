@@ -1,0 +1,112 @@
+package com.vectis.erp.data.repository
+
+import com.vectis.erp.core.network.ApiResult
+import com.vectis.erp.core.network.NetworkClient
+import com.vectis.erp.data.api.ProductInventoryApiService
+import com.vectis.erp.data.model.*
+import com.vectis.erp.domain.repository.ProductInventoryRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
+class ProductInventoryRepositoryImpl(
+    private val networkClient: NetworkClient
+) : ProductInventoryRepository {
+
+    override suspend fun getProducts(search: String?, status: String?): ApiResult<ProductsResponse> = withContext(Dispatchers.IO) {
+        try {
+            val api = networkClient.createService<ProductInventoryApiService>()
+            val response = api.getProducts(search = search, status = status)
+            if (response.isSuccessful && response.body() != null) {
+                ApiResult.Success(response.body()!!)
+            } else {
+                ApiResult.Error(response.code(), "Failed to fetch products (${response.code()})")
+            }
+        } catch (e: Exception) {
+            ApiResult.NetworkError(e)
+        }
+    }
+
+    override suspend fun getProductDetail(id: String): ApiResult<ProductDetailResponse> = withContext(Dispatchers.IO) {
+        try {
+            val api = networkClient.createService<ProductInventoryApiService>()
+            val response = api.getProductDetail(id)
+            if (response.isSuccessful && response.body() != null) {
+                ApiResult.Success(response.body()!!)
+            } else {
+                ApiResult.Error(response.code(), "Failed to fetch product details (${response.code()})")
+            }
+        } catch (e: Exception) {
+            ApiResult.NetworkError(e)
+        }
+    }
+
+    override suspend fun getPlans(productId: String?): ApiResult<PlansResponse> = withContext(Dispatchers.IO) {
+        try {
+            val api = networkClient.createService<ProductInventoryApiService>()
+            val response = api.getPlans(productId)
+            if (response.isSuccessful && response.body() != null) {
+                ApiResult.Success(response.body()!!)
+            } else {
+                ApiResult.Error(response.code(), "Failed to fetch plans (${response.code()})")
+            }
+        } catch (e: Exception) {
+            ApiResult.NetworkError(e)
+        }
+    }
+
+    override suspend fun getServiceAccounts(productId: String?, status: String?): ApiResult<ServiceAccountsResponse> = withContext(Dispatchers.IO) {
+        try {
+            val api = networkClient.createService<ProductInventoryApiService>()
+            val response = api.getServiceAccounts(productId, status)
+            if (response.isSuccessful && response.body() != null) {
+                ApiResult.Success(response.body()!!)
+            } else {
+                ApiResult.Error(response.code(), "Failed to fetch service accounts (${response.code()})")
+            }
+        } catch (e: Exception) {
+            ApiResult.NetworkError(e)
+        }
+    }
+
+    override suspend fun getAccountProfiles(accountId: String): ApiResult<ServiceProfilesResponse> = withContext(Dispatchers.IO) {
+        try {
+            val api = networkClient.createService<ProductInventoryApiService>()
+            val response = api.getAccountProfiles(accountId)
+            if (response.isSuccessful && response.body() != null) {
+                ApiResult.Success(response.body()!!)
+            } else {
+                ApiResult.Error(response.code(), "Failed to fetch account profile slots (${response.code()})")
+            }
+        } catch (e: Exception) {
+            ApiResult.NetworkError(e)
+        }
+    }
+
+    override suspend fun revealCredentials(accountId: String): ApiResult<RevealCredentialResponse> = withContext(Dispatchers.IO) {
+        try {
+            val api = networkClient.createService<ProductInventoryApiService>()
+            val response = api.revealCredentials(accountId)
+            if (response.isSuccessful && response.body() != null) {
+                ApiResult.Success(response.body()!!)
+            } else {
+                ApiResult.Error(response.code(), if (response.code() == 403) "Permission denied to view credentials." else "Failed to reveal credentials (${response.code()})")
+            }
+        } catch (e: Exception) {
+            ApiResult.NetworkError(e)
+        }
+    }
+
+    override suspend fun getLicenseKeys(productId: String?, status: String?): ApiResult<LicenseKeysResponse> = withContext(Dispatchers.IO) {
+        try {
+            val api = networkClient.createService<ProductInventoryApiService>()
+            val response = api.getLicenseKeys(productId, status)
+            if (response.isSuccessful && response.body() != null) {
+                ApiResult.Success(response.body()!!)
+            } else {
+                ApiResult.Error(response.code(), "Failed to fetch license keys (${response.code()})")
+            }
+        } catch (e: Exception) {
+            ApiResult.NetworkError(e)
+        }
+    }
+}

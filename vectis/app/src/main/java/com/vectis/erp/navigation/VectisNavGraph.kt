@@ -264,7 +264,16 @@ fun VectisNavGraph(
                 )
             }
             composable(Screen.Inventory.route) {
-                PlaceholderScreen("Inventory Bank Screen (Phase 7)")
+                val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as com.vectis.erp.VectisApplication
+                val inventoryRepo = remember { com.vectis.erp.data.repository.ProductInventoryRepositoryImpl(app.networkClient) }
+                val permissionManager = remember { com.vectis.erp.core.authorization.PermissionManager(secureStorage) }
+                val viewModel: com.vectis.erp.feature.inventory.InventoryViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+                    factory = com.vectis.erp.feature.inventory.InventoryViewModel.Factory(inventoryRepo, secureStorage, permissionManager)
+                )
+
+                com.vectis.erp.feature.inventory.InventoryScreen(
+                    viewModel = viewModel
+                )
             }
             composable(Screen.Alerts.route) {
                 PlaceholderScreen("Alerts Screen (Phase 9)")
