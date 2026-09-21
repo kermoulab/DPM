@@ -965,7 +965,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
-                Chronological ledger of logins, decryptions, and orders • Automatically purged after 30 days • Max 30 events per page
+                Chronological ledger of logins, decryptions, and orders
               </p>
             </div>
             <div className="text-xs font-medium text-slate-500 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100 self-start sm:self-auto">

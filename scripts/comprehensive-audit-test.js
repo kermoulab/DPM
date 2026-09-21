@@ -659,8 +659,8 @@ async function runComprehensiveAudit() {
     assert(systemApiContent.includes("searchParams.set('page', String(params.page))") && systemApiContent.includes("searchParams.set('limit', String(params.limit))"),
       'system.api.ts passes page and limit query parameters to /api/audit');
 
-    assert(settingsViewContent.includes('30-Day Retention') && settingsViewContent.includes('Max 30 events per page'),
-      'SettingsView displays 30-day retention policy and 30-event page capacity');
+    assert(settingsViewContent.includes('30-Day Retention'),
+      'SettingsView displays 30-day retention policy');
     assert(settingsViewContent.includes('audit-prev-btn') && settingsViewContent.includes('audit-next-btn') && settingsViewContent.includes('{auditPage} / {auditTotalPages}'),
       'SettingsView renders Previous/Next pagination controls and page indicator');
   }
