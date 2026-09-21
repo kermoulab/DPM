@@ -737,6 +737,19 @@ async function runComprehensiveAudit() {
     const inventoryRouteRbacContent = fs.readFileSync(path.join(process.cwd(), 'server', 'routes', 'inventory.ts'), 'utf8');
     assert(inventoryRouteRbacContent.includes("requireRole('manager')") || inventoryRouteRbacContent.includes("requireRole('admin')"),
       'inventory.ts independently guards service accounts and license keys behind manager/admin roles');
+
+    // --- SECTION 9: Mobile Dashboard & KPI Metrics ---
+    const androidDashboardApi = fs.existsSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'data', 'api', 'DashboardApiService.kt'));
+    const androidDashboardVm = fs.existsSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'feature', 'dashboard', 'DashboardViewModel.kt'));
+    const androidDashboardScreen = fs.existsSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'feature', 'dashboard', 'DashboardScreen.kt'));
+    assert(androidDashboardApi && androidDashboardVm && androidDashboardScreen,
+      'Android app implements DashboardApiService, DashboardViewModel, and DashboardScreen');
+
+    const dashboardScreenContent = fs.readFileSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'feature', 'dashboard', 'DashboardScreen.kt'), 'utf8');
+    assert(dashboardScreenContent.includes('Total Revenue') && dashboardScreenContent.includes('Active Subscriptions') && dashboardScreenContent.includes('expiring soon'),
+      'DashboardScreen displays real-time KPI metrics (Revenue, Active Subscriptions, Expiring soon)');
+    assert(dashboardScreenContent.includes('Recent Orders') && dashboardScreenContent.includes('Top Selling Products'),
+      'DashboardScreen renders Recent Orders and Top Selling Products sections');
   }
 
   console.log('\n================================================================');

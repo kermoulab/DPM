@@ -215,7 +215,17 @@ fun VectisNavGraph(
                 )
             }
             composable(Screen.Dashboard.route) {
-                PlaceholderScreen("Dashboard Screen (Phase 5)")
+                val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as com.vectis.erp.VectisApplication
+                val dashboardRepo = remember { com.vectis.erp.data.repository.DashboardRepositoryImpl(app.networkClient) }
+                val viewModel: com.vectis.erp.feature.dashboard.DashboardViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+                    factory = com.vectis.erp.feature.dashboard.DashboardViewModel.Factory(dashboardRepo)
+                )
+
+                com.vectis.erp.feature.dashboard.DashboardScreen(
+                    viewModel = viewModel,
+                    onNavigateToOrders = { navController.navigate(Screen.Orders.route) },
+                    onNavigateToInventory = { navController.navigate(Screen.Inventory.route) }
+                )
             }
             composable(Screen.Orders.route) {
                 PlaceholderScreen("Orders Screen (Phase 8)")
