@@ -330,7 +330,18 @@ fun VectisNavGraph(
                 )
             }
             composable(Screen.Alerts.route) {
-                PlaceholderScreen("Alerts Screen (Phase 9)")
+                val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as com.vectis.erp.VectisApplication
+                val alertRepo = remember { com.vectis.erp.data.repository.AlertRepositoryImpl(app.networkClient) }
+                val viewModel: com.vectis.erp.feature.alerts.AlertsViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+                    factory = com.vectis.erp.feature.alerts.AlertsViewModel.Factory(alertRepo, secureStorage)
+                )
+
+                com.vectis.erp.feature.alerts.AlertsScreen(
+                    viewModel = viewModel,
+                    onOrderClick = { orderId ->
+                        navController.navigate(Screen.OrderDetail.createRoute(orderId))
+                    }
+                )
             }
             composable(Screen.Settings.route) {
                 PlaceholderScreen("Settings Screen")

@@ -800,6 +800,76 @@ async function runComprehensiveAudit() {
     const orderDetailContent = fs.readFileSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'feature', 'orders', 'OrderDetailScreen.kt'), 'utf8');
     assert(orderDetailContent.includes('Send WhatsApp Delivery Receipt') && orderDetailContent.includes('Renew Subscription'),
       'OrderDetailScreen implements WhatsApp delivery receipt generator and subscription renewal modal');
+
+    // --- SECTION 13: Subscription Alerts, Push Notifications & Multilingual WhatsApp Actions ---
+    const androidAlertsApi = fs.existsSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'data', 'api', 'AlertWhatsAppApiService.kt'));
+    const androidAlertsRepo = fs.existsSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'data', 'repository', 'AlertRepositoryImpl.kt'));
+    const androidAlertsVm = fs.existsSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'feature', 'alerts', 'AlertsViewModel.kt'));
+    const androidAlertsScreen = fs.existsSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'feature', 'alerts', 'AlertsScreen.kt'));
+    const androidNotificationHelper = fs.existsSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'core', 'notification', 'NotificationHelper.kt'));
+    const androidAlertsTest = fs.existsSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'test', 'java', 'com', 'vectis', 'erp', 'AlertWhatsAppParsingTest.kt'));
+    assert(androidAlertsApi && androidAlertsRepo && androidAlertsVm && androidAlertsScreen && androidNotificationHelper && androidAlertsTest,
+      'Android app implements AlertWhatsAppApiService, AlertRepositoryImpl, AlertsViewModel, AlertsScreen, and NotificationHelper');
+
+    const notificationContent = fs.readFileSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'core', 'notification', 'NotificationHelper.kt'), 'utf8');
+    assert(notificationContent.includes('vectis_subscription_alerts') && notificationContent.includes('NotificationManager.IMPORTANCE_HIGH'),
+      'NotificationHelper creates dedicated high-importance notification channel for subscription alerts');
+
+    const alertsScreenContent = fs.readFileSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'feature', 'alerts', 'AlertsScreen.kt'), 'utf8');
+    assert(alertsScreenContent.includes('order_expiring') && alertsScreenContent.includes('order_expired') && alertsScreenContent.includes('sendWhatsAppAlert'),
+      'AlertsScreen provides multilingual WhatsApp actions dispatching order_expiring and order_expired event types');
+
+    // --- SECTION 14: Mobile Security Posture & Production Architecture ---
+    // Rule 1: Zero Client Business Database (No Room, SQLite, or Realm)
+    const scanAndroidDir = (dir, predicate) => {
+      let matches = [];
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          matches = matches.concat(scanAndroidDir(fullPath, predicate));
+        } else if (predicate(fullPath, entry.name)) {
+          matches.push(fullPath);
+        }
+      }
+      return matches;
+    };
+
+    const androidSrcDir = path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java');
+    const allKotlinFiles = scanAndroidDir(androidSrcDir, (_, name) => name.endsWith('.kt'));
+
+    let hasLocalDatabase = false;
+    for (const file of allKotlinFiles) {
+      const content = fs.readFileSync(file, 'utf8');
+      if (content.includes('@Database') || content.includes('RoomDatabase') || content.includes('SQLiteOpenHelper') || content.includes('io.realm')) {
+        hasLocalDatabase = true;
+        break;
+      }
+    }
+    assert(!hasLocalDatabase,
+      'Rule 1 Enforced: Android application contains ZERO Room/SQLite/Realm business databases (PostgreSQL REST API is sole authority)');
+
+    // Rule 4: Secure Storage using Android Keystore & EncryptedSharedPreferences
+    const secureStorageContent = fs.readFileSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'core', 'security', 'SecureStorage.kt'), 'utf8');
+    assert(secureStorageContent.includes('EncryptedSharedPreferences') && secureStorageContent.includes('MasterKey'),
+      'SecureStorage encrypts session and device credentials using Android Keystore AES-256 GCM');
+
+    // Android Manifest Hardening
+    const manifestContent = fs.readFileSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'AndroidManifest.xml'), 'utf8');
+    assert(manifestContent.includes('android:allowBackup="false"') && manifestContent.includes('android:fullBackupContent="false"'),
+      'AndroidManifest.xml disables backups (allowBackup=false, fullBackupContent=false) preventing ADB data exfiltration');
+    assert(manifestContent.includes('android.permission.POST_NOTIFICATIONS'),
+      'AndroidManifest.xml declares POST_NOTIFICATIONS permission for Android 13+ compliance');
+
+    // Proguard Obfuscation and Log Stripping
+    const proguardContent = fs.readFileSync(path.join(process.cwd(), 'vectis', 'app', 'proguard-rules.pro'), 'utf8');
+    assert(proguardContent.includes('-assumenosideeffects class android.util.Log'),
+      'proguard-rules.pro configures R8/ProGuard to strip debug and verbose logging from release builds');
+
+    // Production Build Artifact Verification
+    const releaseApkPath = path.join(process.cwd(), 'vectis', 'app', 'build', 'outputs', 'apk', 'release', 'app-release-unsigned.apk');
+    assert(fs.existsSync(releaseApkPath) && fs.statSync(releaseApkPath).size > 1000000,
+      'Production release APK exists and is successfully packaged (> 1MB)');
   }
 
   console.log('\n================================================================');
