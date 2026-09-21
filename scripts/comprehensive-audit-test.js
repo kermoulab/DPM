@@ -783,6 +783,23 @@ async function runComprehensiveAudit() {
     const inventoryScreenContent = fs.readFileSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'feature', 'inventory', 'InventoryScreen.kt'), 'utf8');
     assert(inventoryScreenContent.includes('revealCredential') && inventoryScreenContent.includes('Profile Slots'),
       'InventoryScreen implements master credential reveal and expandable profile slots');
+
+    // --- SECTION 12: Universal Order Engine ---
+    const androidOrderApi = fs.existsSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'data', 'api', 'OrderApiService.kt'));
+    const androidOrderVm = fs.existsSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'feature', 'orders', 'OrderViewModel.kt'));
+    const androidOrderList = fs.existsSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'feature', 'orders', 'OrderListScreen.kt'));
+    const androidOrderDetail = fs.existsSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'feature', 'orders', 'OrderDetailScreen.kt'));
+    const androidCreateOrder = fs.existsSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'feature', 'orders', 'CreateOrderScreen.kt'));
+    assert(androidOrderApi && androidOrderVm && androidOrderList && androidOrderDetail && androidCreateOrder,
+      'Android app implements OrderApiService, OrderViewModel, OrderListScreen, OrderDetailScreen, and CreateOrderScreen');
+
+    const orderModelContent = fs.readFileSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'data', 'model', 'OrderModels.kt'), 'utf8');
+    assert(orderModelContent.includes('isSubscription') && orderModelContent.includes('isServiceAccount') && orderModelContent.includes('isLicenseKey') && orderModelContent.includes('accountLogin') && orderModelContent.includes('licenseKeyString'),
+      'OrderModels dynamically extracts universal fulfillment data based on product capabilities without hardcoding vendor names');
+
+    const orderDetailContent = fs.readFileSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'feature', 'orders', 'OrderDetailScreen.kt'), 'utf8');
+    assert(orderDetailContent.includes('Send WhatsApp Delivery Receipt') && orderDetailContent.includes('Renew Subscription'),
+      'OrderDetailScreen implements WhatsApp delivery receipt generator and subscription renewal modal');
   }
 
   console.log('\n================================================================');

@@ -228,7 +228,61 @@ fun VectisNavGraph(
                 )
             }
             composable(Screen.Orders.route) {
-                PlaceholderScreen("Orders Screen (Phase 8)")
+                val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as com.vectis.erp.VectisApplication
+                val orderRepo = remember { com.vectis.erp.data.repository.OrderRepositoryImpl(app.networkClient) }
+                val customerRepo = remember { com.vectis.erp.data.repository.CustomerRepositoryImpl(app.networkClient) }
+                val productRepo = remember { com.vectis.erp.data.repository.ProductInventoryRepositoryImpl(app.networkClient) }
+                val permissionManager = remember { com.vectis.erp.core.authorization.PermissionManager(secureStorage) }
+                val viewModel: com.vectis.erp.feature.orders.OrderViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+                    factory = com.vectis.erp.feature.orders.OrderViewModel.Factory(orderRepo, customerRepo, productRepo, secureStorage, permissionManager)
+                )
+
+                com.vectis.erp.feature.orders.OrderListScreen(
+                    viewModel = viewModel,
+                    onOrderClick = { orderId ->
+                        navController.navigate(Screen.OrderDetail.createRoute(orderId))
+                    },
+                    onCreateOrderClick = {
+                        navController.navigate(Screen.CreateOrder.route)
+                    }
+                )
+            }
+            composable(Screen.OrderDetail.route) { backStackEntry ->
+                val orderId = backStackEntry.arguments?.getString("orderId") ?: ""
+                val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as com.vectis.erp.VectisApplication
+                val orderRepo = remember { com.vectis.erp.data.repository.OrderRepositoryImpl(app.networkClient) }
+                val customerRepo = remember { com.vectis.erp.data.repository.CustomerRepositoryImpl(app.networkClient) }
+                val productRepo = remember { com.vectis.erp.data.repository.ProductInventoryRepositoryImpl(app.networkClient) }
+                val permissionManager = remember { com.vectis.erp.core.authorization.PermissionManager(secureStorage) }
+                val viewModel: com.vectis.erp.feature.orders.OrderViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+                    factory = com.vectis.erp.feature.orders.OrderViewModel.Factory(orderRepo, customerRepo, productRepo, secureStorage, permissionManager)
+                )
+
+                com.vectis.erp.feature.orders.OrderDetailScreen(
+                    orderId = orderId,
+                    viewModel = viewModel,
+                    onNavigateBack = { navController.popBackStack() }
+                )
+            }
+            composable(Screen.CreateOrder.route) {
+                val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as com.vectis.erp.VectisApplication
+                val orderRepo = remember { com.vectis.erp.data.repository.OrderRepositoryImpl(app.networkClient) }
+                val customerRepo = remember { com.vectis.erp.data.repository.CustomerRepositoryImpl(app.networkClient) }
+                val productRepo = remember { com.vectis.erp.data.repository.ProductInventoryRepositoryImpl(app.networkClient) }
+                val permissionManager = remember { com.vectis.erp.core.authorization.PermissionManager(secureStorage) }
+                val viewModel: com.vectis.erp.feature.orders.OrderViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+                    factory = com.vectis.erp.feature.orders.OrderViewModel.Factory(orderRepo, customerRepo, productRepo, secureStorage, permissionManager)
+                )
+
+                com.vectis.erp.feature.orders.CreateOrderScreen(
+                    viewModel = viewModel,
+                    onNavigateBack = { navController.popBackStack() },
+                    onOrderCreated = { newOrderId ->
+                        navController.navigate(Screen.OrderDetail.createRoute(newOrderId)) {
+                            popUpTo(Screen.Orders.route)
+                        }
+                    }
+                )
             }
             composable(Screen.Customers.route) {
                 val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as com.vectis.erp.VectisApplication
