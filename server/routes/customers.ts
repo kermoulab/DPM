@@ -77,7 +77,7 @@ customersRouter.put('/:id', requireAuth, async (req: AuthenticatedRequest, res, 
 });
 
 // DELETE /api/customers/:id
-customersRouter.delete('/:id', requireAuth, requireRole('manager'), async (req: AuthenticatedRequest, res, next) => {
+customersRouter.delete('/:id', requireAuth, requireRole('admin'), async (req: AuthenticatedRequest, res, next) => {
   try {
     const { id } = req.params;
     const customer = await customersRepo.findById(id);

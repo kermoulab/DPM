@@ -101,7 +101,7 @@ ordersRouter.put('/:id', requireAuth, requireRole('manager'), async (req: Authen
 });
 
 // DELETE /api/orders/:id
-ordersRouter.delete('/:id', requireAuth, requireRole('manager'), async (req: AuthenticatedRequest, res, next) => {
+ordersRouter.delete('/:id', requireAuth, requireRole('admin'), async (req: AuthenticatedRequest, res, next) => {
   try {
     const { id } = req.params;
     await ordersRepo.delete(id);

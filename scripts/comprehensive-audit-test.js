@@ -719,6 +719,24 @@ async function runComprehensiveAudit() {
     const authInterceptorContent = fs.readFileSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'core', 'network', 'AuthInterceptor.kt'), 'utf8');
     assert(authInterceptorContent.includes('response.code == 401') && authInterceptorContent.includes('secureStorage.clearSession()') && authInterceptorContent.includes('onUnauthorized()'),
       'AuthInterceptor intercepts 401 responses and safely clears session credentials preventing infinite loops');
+
+    // --- SECTION 8: Authorization & RBAC Enforcement (Backend Authority) ---
+    const androidUserRole = fs.existsSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'core', 'authorization', 'UserRole.kt'));
+    const androidPermissionManager = fs.existsSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'core', 'authorization', 'PermissionManager.kt'));
+    assert(androidUserRole && androidPermissionManager,
+      'Android app implements UserRole, AppPermission, and PermissionManager');
+
+    const ordersRouteContent = fs.readFileSync(path.join(process.cwd(), 'server', 'routes', 'orders.ts'), 'utf8');
+    assert(ordersRouteContent.includes("requireRole('admin')"),
+      'orders.ts independently rejects non-admin DELETE requests with HTTP 403 (Agent cannot delete order even if UI bypassed)');
+
+    const customersRouteContent = fs.readFileSync(path.join(process.cwd(), 'server', 'routes', 'customers.ts'), 'utf8');
+    assert(customersRouteContent.includes("requireRole('admin')"),
+      'customers.ts independently rejects non-admin DELETE requests with HTTP 403');
+
+    const inventoryRouteRbacContent = fs.readFileSync(path.join(process.cwd(), 'server', 'routes', 'inventory.ts'), 'utf8');
+    assert(inventoryRouteRbacContent.includes("requireRole('manager')") || inventoryRouteRbacContent.includes("requireRole('admin')"),
+      'inventory.ts independently guards service accounts and license keys behind manager/admin roles');
   }
 
   console.log('\n================================================================');
