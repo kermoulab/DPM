@@ -377,6 +377,39 @@ export class DashboardRepository {
       purchased: Math.round(o.revenue)
     }));
 
+    // 11. Recent Orders (Latest 6 orders)
+    const recentOrdersRes = await query<{
+      id: string;
+      order_number: string;
+      customer_name: string;
+      product_name: string;
+      plan_name: string;
+      status: string;
+      start_date: string;
+      end_date: string;
+      price: number;
+      currency: string;
+      created_at: string;
+    }>(
+      `SELECT o.id,
+              o.order_number,
+              o.start_date::text as start_date,
+              o.end_date::text as end_date,
+              o.price,
+              o.currency,
+              o.status,
+              o.created_at,
+              c.name as customer_name,
+              p.name as product_name,
+              pl.name as plan_name
+       FROM orders o
+       JOIN customers c ON c.id = o.customer_id
+       JOIN products p ON p.id = o.product_id
+       JOIN plans pl ON pl.id = o.plan_id
+       ORDER BY o.created_at DESC
+       LIMIT 6`
+    );
+
     return {
       financial: {
         totalRevenue,
@@ -434,7 +467,8 @@ export class DashboardRepository {
       ordersOverviewByYear,
       purchaseAnalytics,
       categoryAnalytics,
-      topProducts: topProducts.rows
+      topProducts: topProducts.rows,
+      recentOrders: recentOrdersRes.rows
     };
   }
 }

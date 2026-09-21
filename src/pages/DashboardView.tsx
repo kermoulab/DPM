@@ -22,6 +22,11 @@ interface DashboardViewProps {
   onNavigate: (tab: string) => void;
 }
 
+const formatDateOnly = (d?: string | null) => {
+  if (!d) return '—';
+  return String(d).split('T')[0].split(' ')[0];
+};
+
 export const DashboardView: React.FC<DashboardViewProps> = ({
   stats,
   onOpenOrderBuilder,
@@ -31,7 +36,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const currentYearNum = new Date().getFullYear();
   const last2Years = [String(currentYearNum - 1), String(currentYearNum)]; // e.g. ['2025', '2026']
   const [activeYear, setActiveYear] = React.useState(String(currentYearNum));
-  const [hoveredMonthIdx, setHoveredMonthIdx] = React.useState<number | null>(null);
   const [topProductPage, setTopProductPage] = React.useState(0);
   const [purchaseMetric, setPurchaseMetric] = React.useState<'orders' | 'revenue'>('orders');
   const [hoveredCategoryMonth, setHoveredCategoryMonth] = React.useState<number | null>(null);
@@ -44,7 +48,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     );
   }
 
-  const { financial, customers, orders, inventory, saleAnalytics, ordersOverview, ordersOverviewByYear, purchaseAnalytics, categoryAnalytics, topProducts, suggestions } = stats;
+  const { financial, customers, orders, inventory, categoryAnalytics, topProducts, recentOrders = [] } = stats;
 
   const topCategories = categoryAnalytics?.topCategories || [];
   const monthlyCategoryTrends = (categoryAnalytics?.monthlyTrendsByYear && categoryAnalytics.monthlyTrendsByYear[activeYear]) || [];
@@ -64,175 +68,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const pageSize = 4;
   const paginatedTopProducts = topProducts.slice(topProductPage * pageSize, (topProductPage + 1) * pageSize);
   const maxPages = Math.ceil(topProducts.length / pageSize) || 1;
-
-  // Active year dataset from real DB
-  const activeYearData = (ordersOverviewByYear && ordersOverviewByYear[activeYear])
-    || (activeYear === String(currentYearNum) ? ordersOverview : (ordersOverviewByYear?.[last2Years[0]] || ordersOverview || []));
-
-  const totalYearOrders = activeYearData.reduce((acc, d) => acc + (d.orders || 0), 0);
-  const totalYearProfit = activeYearData.reduce((acc, d) => acc + (d.profit || 0), 0);
-  const totalYearRevenue = activeYearData.reduce((acc, d) => acc + (d.revenue || 0), 0);
-
-  // Render SVG Smooth Curved Area Chart for Orders Overview (Real DB activity for activeYear)
-  const renderOrdersAreaChart = () => {
-    const data = activeYearData || [];
-    if (data.length === 0) return null;
-
-    const width = 640;
-    const height = 220;
-    const paddingX = 40;
-    const paddingY = 30;
-
-    const maxOrders = Math.max(...data.map((d) => d.orders), 4);
-    const maxProfit = Math.max(...data.map((d) => d.profit), 20);
-
-    const getX = (idx: number) => paddingX + (idx / (data.length - 1)) * (width - paddingX * 2);
-    const getYOrders = (val: number) => height - paddingY - (val / maxOrders) * (height - paddingY * 2);
-    const getYProfit = (val: number) => height - paddingY - (val / maxProfit) * (height - paddingY * 2);
-
-    const ordersPoints = data.map((d, i) => `${getX(i)},${getYOrders(d.orders)}`).join(' ');
-    const profitPoints = data.map((d, i) => `${getX(i)},${getYProfit(d.profit)}`).join(' ');
-
-    const ordersArea = `${getX(0)},${height - paddingY} ${ordersPoints} ${getX(data.length - 1)},${height - paddingY}`;
-    const profitArea = `${getX(0)},${height - paddingY} ${profitPoints} ${getX(data.length - 1)},${height - paddingY}`;
-
-    const hoveredItem = hoveredMonthIdx !== null ? data[hoveredMonthIdx] : null;
-    const tooltipX = hoveredMonthIdx !== null ? Math.min(Math.max(getX(hoveredMonthIdx), 85), width - 85) : 0;
-    const tooltipY = 32;
-
-    return (
-      <svg
-        viewBox={`0 0 ${width} ${height}`}
-        className="w-full h-48 overflow-visible select-none"
-        onMouseLeave={() => setHoveredMonthIdx(null)}
-      >
-        <defs>
-          <linearGradient id="purpleGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.32" />
-            <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0.0" />
-          </linearGradient>
-          <linearGradient id="tealGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#14b8a6" stopOpacity="0.28" />
-            <stop offset="100%" stopColor="#14b8a6" stopOpacity="0.0" />
-          </linearGradient>
-        </defs>
-
-        {/* Horizontal grid lines */}
-        {[0, 0.33, 0.66, 1].map((ratio, i) => {
-          const y = paddingY + ratio * (height - paddingY * 2);
-          return (
-            <line
-              key={i}
-              x1={paddingX}
-              y1={y}
-              x2={width - paddingX}
-              y2={y}
-              stroke="#f1f5f9"
-              strokeDasharray="4 4"
-            />
-          );
-        })}
-
-        {/* Fill Areas */}
-        <polygon points={ordersArea} fill="url(#purpleGrad)" />
-        <polygon points={profitArea} fill="url(#tealGrad)" />
-
-        {/* Stroke Lines */}
-        <polyline points={ordersPoints} fill="none" stroke="#8b5cf6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-        <polyline points={profitPoints} fill="none" stroke="#14b8a6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-
-        {/* Vertical crosshair for hovered month */}
-        {hoveredMonthIdx !== null && (
-          <line
-            x1={getX(hoveredMonthIdx)}
-            y1={paddingY - 5}
-            x2={getX(hoveredMonthIdx)}
-            y2={height - paddingY}
-            stroke="#94a3b8"
-            strokeWidth="1.5"
-            strokeDasharray="3 3"
-          />
-        )}
-
-        {/* Data points & X axis labels */}
-        {data.map((d, i) => {
-          const isHovered = hoveredMonthIdx === i;
-          const hasActivity = d.orders > 0 || d.profit > 0;
-          return (
-            <g key={i}>
-              {/* Hit area for easy mouse interaction */}
-              <rect
-                x={getX(i) - 22}
-                y={0}
-                width={44}
-                height={height}
-                fill="transparent"
-                className="cursor-pointer"
-                onMouseEnter={() => setHoveredMonthIdx(i)}
-              />
-
-              {/* Orders circle */}
-              <circle
-                cx={getX(i)}
-                cy={getYOrders(d.orders)}
-                r={isHovered ? 6 : (d.orders > 0 ? 4.5 : 2.5)}
-                fill="#8b5cf6"
-                stroke={hasActivity ? '#ffffff' : 'none'}
-                strokeWidth={hasActivity ? 2 : 0}
-                className="transition-all duration-150"
-              />
-
-              {/* Profit circle */}
-              <circle
-                cx={getX(i)}
-                cy={getYProfit(d.profit)}
-                r={isHovered ? 6 : (d.profit > 0 ? 4.5 : 2.5)}
-                fill="#14b8a6"
-                stroke={hasActivity ? '#ffffff' : 'none'}
-                strokeWidth={hasActivity ? 2 : 0}
-                className="transition-all duration-150"
-              />
-
-              {/* Month label */}
-              <text
-                x={getX(i)}
-                y={height - 10}
-                textAnchor="middle"
-                className={`text-[10px] font-medium transition-colors ${
-                  isHovered ? 'fill-slate-900 font-bold' : (hasActivity ? 'fill-slate-600 font-semibold' : 'fill-slate-400')
-                }`}
-              >
-                {d.month}
-              </text>
-            </g>
-          );
-        })}
-
-        {/* Floating Tooltip Box */}
-        {hoveredItem && (
-          <g className="pointer-events-none transition-all duration-150">
-            <rect
-              x={tooltipX - 75}
-              y={tooltipY - 22}
-              width={150}
-              height={50}
-              rx={8}
-              fill="#0f172a"
-              fillOpacity="0.94"
-              stroke="#334155"
-              strokeWidth="1"
-            />
-            <text x={tooltipX} y={tooltipY - 5} textAnchor="middle" fill="#ffffff" fontSize="11" fontWeight="bold">
-              {hoveredItem.month} {activeYear}: {hoveredItem.orders} {hoveredItem.orders === 1 ? 'order' : 'orders'}
-            </text>
-            <text x={tooltipX} y={tooltipY + 14} textAnchor="middle" fill="#34d399" fontSize="10" fontWeight="600">
-              Profit: {formatMoney(hoveredItem.profit)} · Rev: {formatMoney(hoveredItem.revenue)}
-            </text>
-          </g>
-        )}
-      </svg>
-    );
-  };
 
   // Render Purchase Analytics Monthly Category Trends Chart (Max 5 categories from high to low)
   const renderPurchaseCategoryChart = () => {
@@ -693,55 +528,74 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       </div>
 
-      {/* Row 2: Orders Overview (Full width after removing Sale Analytics) */}
+      {/* Row 2: Recent Orders */}
       <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
         <div className="flex items-center justify-between">
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm font-bold text-slate-800">Orders Overview</h3>
-              <span className="text-[11px] font-semibold text-purple-700 bg-purple-50 px-2.5 py-0.5 rounded-full border border-purple-100/80">
-                {totalYearOrders} {totalYearOrders === 1 ? 'order' : 'orders'} in {activeYear}
-              </span>
-            </div>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Total Profit: {formatMoney(totalYearProfit)}
-            </p>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-3 text-xs">
-              <span className="flex items-center gap-1.5 text-slate-600">
-                <span className="w-2.5 h-2.5 rounded-full bg-purple-500" />
-                Orders
-              </span>
-              <span className="flex items-center gap-1.5 text-slate-600">
-                <span className="w-2.5 h-2.5 rounded-full bg-teal-500" />
-                Profit
-              </span>
-            </div>
-            <div className="flex items-center p-1 bg-slate-100/90 rounded-xl border border-slate-200/80 gap-1 select-none">
-              {last2Years.map((yr) => {
-                const isSelected = activeYear === yr;
-                return (
-                  <button
-                    key={yr}
-                    type="button"
-                    onClick={() => setActiveYear(yr)}
-                    className={`px-3 py-1 text-xs rounded-lg transition-all ${
-                      isSelected
-                        ? 'bg-white text-slate-900 font-bold shadow-2xs'
-                        : 'text-slate-500 hover:text-slate-900 font-medium'
-                    }`}
-                  >
-                    {yr}
-                  </button>
-                );
-              })}
-            </div>
+          <div className="flex items-center gap-3">
+            <h3 className="text-sm font-bold text-slate-800">Recent Orders</h3>
+            <a
+              href="#orders"
+              onClick={(e) => {
+                e.preventDefault();
+                onNavigate('orders');
+              }}
+              className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline transition cursor-pointer"
+            >
+              View Orders
+            </a>
           </div>
         </div>
 
-        {/* SVG Area Chart */}
-        <div className="pt-2">{renderOrdersAreaChart()}</div>
+        {/* Recent Orders Table */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead>
+              <tr className="bg-slate-50/60 border-b border-slate-100 text-slate-400 uppercase text-[10px] tracking-wider">
+                <th className="py-3 px-4 font-semibold">Name of Order</th>
+                <th className="py-3 px-4 font-semibold">Subscription Term</th>
+                <th className="py-3 px-4 font-semibold text-right">Price</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {recentOrders.length === 0 ? (
+                <tr>
+                  <td colSpan={3} className="py-8 text-center text-slate-400 text-xs">
+                    No recent orders found.
+                  </td>
+                </tr>
+              ) : (
+                recentOrders.map((order) => (
+                  <tr key={order.id} className="hover:bg-slate-50/60 transition">
+                    <td className="py-3.5 px-4">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-bold text-slate-800">#{order.order_number}</span>
+                        <span className="text-slate-300">·</span>
+                        <span className="font-semibold text-slate-800">{order.product_name}</span>
+                        {order.plan_name && (
+                          <span className="text-[11px] text-slate-400">({order.plan_name})</span>
+                        )}
+                      </div>
+                      {order.customer_name && (
+                        <p className="text-[11px] text-slate-400 mt-0.5">{order.customer_name}</p>
+                      )}
+                    </td>
+                    <td className="py-3.5 px-4 text-slate-600 whitespace-nowrap">
+                      <div className="flex items-center gap-1.5">
+                        <Calendar size={13} className="text-slate-400 shrink-0" />
+                        <span>
+                          {formatDateOnly(order.start_date)} → {formatDateOnly(order.end_date)}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="py-3.5 px-4 font-bold text-slate-900 text-right whitespace-nowrap">
+                      {formatMoney(order.price, order.currency || 'USD')}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Row 3: Purchase Analytics - Monthly Category Trends (Customer Growth removed, max 5 categories high to low) */}

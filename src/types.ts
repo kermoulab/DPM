@@ -356,7 +356,20 @@ export interface DashboardStats {
     orderCount: number;
     totalRevenue: number;
   }>;
-  suggestions: Array<{
+  recentOrders?: Array<{
+    id: string;
+    order_number: string;
+    customer_name?: string;
+    product_name?: string;
+    plan_name?: string;
+    status: string;
+    start_date: string;
+    end_date: string;
+    price: number;
+    currency: string;
+    created_at: string;
+  }>;
+  suggestions?: Array<{
     type: 'warning' | 'alert' | 'opportunity';
     title: string;
     description: string;

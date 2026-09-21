@@ -663,6 +663,21 @@ async function runComprehensiveAudit() {
       'SettingsView displays 30-day retention policy');
     assert(settingsViewContent.includes('audit-prev-btn') && settingsViewContent.includes('audit-next-btn') && settingsViewContent.includes('{auditPage} / {auditTotalPages}'),
       'SettingsView renders Previous/Next pagination controls and page indicator');
+
+    // Inspect DashboardView for Recent Orders replacement
+    const dashboardViewContent = fs.readFileSync(path.join(process.cwd(), 'src', 'pages', 'DashboardView.tsx'), 'utf8');
+    assert(!dashboardViewContent.includes('renderOrdersAreaChart') && !dashboardViewContent.includes('Orders Overview'),
+      'DashboardView completely removes Orders Overview div and chart');
+    assert(dashboardViewContent.includes('Recent Orders'),
+      'DashboardView renders Recent Orders section');
+    assert(dashboardViewContent.includes('View Orders') && dashboardViewContent.includes("onNavigate('orders')") && dashboardViewContent.includes('<a'),
+      'DashboardView renders text link (View Orders) taking user to orders page');
+    assert(dashboardViewContent.includes('Name of Order') && dashboardViewContent.includes('Subscription Term') && dashboardViewContent.includes('Price'),
+      'DashboardView displays Name of Order, Subscription Term, and Price columns');
+
+    const dashboardRepoContent = fs.readFileSync(path.join(process.cwd(), 'server', 'db', 'repositories', 'dashboard.repository.ts'), 'utf8');
+    assert(dashboardRepoContent.includes('recentOrders') && dashboardRepoContent.includes('ORDER BY o.created_at DESC'),
+      'dashboard.repository.ts queries and returns recentOrders');
   }
 
   console.log('\n================================================================');
