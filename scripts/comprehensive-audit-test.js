@@ -708,6 +708,17 @@ async function runComprehensiveAudit() {
     const androidPairingVm = fs.existsSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'feature', 'pairing', 'PairingViewModel.kt'));
     assert(androidPairingApi && androidPairingVm,
       'Android app implements PairingApiService, PairingRepositoryImpl, and PairingViewModel');
+
+    // --- SECTION 7: Mobile Authentication & Session Verification ---
+    const androidAuthApi = fs.existsSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'data', 'api', 'AuthApiService.kt'));
+    const androidAuthVm = fs.existsSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'feature', 'auth', 'LoginViewModel.kt'));
+    const androidLoginScreen = fs.existsSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'feature', 'auth', 'LoginScreen.kt'));
+    assert(androidAuthApi && androidAuthVm && androidLoginScreen,
+      'Android app implements AuthApiService, AuthRepositoryImpl, LoginViewModel, and LoginScreen');
+
+    const authInterceptorContent = fs.readFileSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'core', 'network', 'AuthInterceptor.kt'), 'utf8');
+    assert(authInterceptorContent.includes('response.code == 401') && authInterceptorContent.includes('secureStorage.clearSession()') && authInterceptorContent.includes('onUnauthorized()'),
+      'AuthInterceptor intercepts 401 responses and safely clears session credentials preventing infinite loops');
   }
 
   console.log('\n================================================================');

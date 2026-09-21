@@ -193,7 +193,26 @@ fun VectisNavGraph(
                 )
             }
             composable(Screen.Login.route) {
-                PlaceholderScreen("Login Screen (Phase 3)")
+                val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as com.vectis.erp.VectisApplication
+                val authRepo = remember { com.vectis.erp.data.repository.AuthRepositoryImpl(app.networkClient, secureStorage) }
+                val viewModel: com.vectis.erp.feature.auth.LoginViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+                    factory = com.vectis.erp.feature.auth.LoginViewModel.Factory(authRepo, secureStorage)
+                )
+
+                com.vectis.erp.feature.auth.LoginScreen(
+                    viewModel = viewModel,
+                    deviceId = secureStorage.getDeviceId(),
+                    onLoginSuccess = {
+                        navController.navigate(Screen.Dashboard.route) {
+                            popUpTo(Screen.Login.route) { inclusive = true }
+                        }
+                    },
+                    onUnpairDevice = {
+                        navController.navigate(Screen.Pairing.route) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    }
+                )
             }
             composable(Screen.Dashboard.route) {
                 PlaceholderScreen("Dashboard Screen (Phase 5)")
