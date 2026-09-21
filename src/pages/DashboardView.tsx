@@ -528,77 +528,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       </div>
 
-      {/* Row 2: Recent Orders */}
-      <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <h3 className="text-sm font-bold text-slate-800">Recent Orders</h3>
-            <a
-              href="#orders"
-              onClick={(e) => {
-                e.preventDefault();
-                onNavigate('orders');
-              }}
-              className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline transition cursor-pointer"
-            >
-              View Orders
-            </a>
-          </div>
-        </div>
-
-        {/* Recent Orders Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead>
-              <tr className="bg-slate-50/60 border-b border-slate-100 text-slate-400 uppercase text-[10px] tracking-wider">
-                <th className="py-3 px-4 font-semibold">Name of Order</th>
-                <th className="py-3 px-4 font-semibold">Subscription Term</th>
-                <th className="py-3 px-4 font-semibold text-right">Price</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {recentOrders.length === 0 ? (
-                <tr>
-                  <td colSpan={3} className="py-8 text-center text-slate-400 text-xs">
-                    No recent orders found.
-                  </td>
-                </tr>
-              ) : (
-                recentOrders.map((order) => (
-                  <tr key={order.id} className="hover:bg-slate-50/60 transition">
-                    <td className="py-3.5 px-4">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono font-bold text-slate-800">#{order.order_number}</span>
-                        <span className="text-slate-300">·</span>
-                        <span className="font-semibold text-slate-800">{order.product_name}</span>
-                        {order.plan_name && (
-                          <span className="text-[11px] text-slate-400">({order.plan_name})</span>
-                        )}
-                      </div>
-                      {order.customer_name && (
-                        <p className="text-[11px] text-slate-400 mt-0.5">{order.customer_name}</p>
-                      )}
-                    </td>
-                    <td className="py-3.5 px-4 text-slate-600 whitespace-nowrap">
-                      <div className="flex items-center gap-1.5">
-                        <Calendar size={13} className="text-slate-400 shrink-0" />
-                        <span>
-                          {formatDateOnly(order.start_date)} → {formatDateOnly(order.end_date)}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="py-3.5 px-4 font-bold text-slate-900 text-right whitespace-nowrap">
-                      {formatMoney(order.price, order.currency || 'USD')}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Row 3: Purchase Analytics - Monthly Category Trends (Customer Growth removed, max 5 categories high to low) */}
+      {/* Row 2: Purchase Analytics - Monthly Category Trends */}
       <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
@@ -686,69 +616,71 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div className="pt-2">{renderPurchaseCategoryChart()}</div>
       </div>
 
-      {/* Row 4: Inventory Management & Top Selling Products (Matching dashdoard.png) */}
+      {/* Row 3: Recent Orders (Left) & Top Selling Products (Right) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left: Inventory Management Breakdown (5 cols) */}
-        <div className="lg:col-span-5 bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
+        {/* Left: Recent Orders (6 cols) */}
+        <div className="lg:col-span-6 bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-slate-800">Inventory Management</h3>
-            <span className="text-xs text-blue-600 font-semibold cursor-pointer hover:underline" onClick={() => onNavigate('inventory')}>
-              View Bank
-            </span>
+            <h3 className="text-sm font-bold text-slate-800">Recent Orders</h3>
+            <a
+              href="#orders"
+              onClick={(e) => {
+                e.preventDefault();
+                onNavigate('orders');
+              }}
+              className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline transition cursor-pointer"
+            >
+              View Orders
+            </a>
           </div>
 
-          <div className="grid grid-cols-3 gap-2 text-center py-2 bg-slate-50 rounded-2xl border border-slate-150">
-            <div>
-              <p className="text-[10px] text-slate-400 uppercase font-medium">Stock Status</p>
-              <p className="text-sm font-bold text-slate-800">{inventory.stockStatus ?? 0}%</p>
-            </div>
-            <div>
-              <p className="text-[10px] text-slate-400 uppercase font-medium">Turnover</p>
-              <p className="text-sm font-bold text-slate-800">{inventory.turnoverRate ?? 0}%</p>
-            </div>
-            <div>
-              <p className="text-[10px] text-slate-400 uppercase font-medium">Ordered</p>
-              <p className="text-sm font-bold text-slate-800">{inventory.productsOrdered ?? 0}%</p>
-            </div>
-          </div>
-
-          {/* Multi-month stacked progress bars computed from real DB data */}
-          <div className="space-y-3 pt-2">
-            {[
-              {
-                label: 'Active Subscriptions',
-                pct: inventory.activeSubsPercent ?? activePct,
-                color: 'bg-blue-600'
-              },
-              {
-                label: 'Assigned Profiles',
-                pct: inventory.assignedProfilesPercent ?? 0,
-                color: 'bg-emerald-500'
-              },
-              {
-                label: 'Unallocated Keys',
-                pct: inventory.unallocatedKeysPercent ?? 0,
-                color: 'bg-purple-500'
-              }
-            ].map((item) => (
-              <div key={item.label} className="space-y-1">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-600 font-medium">{item.label}</span>
-                  <span className="font-semibold text-slate-800">{item.pct}%</span>
-                </div>
-                <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
-                  <div
-                    className={`h-full rounded-full ${item.color}`}
-                    style={{ width: `${item.pct}%` }}
-                  />
-                </div>
-              </div>
-            ))}
+          {/* Recent Orders Table */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b border-slate-100 text-slate-400 uppercase text-[10px] tracking-wider">
+                  <th className="pb-3 font-semibold">Name of Order</th>
+                  <th className="pb-3 font-semibold">Subscription Term</th>
+                  <th className="pb-3 font-semibold text-right">Price</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {recentOrders.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} className="py-6 text-center text-xs text-slate-400">
+                      No recent orders found.
+                    </td>
+                  </tr>
+                ) : (
+                  recentOrders.slice(0, 5).map((order) => (
+                    <tr key={order.id} className="hover:bg-slate-50/60 transition">
+                      <td className="py-3 font-semibold text-slate-800">
+                        {order.product_name}
+                        {order.plan_name && (
+                          <span className="text-[11px] text-slate-400 font-normal ml-1">({order.plan_name})</span>
+                        )}
+                      </td>
+                      <td className="py-3 text-slate-600 whitespace-nowrap">
+                        <div className="flex items-center gap-1.5">
+                          <Calendar size={13} className="text-slate-400 shrink-0" />
+                          <span>
+                            {formatDateOnly(order.start_date)} → {formatDateOnly(order.end_date)}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-3 font-bold text-slate-900 text-right whitespace-nowrap">
+                        {formatMoney(order.price, order.currency || 'USD')}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
 
-        {/* Right: Top Selling Products (7 cols) */}
-        <div className="lg:col-span-7 bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
+        {/* Right: Top Selling Products (6 cols) */}
+        <div className="lg:col-span-6 bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-bold text-slate-800">Top Selling Products</h3>
             <div className="flex items-center gap-2">
@@ -820,6 +752,66 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+      </div>
+
+      {/* Row 4: Inventory Management */}
+      <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-bold text-slate-800">Inventory Management</h3>
+          <span className="text-xs text-blue-600 font-semibold cursor-pointer hover:underline" onClick={() => onNavigate('inventory')}>
+            View Bank
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+          <div className="grid grid-cols-3 gap-2 text-center py-4 bg-slate-50 rounded-2xl border border-slate-150">
+            <div>
+              <p className="text-[10px] text-slate-400 uppercase font-medium">Stock Status</p>
+              <p className="text-base font-bold text-slate-800 mt-1">{inventory.stockStatus ?? 0}%</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-slate-400 uppercase font-medium">Turnover</p>
+              <p className="text-base font-bold text-slate-800 mt-1">{inventory.turnoverRate ?? 0}%</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-slate-400 uppercase font-medium">Ordered</p>
+              <p className="text-base font-bold text-slate-800 mt-1">{inventory.productsOrdered ?? 0}%</p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {[
+              {
+                label: 'Active Subscriptions',
+                pct: inventory.activeSubsPercent ?? activePct,
+                color: 'bg-blue-600'
+              },
+              {
+                label: 'Assigned Profiles',
+                pct: inventory.assignedProfilesPercent ?? 0,
+                color: 'bg-emerald-500'
+              },
+              {
+                label: 'Unallocated Keys',
+                pct: inventory.unallocatedKeysPercent ?? 0,
+                color: 'bg-purple-500'
+              }
+            ].map((item) => (
+              <div key={item.label} className="space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-600 font-medium">{item.label}</span>
+                  <span className="font-semibold text-slate-800">{item.pct}%</span>
+                </div>
+                <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
+                  <div
+                    className={`h-full rounded-full ${item.color}`}
+                    style={{ width: `${item.pct}%` }}
+                  />
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>

@@ -664,7 +664,7 @@ async function runComprehensiveAudit() {
     assert(settingsViewContent.includes('audit-prev-btn') && settingsViewContent.includes('audit-next-btn') && settingsViewContent.includes('{auditPage} / {auditTotalPages}'),
       'SettingsView renders Previous/Next pagination controls and page indicator');
 
-    // Inspect DashboardView for Recent Orders replacement
+    // Inspect DashboardView for Recent Orders replacement & layout
     const dashboardViewContent = fs.readFileSync(path.join(process.cwd(), 'src', 'pages', 'DashboardView.tsx'), 'utf8');
     assert(!dashboardViewContent.includes('renderOrdersAreaChart') && !dashboardViewContent.includes('Orders Overview'),
       'DashboardView completely removes Orders Overview div and chart');
@@ -674,10 +674,20 @@ async function runComprehensiveAudit() {
       'DashboardView renders text link (View Orders) taking user to orders page');
     assert(dashboardViewContent.includes('Name of Order') && dashboardViewContent.includes('Subscription Term') && dashboardViewContent.includes('Price'),
       'DashboardView displays Name of Order, Subscription Term, and Price columns');
+    assert(dashboardViewContent.includes('recentOrders.slice(0, 5)'),
+      'DashboardView limits displayed recent orders to maximum 5 items');
+    assert(!dashboardViewContent.includes('order.customer_name') && !dashboardViewContent.includes('order.order_number'),
+      'DashboardView removes order number and customer name from Recent Orders table');
+
+    const purchaseIdx = dashboardViewContent.indexOf('Purchase Analytics');
+    const recentOrdersIdx = dashboardViewContent.indexOf('Recent Orders');
+    const topSellingIdx = dashboardViewContent.indexOf('Top Selling Products');
+    assert(purchaseIdx < recentOrdersIdx, 'Purchase Analytics is positioned above Recent Orders div');
+    assert(recentOrdersIdx < topSellingIdx, 'Top Selling Products is positioned to the right of Recent Orders in the grid');
 
     const dashboardRepoContent = fs.readFileSync(path.join(process.cwd(), 'server', 'db', 'repositories', 'dashboard.repository.ts'), 'utf8');
-    assert(dashboardRepoContent.includes('recentOrders') && dashboardRepoContent.includes('ORDER BY o.created_at DESC'),
-      'dashboard.repository.ts queries and returns recentOrders');
+    assert(dashboardRepoContent.includes('recentOrders') && dashboardRepoContent.includes('ORDER BY o.created_at DESC') && dashboardRepoContent.includes('LIMIT 5'),
+      'dashboard.repository.ts queries and returns recentOrders with LIMIT 5');
   }
 
   console.log('\n================================================================');

@@ -407,7 +407,7 @@ export class DashboardRepository {
        JOIN products p ON p.id = o.product_id
        JOIN plans pl ON pl.id = o.plan_id
        ORDER BY o.created_at DESC
-       LIMIT 6`
+       LIMIT 5`
     );
 
     return {
