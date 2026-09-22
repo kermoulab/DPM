@@ -866,12 +866,40 @@ async function runComprehensiveAudit() {
     assert(proguardContent.includes('-assumenosideeffects class android.util.Log'),
       'proguard-rules.pro configures R8/ProGuard to strip debug and verbose logging from release builds');
 
-    // Production Build Artifact Verification
     const releaseApkPath = fs.existsSync(path.join(process.cwd(), 'vectis', 'app', 'build', 'outputs', 'apk', 'release', 'app-release-unsigned.apk'))
       ? path.join(process.cwd(), 'vectis', 'app', 'build', 'outputs', 'apk', 'release', 'app-release-unsigned.apk')
       : path.join('C:\\Users\\kermou\\Documents\\vectis', 'app', 'build', 'outputs', 'apk', 'release', 'app-release-unsigned.apk');
     assert(fs.existsSync(releaseApkPath) && fs.statSync(releaseApkPath).size > 1000000,
       'Production release APK exists and is successfully packaged (> 1MB)');
+
+    // --- SECTION 15: Mobile Parity Expansion (Settings, Search, Templates & Multi-Currency Engine) ---
+    // 15.1 Settings 4-Tab Architecture & Team Security
+    const androidSettingsApi = fs.existsSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'data', 'api', 'SettingsApiService.kt'));
+    const androidSettingsVm = fs.existsSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'feature', 'settings', 'SettingsViewModel.kt'));
+    const androidSettingsScreen = fs.existsSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'feature', 'settings', 'SettingsScreen.kt'));
+    assert(androidSettingsApi && androidSettingsVm && androidSettingsScreen,
+      'Android app implements SettingsApiService, SettingsViewModel, and SettingsScreen');
+
+    const settingsScreenCode = fs.readFileSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'feature', 'settings', 'SettingsScreen.kt'), 'utf8');
+    assert(settingsScreenCode.includes('SettingsTab.GENERAL') && settingsScreenCode.includes('SettingsTab.SECURITY') && settingsScreenCode.includes('SettingsTab.TEAM') && settingsScreenCode.includes('SettingsTab.AUDIT'),
+      'SettingsScreen provides 4-tab layout covering General, Security, Team Users, and Audit Trail');
+
+    // 15.2 Global Unified Search & Notification Templates Engine
+    const androidSearchApi = fs.existsSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'data', 'api', 'SearchApiService.kt'));
+    const androidSearchDialog = fs.existsSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'feature', 'search', 'GlobalSearchDialog.kt'));
+    const androidTemplateModels = fs.existsSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'data', 'model', 'AlertWhatsAppModels.kt'));
+    assert(androidSearchApi && androidSearchDialog && androidTemplateModels,
+      'Android app implements global search API, modal dialog, and WhatsApp template models');
+
+    // 15.3 Multi-Currency Engine & Order Renewal Alignment
+    const androidCurrencyModels = fs.existsSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'data', 'model', 'CurrencyModels.kt'));
+    const androidCurrencyFormatter = fs.existsSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'core', 'currency', 'CurrencyFormatter.kt'));
+    assert(androidCurrencyModels && androidCurrencyFormatter,
+      'Android app implements multi-currency models and CurrencyFormatter conversion engine');
+
+    const ordersRouteCode = fs.readFileSync(path.join(process.cwd(), 'server', 'routes', 'orders.ts'), 'utf8');
+    assert(ordersRouteCode.includes('/:id/renew') && ordersRouteCode.includes('orderService.renewOrder'),
+      'server/routes/orders.ts aligns /:id/renew alias to orderService.renewOrder for mobile compatibility');
   }
 
   console.log('\n================================================================');

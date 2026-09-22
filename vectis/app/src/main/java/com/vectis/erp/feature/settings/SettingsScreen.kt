@@ -2,6 +2,8 @@ package com.vectis.erp.feature.settings
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -456,24 +458,23 @@ private fun GeneralSettingsTab(
                 fontSize = 12.sp,
                 color = Slate500
             )
-            Spacer(modifier = Modifier.height(12.dp))
-            Row(
+            val currenciesToDisplay = if (state.availableCurrencies.isNotEmpty()) {
+                state.availableCurrencies
+            } else {
+                com.vectis.erp.core.currency.CurrencyFormatter.FALLBACK_CURRENCIES
+            }
+            LazyRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                listOf("MAD", "USD", "EUR").forEach { curr ->
-                    val isSelected = state.preferredCurrency.equals(curr, ignoreCase = true)
+                items(currenciesToDisplay) { curr ->
+                    val isSelected = state.preferredCurrency.equals(curr.code, ignoreCase = true)
                     FilterChip(
                         selected = isSelected,
-                        onClick = { viewModel.updatePreferredCurrency(curr) },
+                        onClick = { viewModel.updatePreferredCurrency(curr.code) },
                         label = {
                             Text(
-                                text = when (curr) {
-                                    "MAD" -> "MAD (Dirham)"
-                                    "USD" -> "USD ($)"
-                                    "EUR" -> "EUR (€)"
-                                    else -> curr
-                                },
+                                text = "${curr.code} (${curr.symbol})",
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                 color = if (isSelected) Color.White else Slate700
                             )
@@ -485,6 +486,13 @@ private fun GeneralSettingsTab(
                     )
                 }
             }
+            Spacer(modifier = Modifier.height(8.dp))
+            val currentCurr = currenciesToDisplay.find { it.code.equals(state.preferredCurrency, ignoreCase = true) }
+            Text(
+                text = "Active: ${currentCurr?.name ?: state.preferredCurrency} • Rate vs Base: ${currentCurr?.exchangeRate ?: 1.0}",
+                fontSize = 11.sp,
+                color = Slate500
+            )
         }
     }
 

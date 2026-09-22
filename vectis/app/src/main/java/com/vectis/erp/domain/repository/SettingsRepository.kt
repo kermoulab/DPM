@@ -5,6 +5,7 @@ import com.vectis.erp.data.model.*
 
 interface SettingsRepository {
     suspend fun getMe(): ApiResult<UserDto>
+    suspend fun getCurrencies(): ApiResult<List<CurrencyDto>>
     suspend fun updateCurrency(currency: String): ApiResult<Unit>
     suspend fun logout(): ApiResult<Unit>
     suspend fun getSettings(): ApiResult<Map<String, Any>>

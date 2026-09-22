@@ -72,6 +72,18 @@ ordersRouter.post('/', requireAuth, requireRole('agent'), validateBody({
   }
 });
 
+// POST /api/orders/:id/renew (unified alias for /api/renewals/:id)
+ordersRouter.post('/:id/renew', requireAuth, requireRole('agent'), async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const { id } = req.params;
+    const { custom_price, notes } = req.body;
+    const result = await orderService.renewOrder(id, custom_price, notes, req.user);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // POST /api/orders/:id/cancel
 ordersRouter.post('/:id/cancel', requireAuth, requireRole('manager'), async (req: AuthenticatedRequest, res, next) => {
   try {

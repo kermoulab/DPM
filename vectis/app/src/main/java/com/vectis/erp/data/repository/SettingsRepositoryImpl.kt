@@ -27,6 +27,20 @@ class SettingsRepositoryImpl(
         }
     }
 
+    override suspend fun getCurrencies(): ApiResult<List<CurrencyDto>> = withContext(Dispatchers.IO) {
+        try {
+            val api = networkClient.createService<com.vectis.erp.data.api.CurrencyApiService>()
+            val response = api.getCurrencies()
+            if (response.isSuccessful && response.body() != null) {
+                ApiResult.Success(response.body()!!.currencies)
+            } else {
+                ApiResult.Error(response.code(), "Failed to fetch currencies")
+            }
+        } catch (e: Exception) {
+            ApiResult.NetworkError(e)
+        }
+    }
+
     override suspend fun updateCurrency(currency: String): ApiResult<Unit> = withContext(Dispatchers.IO) {
         try {
             val api = networkClient.createService<SettingsApiService>()

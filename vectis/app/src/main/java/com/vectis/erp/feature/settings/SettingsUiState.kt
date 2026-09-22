@@ -15,6 +15,7 @@ sealed interface SettingsUiState {
         val activeTab: SettingsTab = SettingsTab.GENERAL,
         val user: UserDto?,
         val preferredCurrency: String,
+        val availableCurrencies: List<CurrencyDto> = emptyList(),
         val serverUrl: String,
         val deviceId: String,
         val isServerOnline: Boolean,

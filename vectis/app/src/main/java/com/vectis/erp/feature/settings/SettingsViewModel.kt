@@ -51,6 +51,12 @@ class SettingsViewModel(
             val meResult = repository.getMe()
             val healthResult = repository.getHealth()
             val sysResult = repository.getSettings()
+            val currenciesResult = repository.getCurrencies()
+
+            val availableCurrencies = when (currenciesResult) {
+                is ApiResult.Success -> currenciesResult.data
+                else -> com.vectis.erp.core.currency.CurrencyFormatter.FALLBACK_CURRENCIES
+            }
 
             val user = when (meResult) {
                 is ApiResult.Success -> meResult.data
@@ -80,6 +86,7 @@ class SettingsViewModel(
                 activeTab = activeTab,
                 user = user,
                 preferredCurrency = secureStorage.getPreferredCurrency(),
+                availableCurrencies = availableCurrencies,
                 serverUrl = secureStorage.getServerUrl(),
                 deviceId = secureStorage.getDeviceId() ?: "Not paired",
                 isServerOnline = isOnline,
