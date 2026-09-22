@@ -45,10 +45,16 @@ class InventoryViewModel(
             }
 
             val productsRes = repository.getProducts()
+            val plansRes = repository.getPlans()
             val accountsRes = repository.getServiceAccounts()
             val licensesRes = repository.getLicenseKeys()
 
             val products = if (productsRes is ApiResult.Success) productsRes.data.products else emptyList()
+            val plans = if (plansRes is ApiResult.Success) {
+                plansRes.data.plans.groupBy { it.productId }
+            } else if (current is InventoryUiState.Success) {
+                current.plans
+            } else emptyMap()
             val accounts = if (accountsRes is ApiResult.Success) accountsRes.data.accounts else emptyList()
             val licenses = if (licensesRes is ApiResult.Success) licensesRes.data.licenses else emptyList()
 
@@ -60,6 +66,7 @@ class InventoryViewModel(
             _uiState.value = InventoryUiState.Success(
                 activeTab = activeTab,
                 products = products,
+                plans = plans,
                 accounts = accounts,
                 licenses = licenses,
                 expandedAccountId = expanded,

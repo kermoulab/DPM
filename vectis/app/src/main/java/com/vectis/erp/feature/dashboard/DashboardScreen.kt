@@ -32,7 +32,10 @@ import com.vectis.erp.data.model.TopProductDto
 fun DashboardScreen(
     viewModel: DashboardViewModel,
     onNavigateToOrders: () -> Unit,
-    onNavigateToInventory: () -> Unit
+    onNavigateToProducts: () -> Unit = {},
+    onNavigateToInventory: () -> Unit = {},
+    onNavigateToAlerts: () -> Unit = {},
+    onNavigateToSettings: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -46,8 +49,14 @@ fun DashboardScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = onNavigateToAlerts) {
+                        Icon(Icons.Default.Notifications, contentDescription = "Alerts", tint = PrimaryBlue)
+                    }
+                    IconButton(onClick = onNavigateToSettings) {
+                        Icon(Icons.Default.Settings, contentDescription = "Settings", tint = Slate700)
+                    }
                     IconButton(onClick = { viewModel.loadStats() }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = PrimaryBlue)
+                        Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = Slate500)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)

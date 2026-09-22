@@ -24,10 +24,10 @@ data class UserDto(
     val username: String,
 
     @SerializedName("email")
-    val email: String,
+    val email: String = "",
 
     @SerializedName("name")
-    val name: String,
+    val name: String = "",
 
     @SerializedName("role")
     val role: String,

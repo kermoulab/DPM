@@ -12,11 +12,12 @@ sealed class Screen(val route: String) {
     // Authentication
     data object Login : Screen("login")
 
-    // Main App Shell & Bottom Navigation
+    // Main App Shell Navigation
     data object Dashboard : Screen("dashboard")
     data object Orders : Screen("orders")
-    data object Customers : Screen("customers")
+    data object Products : Screen("products")
     data object Inventory : Screen("inventory")
+    data object Customers : Screen("customers")
     data object Alerts : Screen("alerts")
     data object Settings : Screen("settings")
 

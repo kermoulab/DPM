@@ -66,8 +66,9 @@ fun VectisNavGraph(
     val isMainScreen = currentRoute in listOf(
         Screen.Dashboard.route,
         Screen.Orders.route,
-        Screen.Customers.route,
+        Screen.Products.route,
         Screen.Inventory.route,
+        Screen.Customers.route,
         Screen.Alerts.route,
         Screen.Settings.route
     )
@@ -101,6 +102,30 @@ fun VectisNavGraph(
                         label = { Text("Orders") }
                     )
                     NavigationBarItem(
+                        selected = currentRoute == Screen.Products.route,
+                        onClick = {
+                            navController.navigate(Screen.Products.route) {
+                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
+                        icon = { Icon(Icons.Default.Inventory2, contentDescription = "Products") },
+                        label = { Text("Products") }
+                    )
+                    NavigationBarItem(
+                        selected = currentRoute == Screen.Inventory.route,
+                        onClick = {
+                            navController.navigate(Screen.Inventory.route) {
+                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
+                        icon = { Icon(Icons.Default.Layers, contentDescription = "Inventory") },
+                        label = { Text("Inventory") }
+                    )
+                    NavigationBarItem(
                         selected = currentRoute == Screen.Customers.route,
                         onClick = {
                             navController.navigate(Screen.Customers.route) {
@@ -111,30 +136,6 @@ fun VectisNavGraph(
                         },
                         icon = { Icon(Icons.Default.People, contentDescription = "Customers") },
                         label = { Text("Customers") }
-                    )
-                    NavigationBarItem(
-                        selected = currentRoute == Screen.Alerts.route,
-                        onClick = {
-                            navController.navigate(Screen.Alerts.route) {
-                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                        icon = { Icon(Icons.Default.Notifications, contentDescription = "Alerts") },
-                        label = { Text("Alerts") }
-                    )
-                    NavigationBarItem(
-                        selected = currentRoute == Screen.Settings.route,
-                        onClick = {
-                            navController.navigate(Screen.Settings.route) {
-                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                        icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
-                        label = { Text("Settings") }
                     )
                 }
             }
@@ -224,7 +225,10 @@ fun VectisNavGraph(
                 com.vectis.erp.feature.dashboard.DashboardScreen(
                     viewModel = viewModel,
                     onNavigateToOrders = { navController.navigate(Screen.Orders.route) },
-                    onNavigateToInventory = { navController.navigate(Screen.Inventory.route) }
+                    onNavigateToProducts = { navController.navigate(Screen.Products.route) },
+                    onNavigateToInventory = { navController.navigate(Screen.Inventory.route) },
+                    onNavigateToAlerts = { navController.navigate(Screen.Alerts.route) },
+                    onNavigateToSettings = { navController.navigate(Screen.Settings.route) }
                 )
             }
             composable(Screen.Orders.route) {
@@ -282,6 +286,18 @@ fun VectisNavGraph(
                             popUpTo(Screen.Orders.route)
                         }
                     }
+                )
+            }
+            composable(Screen.Products.route) {
+                val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as com.vectis.erp.VectisApplication
+                val inventoryRepo = remember { com.vectis.erp.data.repository.ProductInventoryRepositoryImpl(app.networkClient) }
+                val permissionManager = remember { com.vectis.erp.core.authorization.PermissionManager(secureStorage) }
+                val viewModel: com.vectis.erp.feature.inventory.InventoryViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+                    factory = com.vectis.erp.feature.inventory.InventoryViewModel.Factory(inventoryRepo, secureStorage, permissionManager)
+                )
+
+                com.vectis.erp.feature.products.ProductsScreen(
+                    viewModel = viewModel
                 )
             }
             composable(Screen.Customers.route) {
@@ -344,7 +360,25 @@ fun VectisNavGraph(
                 )
             }
             composable(Screen.Settings.route) {
-                PlaceholderScreen("Settings Screen")
+                val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as com.vectis.erp.VectisApplication
+                val settingsRepo = remember { com.vectis.erp.data.repository.SettingsRepositoryImpl(app.networkClient) }
+                val viewModel: com.vectis.erp.feature.settings.SettingsViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+                    factory = com.vectis.erp.feature.settings.SettingsViewModel.Factory(settingsRepo, secureStorage)
+                )
+
+                com.vectis.erp.feature.settings.SettingsScreen(
+                    viewModel = viewModel,
+                    onNavigateToLogin = {
+                        navController.navigate(Screen.Login.route) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    },
+                    onNavigateToPairing = {
+                        navController.navigate(Screen.Pairing.route) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    }
+                )
             }
         }
     }
