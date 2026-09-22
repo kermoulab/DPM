@@ -3,9 +3,7 @@ package com.vectis.erp.data.repository
 import com.vectis.erp.core.network.ApiResult
 import com.vectis.erp.core.network.NetworkClient
 import com.vectis.erp.data.api.SettingsApiService
-import com.vectis.erp.data.model.HealthResponse
-import com.vectis.erp.data.model.UpdateCurrencyRequest
-import com.vectis.erp.data.model.UserDto
+import com.vectis.erp.data.model.*
 import com.vectis.erp.domain.repository.SettingsRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -93,6 +91,76 @@ class SettingsRepositoryImpl(
                 ApiResult.Success(Unit)
             } else {
                 ApiResult.Error(response.code(), "Failed to unpair device")
+            }
+        } catch (e: Exception) {
+            ApiResult.NetworkError(e)
+        }
+    }
+
+    override suspend fun changePassword(currentPassword: String, newPassword: String): ApiResult<SimpleActionResponse> = withContext(Dispatchers.IO) {
+        try {
+            val api = networkClient.createService<SettingsApiService>()
+            val response = api.changePassword(ChangePasswordRequest(currentPassword, newPassword))
+            if (response.isSuccessful && response.body() != null) {
+                ApiResult.Success(response.body()!!)
+            } else {
+                ApiResult.Error(response.code(), "Failed to change password (${response.code()})")
+            }
+        } catch (e: Exception) {
+            ApiResult.NetworkError(e)
+        }
+    }
+
+    override suspend fun getUsers(): ApiResult<UsersResponse> = withContext(Dispatchers.IO) {
+        try {
+            val api = networkClient.createService<SettingsApiService>()
+            val response = api.getUsers()
+            if (response.isSuccessful && response.body() != null) {
+                ApiResult.Success(response.body()!!)
+            } else {
+                ApiResult.Error(response.code(), "Failed to fetch users (${response.code()})")
+            }
+        } catch (e: Exception) {
+            ApiResult.NetworkError(e)
+        }
+    }
+
+    override suspend fun createUser(req: CreateUserRequest): ApiResult<SimpleActionResponse> = withContext(Dispatchers.IO) {
+        try {
+            val api = networkClient.createService<SettingsApiService>()
+            val response = api.createUser(req)
+            if (response.isSuccessful && response.body() != null) {
+                ApiResult.Success(response.body()!!)
+            } else {
+                ApiResult.Error(response.code(), "Failed to create user (${response.code()})")
+            }
+        } catch (e: Exception) {
+            ApiResult.NetworkError(e)
+        }
+    }
+
+    override suspend fun deleteUser(id: String): ApiResult<SimpleActionResponse> = withContext(Dispatchers.IO) {
+        try {
+            val api = networkClient.createService<SettingsApiService>()
+            val response = api.deleteUser(id)
+            if (response.isSuccessful && response.body() != null) {
+                ApiResult.Success(response.body()!!)
+            } else {
+                ApiResult.Error(response.code(), "Failed to delete user (${response.code()})")
+            }
+        } catch (e: Exception) {
+            ApiResult.NetworkError(e)
+        }
+    }
+
+    override suspend fun getAuditLogs(page: Int, limit: Int): ApiResult<AuditLogsResponse> = withContext(Dispatchers.IO) {
+        try {
+            val api = networkClient.createService<SettingsApiService>()
+            val response = api.getAuditLogs(page, limit)
+            if (response.isSuccessful && response.body() != null) {
+                ApiResult.Success(response.body()!!)
+            } else {
+                ApiResult.Error(response.code(), "Failed to fetch audit logs (${response.code()})")
             }
         } catch (e: Exception) {
             ApiResult.NetworkError(e)

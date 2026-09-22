@@ -14,6 +14,11 @@ interface SettingsApiService {
         @Body request: UpdateCurrencyRequest
     ): Response<Unit>
 
+    @POST("api/auth/change-password")
+    suspend fun changePassword(
+        @Body request: ChangePasswordRequest
+    ): Response<SimpleActionResponse>
+
     @POST("api/auth/logout")
     suspend fun logout(): Response<Unit>
 
@@ -27,4 +32,25 @@ interface SettingsApiService {
     suspend fun unpairDevice(
         @Path("id") deviceId: String
     ): Response<Unit>
+
+    // Team Users (Admin)
+    @GET("api/users")
+    suspend fun getUsers(): Response<UsersResponse>
+
+    @POST("api/users")
+    suspend fun createUser(
+        @Body request: CreateUserRequest
+    ): Response<SimpleActionResponse>
+
+    @DELETE("api/users/{id}")
+    suspend fun deleteUser(
+        @Path("id") id: String
+    ): Response<SimpleActionResponse>
+
+    // Audit Logs (Admin/Manager)
+    @GET("api/audit")
+    suspend fun getAuditLogs(
+        @Query("page") page: Int = 1,
+        @Query("limit") limit: Int = 30
+    ): Response<AuditLogsResponse>
 }

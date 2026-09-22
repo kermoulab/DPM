@@ -39,7 +39,13 @@ data class UserDto(
     val avatar: String? = null,
 
     @SerializedName("preferred_currency")
-    val preferredCurrency: String? = "USD"
+    val preferredCurrency: String? = "USD",
+
+    @SerializedName("created_at")
+    val createdAt: String? = null,
+
+    @SerializedName("last_login_at")
+    val lastLoginAt: String? = null
 )
 
 /**
