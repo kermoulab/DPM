@@ -74,7 +74,7 @@ export function errorHandler(
     statusCode = 409;
     code = 'UNIQUE_VIOLATION';
     message = 'A record with this unique identifier or value already exists.';
-    if (err.detail) {
+    if (!config.isProduction && err.detail) {
       details = { detail: err.detail };
     }
   } else if (err.code === '23503') {
@@ -82,7 +82,7 @@ export function errorHandler(
     statusCode = 409;
     code = 'FOREIGN_KEY_VIOLATION';
     message = 'Cannot complete operation: referenced resource does not exist or is currently in use.';
-    if (err.detail) {
+    if (!config.isProduction && err.detail) {
       details = { detail: err.detail };
     }
   } else if (err.code === '23514') {

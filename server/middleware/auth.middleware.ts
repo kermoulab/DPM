@@ -55,6 +55,13 @@ export function verifySessionToken(token: string): AuthUser | null {
     const parts = token.split('.');
     if (parts.length !== 3) return null;
     const [header, body, signature] = parts;
+
+    // JWT Algorithm Pinning & Header Integrity
+    const headerObj = JSON.parse(Buffer.from(header, 'base64url').toString('utf8'));
+    if (!headerObj || headerObj.alg !== 'HS256' || headerObj.typ !== 'JWT') {
+      return null;
+    }
+
     const expectedSignature = crypto
       .createHmac('sha256', config.jwtSecret)
       .update(`${header}.${body}`)

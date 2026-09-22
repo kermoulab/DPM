@@ -99,24 +99,29 @@ function loadConfig(): AppConfig {
     console.warn('[Config] WARNING: DATABASE_URL does not start with "postgresql://" or "postgres://". Connection may fail.');
   }
 
-  // JWT_SECRET — warn if missing/weak, use dev fallback (installer generates a real one)
+  // JWT_SECRET — generate secure random secret in production if missing/weak
   const rawJwtSecret = (process.env.JWT_SECRET || '').trim();
-  if (!rawJwtSecret || rawJwtSecret.length < 32) {
-    if (isProduction && databaseUrl) {
-      // Only warn in production when DB is configured (i.e., not in installer mode)
-      console.warn('[Config] WARNING: JWT_SECRET is weak or missing. The installer will generate a secure secret.');
+  let jwtSecret = rawJwtSecret;
+  if (!jwtSecret || jwtSecret.length < 32) {
+    if (isProduction) {
+      console.warn('[Security] CRITICAL: JWT_SECRET missing or weak in production. Generating secure ephemeral 256-bit key.');
+      jwtSecret = crypto.randomBytes(32).toString('hex');
+    } else {
+      jwtSecret = DEV_FALLBACK_JWT_SECRET;
     }
   }
-  const jwtSecret = rawJwtSecret || DEV_FALLBACK_JWT_SECRET;
 
-  // ENCRYPTION_KEY — warn if missing/weak, use dev fallback
+  // ENCRYPTION_KEY — generate secure random key in production if missing/weak
   const rawEncKey = (process.env.ENCRYPTION_KEY || '').trim();
-  if (!rawEncKey || rawEncKey.length < 32) {
-    if (isProduction && databaseUrl) {
-      console.warn('[Config] WARNING: ENCRYPTION_KEY is weak or missing. The installer will generate a secure key.');
+  let encKeyString = rawEncKey;
+  if (!encKeyString || encKeyString.length < 32) {
+    if (isProduction) {
+      console.warn('[Security] CRITICAL: ENCRYPTION_KEY missing or weak in production. Generating secure ephemeral 256-bit key.');
+      encKeyString = crypto.randomBytes(32).toString('hex');
+    } else {
+      encKeyString = DEV_FALLBACK_ENCRYPTION_KEY;
     }
   }
-  const encKeyString = rawEncKey || DEV_FALLBACK_ENCRYPTION_KEY;
   const encryptionKey = buildEncryptionKey(encKeyString);
 
   // Summary warning for development

@@ -29,6 +29,11 @@ usersRouter.post('/', requireAuth, requireRole('admin'), validateBody({
   try {
     const { username, email, name, password, role = 'agent', preferred_currency = 'USD' } = req.body;
 
+    if (role === 'owner' && req.user?.role !== 'owner') {
+      res.status(403).json({ error: 'Only the system owner can create another owner account.' });
+      return;
+    }
+
     const cleanUsername = username.trim();
     const cleanEmail = email.trim().toLowerCase();
 
@@ -79,9 +84,15 @@ usersRouter.put('/:id', requireAuth, requireRole('admin'), async (req: Authentic
       return;
     }
 
-    // Protect owner from being demoted or deactivated by non-owner
-    if (existing.role === 'owner' && req.user?.role !== 'owner' && (role !== 'owner' || status !== 'active')) {
-      res.status(403).json({ error: 'Cannot modify primary owner account permissions.' });
+    // Protect owner account from modification by non-owners
+    if (existing.role === 'owner' && req.user?.role !== 'owner') {
+      res.status(403).json({ error: 'Cannot modify primary owner account.' });
+      return;
+    }
+
+    // Only system owner can grant owner role
+    if (role === 'owner' && req.user?.role !== 'owner') {
+      res.status(403).json({ error: 'Only the system owner can grant the owner role.' });
       return;
     }
 

@@ -42,7 +42,7 @@ customersRouter.get('/:id', requireAuth, async (req, res, next) => {
 });
 
 // POST /api/customers
-customersRouter.post('/', requireAuth, validateBody({
+customersRouter.post('/', requireAuth, requireRole('agent'), validateBody({
   name: [v.required('Customer name is required.'), v.string({ min: 1, max: 200 })],
   email: v.email('Invalid email address format.')
 }), async (req: AuthenticatedRequest, res, next) => {
@@ -59,7 +59,7 @@ customersRouter.post('/', requireAuth, validateBody({
 });
 
 // PUT /api/customers/:id
-customersRouter.put('/:id', requireAuth, async (req: AuthenticatedRequest, res, next) => {
+customersRouter.put('/:id', requireAuth, requireRole('agent'), async (req: AuthenticatedRequest, res, next) => {
   try {
     const { id } = req.params;
     const existing = await customersRepo.findById(id);

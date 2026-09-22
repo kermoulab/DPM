@@ -41,7 +41,7 @@ ordersRouter.get('/:id', requireAuth, async (req, res, next) => {
 });
 
 // POST /api/orders
-ordersRouter.post('/', requireAuth, validateBody({
+ordersRouter.post('/', requireAuth, requireRole('agent'), validateBody({
   customer_id: v.required('Customer is required.'),
   product_id: v.required('Product is required.'),
   plan_id: v.required('Subscription plan is required.')
