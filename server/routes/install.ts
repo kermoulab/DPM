@@ -49,6 +49,28 @@ const installRateMap = new Map<string, { count: number; resetAt: number }>();
 const RATE_LIMIT = 10;
 const RATE_WINDOW_MS = 60_000;
 
+const DEFAULT_BASE_CURRENCIES = [
+  { code: 'USD', symbol: '$',   name: 'US Dollar',       rate: 1.0,  precision: 2 },
+  { code: 'EUR', symbol: '€',   name: 'Euro',            rate: 0.92, precision: 2 },
+  { code: 'GBP', symbol: '£',   name: 'British Pound',   rate: 0.78, precision: 2 },
+  { code: 'MAD', symbol: 'MAD', name: 'Moroccan Dirham', rate: 10.0, precision: 2 },
+  { code: 'AED', symbol: 'AED', name: 'UAE Dirham',      rate: 3.67, precision: 2 },
+  { code: 'SAR', symbol: 'SAR', name: 'Saudi Riyal',     rate: 3.75, precision: 2 },
+  { code: 'CAD', symbol: 'CA$', name: 'Canadian Dollar', rate: 1.35, precision: 2 },
+] as const;
+
+async function seedBaseCurrencies(client: pg.PoolClient, baseCurrency: string = 'USD'): Promise<void> {
+  const normBase = (baseCurrency || 'USD').trim().toUpperCase();
+  for (const c of DEFAULT_BASE_CURRENCIES) {
+    await client.query(
+      `INSERT INTO currencies (code, symbol, name, exchange_rate, decimal_precision, is_base, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
+       ON CONFLICT (code) DO NOTHING`,
+      [c.code, c.symbol, c.name, c.rate, c.precision, c.code === normBase]
+    );
+  }
+}
+
 function checkRateLimit(ip: string): boolean {
   const now = Date.now();
   const entry = installRateMap.get(ip);
@@ -510,23 +532,7 @@ installRouter.post('/create-admin', validateBody({
         }
 
         // 3. Seed base currencies
-        const defaultCurrencies = [
-          ['USD', '$',   'US Dollar',       1.0,  2, currency === 'USD'],
-          ['EUR', '€',   'Euro',            0.92, 2, currency === 'EUR'],
-          ['GBP', '£',   'British Pound',   0.78, 2, currency === 'GBP'],
-          ['MAD', 'MAD', 'Moroccan Dirham', 10.0, 2, currency === 'MAD'],
-          ['AED', 'AED', 'UAE Dirham',      3.67, 2, currency === 'AED'],
-          ['SAR', 'SAR', 'Saudi Riyal',     3.75, 2, currency === 'SAR'],
-          ['CAD', 'CA$', 'Canadian Dollar', 1.35, 2, currency === 'CAD']
-        ] as const;
-        for (const [code, sym, name, rate, prec, isBase] of defaultCurrencies) {
-          await client.query(
-            `INSERT INTO currencies (code, symbol, name, exchange_rate, decimal_precision, is_base, updated_at)
-             VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
-             ON CONFLICT (code) DO NOTHING`,
-            [code, sym, name, rate, prec, isBase]
-          );
-        }
+        await seedBaseCurrencies(client, currency);
 
         await client.query('COMMIT');
       } catch (err) {
@@ -720,10 +726,7 @@ installRouter.post('/setup', validateBody({
           [k, v]
         );
       }
-      const currencies = [['USD','$','US Dollar',1.0,2,true],['EUR','€','Euro',0.92,2,false],['GBP','£','British Pound',0.78,2,false],['MAD','MAD','Moroccan Dirham',10.0,2,false],['AED','AED','UAE Dirham',3.67,2,false],['SAR','SAR','Saudi Riyal',3.75,2,false],['CAD','CA$','Canadian Dollar',1.35,2,false]];
-      for (const [c,s,n,r,p,b] of currencies) {
-        await client.query(`INSERT INTO currencies (code,symbol,name,exchange_rate,decimal_precision,is_base,updated_at) VALUES ($1,$2,$3,$4,$5,$6,CURRENT_TIMESTAMP) ON CONFLICT (code) DO NOTHING`, [c,s,n,r,p,b]);
-      }
+      await seedBaseCurrencies(client, baseCurrency);
     });
 
     const jwtSecret = ensureEnvSecret('JWT_SECRET', 32);
