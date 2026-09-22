@@ -5,7 +5,8 @@ import com.vectis.erp.data.model.*
 enum class AlertsFilter(val title: String) {
     EXPIRING("Expiring Soon"),
     EXPIRED("Expired"),
-    LOW_STOCK("Low Stock")
+    LOW_STOCK("Low Stock"),
+    TEMPLATES("Templates")
 }
 
 sealed interface AlertsUiState {
@@ -18,6 +19,7 @@ sealed interface AlertsUiState {
         val expiredOrders: List<AlertOrderDto> = emptyList(),
         val lowStockAccounts: List<LowStockAccountDto> = emptyList(),
         val lowInventory: List<LowInventoryDto> = emptyList(),
+        val templates: List<WhatsAppTemplateDto> = emptyList(),
         val isRefreshing: Boolean = false,
         val isSendingWhatsApp: Boolean = false
     ) : AlertsUiState

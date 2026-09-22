@@ -13,4 +13,17 @@ interface AlertWhatsAppApiService {
     suspend fun composeWhatsApp(
         @Body request: ComposeWhatsAppRequest
     ): Response<ComposeWhatsAppResponse>
+
+    @GET("api/whatsapp/templates")
+    suspend fun getTemplates(): Response<WhatsAppTemplatesResponse>
+
+    @POST("api/whatsapp/templates")
+    suspend fun upsertTemplate(
+        @Body request: UpsertTemplateRequest
+    ): Response<Map<String, Any>>
+
+    @DELETE("api/whatsapp/templates/{id}")
+    suspend fun deleteTemplate(
+        @Path("id") id: String
+    ): Response<Map<String, Any>>
 }

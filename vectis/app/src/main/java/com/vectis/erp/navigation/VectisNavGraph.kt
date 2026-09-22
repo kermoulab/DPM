@@ -38,6 +38,12 @@ fun VectisNavGraph(
     val context = androidx.compose.ui.platform.LocalContext.current
     val app = context.applicationContext as com.vectis.erp.VectisApplication
 
+    val searchRepo = remember { com.vectis.erp.data.repository.SearchRepositoryImpl(app.networkClient) }
+    val searchViewModel: com.vectis.erp.feature.search.SearchViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+        factory = com.vectis.erp.feature.search.SearchViewModel.Factory(searchRepo)
+    )
+    var showGlobalSearch by remember { mutableStateOf(false) }
+
     LaunchedEffect(Unit) {
         app.networkClient.deviceRevokedEvents.collect {
             navController.navigate(Screen.Pairing.route) {
@@ -228,7 +234,8 @@ fun VectisNavGraph(
                     onNavigateToProducts = { navController.navigate(Screen.Products.route) },
                     onNavigateToInventory = { navController.navigate(Screen.Inventory.route) },
                     onNavigateToAlerts = { navController.navigate(Screen.Alerts.route) },
-                    onNavigateToSettings = { navController.navigate(Screen.Settings.route) }
+                    onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
+                    onOpenSearch = { showGlobalSearch = true }
                 )
             }
             composable(Screen.Orders.route) {
@@ -356,7 +363,8 @@ fun VectisNavGraph(
                     viewModel = viewModel,
                     onOrderClick = { orderId ->
                         navController.navigate(Screen.OrderDetail.createRoute(orderId))
-                    }
+                    },
+                    onNavigateBack = { navController.popBackStack() }
                 )
             }
             composable(Screen.Settings.route) {
@@ -377,9 +385,34 @@ fun VectisNavGraph(
                         navController.navigate(Screen.Pairing.route) {
                             popUpTo(0) { inclusive = true }
                         }
-                    }
+                    },
+                    onNavigateBack = { navController.popBackStack() }
                 )
             }
+        }
+
+        if (showGlobalSearch) {
+            com.vectis.erp.feature.search.GlobalSearchDialog(
+                viewModel = searchViewModel,
+                onDismiss = { showGlobalSearch = false },
+                onResultClick = { result ->
+                    showGlobalSearch = false
+                    when (result.type.lowercase()) {
+                        "customer" -> navController.navigate(Screen.CustomerDetail.createRoute(result.id))
+                        "order" -> navController.navigate(Screen.OrderDetail.createRoute(result.id))
+                        "product" -> navController.navigate(Screen.Products.route)
+                        "account", "license", "inventory" -> navController.navigate(Screen.Inventory.route)
+                        else -> {
+                            result.route?.let { r ->
+                                if (r.contains("customer")) navController.navigate(Screen.CustomerDetail.createRoute(result.id))
+                                else if (r.contains("order")) navController.navigate(Screen.OrderDetail.createRoute(result.id))
+                                else if (r.contains("product")) navController.navigate(Screen.Products.route)
+                                else navController.navigate(Screen.Inventory.route)
+                            }
+                        }
+                    }
+                }
+            )
         }
     }
 }

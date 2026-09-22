@@ -35,7 +35,8 @@ fun DashboardScreen(
     onNavigateToProducts: () -> Unit = {},
     onNavigateToInventory: () -> Unit = {},
     onNavigateToAlerts: () -> Unit = {},
-    onNavigateToSettings: () -> Unit = {}
+    onNavigateToSettings: () -> Unit = {},
+    onOpenSearch: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -49,6 +50,9 @@ fun DashboardScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = onOpenSearch) {
+                        Icon(Icons.Default.Search, contentDescription = "Global Search", tint = Slate700)
+                    }
                     IconButton(onClick = onNavigateToAlerts) {
                         Icon(Icons.Default.Notifications, contentDescription = "Alerts", tint = PrimaryBlue)
                     }

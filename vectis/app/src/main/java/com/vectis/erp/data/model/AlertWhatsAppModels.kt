@@ -59,3 +59,25 @@ data class ComposeWhatsAppResponse(
     @SerializedName("event_type") val eventType: String,
     @SerializedName("language") val language: String
 )
+
+data class WhatsAppTemplateDto(
+    @SerializedName("id") val id: String,
+    @SerializedName("name") val name: String,
+    @SerializedName("event_type") val eventType: String,
+    @SerializedName("language") val language: String,
+    @SerializedName("content") val content: String,
+    @SerializedName("created_at") val createdAt: String? = null
+)
+
+data class WhatsAppTemplatesResponse(
+    @SerializedName("templates") val templates: List<WhatsAppTemplateDto> = emptyList()
+)
+
+data class UpsertTemplateRequest(
+    @SerializedName("id") val id: String? = null,
+    @SerializedName("name") val name: String? = null,
+    @SerializedName("event_type") val eventType: String,
+    @SerializedName("language") val language: String,
+    @SerializedName("content") val content: String
+)
+

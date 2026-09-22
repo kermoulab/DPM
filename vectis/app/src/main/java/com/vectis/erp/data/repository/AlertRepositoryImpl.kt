@@ -40,4 +40,48 @@ class AlertRepositoryImpl(
             ApiResult.NetworkError(e)
         }
     }
+
+    override suspend fun getTemplates(): ApiResult<WhatsAppTemplatesResponse> = withContext(Dispatchers.IO) {
+        try {
+            val api = networkClient.createService<AlertWhatsAppApiService>()
+            val response = api.getTemplates()
+            if (response.isSuccessful && response.body() != null) {
+                ApiResult.Success(response.body()!!)
+            } else {
+                ApiResult.Error(response.code(), "Failed to fetch WhatsApp templates (${response.code()})")
+            }
+        } catch (e: Exception) {
+            ApiResult.NetworkError(e)
+        }
+    }
+
+    override suspend fun upsertTemplate(request: UpsertTemplateRequest): ApiResult<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val api = networkClient.createService<AlertWhatsAppApiService>()
+            val response = api.upsertTemplate(request)
+            if (response.isSuccessful) {
+                ApiResult.Success(Unit)
+            } else {
+                val errorBody = response.errorBody()?.string() ?: ""
+                ApiResult.Error(response.code(), if (errorBody.isNotBlank()) errorBody else "Failed to save template (${response.code()})")
+            }
+        } catch (e: Exception) {
+            ApiResult.NetworkError(e)
+        }
+    }
+
+    override suspend fun deleteTemplate(id: String): ApiResult<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val api = networkClient.createService<AlertWhatsAppApiService>()
+            val response = api.deleteTemplate(id)
+            if (response.isSuccessful) {
+                ApiResult.Success(Unit)
+            } else {
+                val errorBody = response.errorBody()?.string() ?: ""
+                ApiResult.Error(response.code(), if (errorBody.isNotBlank()) errorBody else "Failed to delete template (${response.code()})")
+            }
+        } catch (e: Exception) {
+            ApiResult.NetworkError(e)
+        }
+    }
 }

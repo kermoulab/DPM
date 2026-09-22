@@ -7,6 +7,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -33,7 +34,8 @@ import kotlinx.coroutines.launch
 fun SettingsScreen(
     viewModel: SettingsViewModel,
     onNavigateToLogin: () -> Unit,
-    onNavigateToPairing: () -> Unit
+    onNavigateToPairing: () -> Unit,
+    onNavigateBack: (() -> Unit)? = null
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val coroutineScope = rememberCoroutineScope()
@@ -51,6 +53,13 @@ fun SettingsScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Settings & Preferences", fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    if (onNavigateBack != null) {
+                        IconButton(onClick = onNavigateBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Slate700)
+                        }
+                    }
+                },
                 actions = {
                     IconButton(onClick = { viewModel.loadSettings(isRefresh = true) }) {
                         Icon(Icons.Default.Refresh, contentDescription = "Refresh")
