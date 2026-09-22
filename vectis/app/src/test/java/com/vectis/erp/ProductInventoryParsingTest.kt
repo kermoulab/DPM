@@ -161,4 +161,71 @@ class ProductInventoryParsingTest {
         assertEquals("SuperSecretPassword123!", response.password)
         assertEquals("Netflix", response.provider)
     }
+
+    @Test
+    fun testCategoriesParsing() {
+        val json = """
+            {
+                "categories": [
+                    {
+                        "id": "cat-streaming",
+                        "name": "Streaming",
+                        "slug": "streaming",
+                        "icon": "Tv",
+                        "description": "Video and music streaming services",
+                        "status": "active"
+                    },
+                    {
+                        "id": "cat-software",
+                        "name": "Software & OS",
+                        "slug": "software-os",
+                        "icon": "Cpu",
+                        "description": "Operating systems and software licenses",
+                        "status": "active"
+                    }
+                ]
+            }
+        """.trimIndent()
+
+        val response = gson.fromJson(json, CategoriesResponse::class.java)
+        assertNotNull(response)
+        assertEquals(2, response.categories.size)
+        assertEquals("Streaming", response.categories[0].name)
+        assertEquals("cat-software", response.categories[1].id)
+    }
+
+    @Test
+    fun testProductAndPlanRequestsSerialization() {
+        val prodReq = CreateProductRequest(
+            categoryId = "cat-streaming",
+            name = "Spotify Premium",
+            brand = "Spotify",
+            description = "High fidelity music streaming",
+            capabilities = listOf("subscription", "service_account"),
+            fulfillmentType = "automatic"
+        )
+        val prodJson = gson.toJson(prodReq)
+        assertTrue(prodJson.contains("Spotify Premium"))
+        assertTrue(prodJson.contains("cat-streaming"))
+        assertTrue(prodJson.contains("service_account"))
+
+        val planReq = CreatePlanRequest(
+            productId = "prod-spotify",
+            name = "3 Months Family",
+            duration = 3,
+            durationUnit = "months",
+            price = 29.99,
+            cost = 15.00,
+            currency = "USD"
+        )
+        val planJson = gson.toJson(planReq)
+        assertTrue(planJson.contains("3 Months Family"))
+        assertTrue(planJson.contains("29.99"))
+        assertTrue(planJson.contains("months"))
+
+        val actionJson = """{"success":true,"message":"Plan deleted successfully"}"""
+        val action = gson.fromJson(actionJson, SimpleActionResponse::class.java)
+        assertTrue(action.success)
+        assertEquals("Plan deleted successfully", action.message)
+    }
 }

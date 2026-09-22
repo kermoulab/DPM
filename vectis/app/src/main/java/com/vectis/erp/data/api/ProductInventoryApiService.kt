@@ -19,11 +19,46 @@ interface ProductInventoryApiService {
         @Path("id") id: String
     ): Response<ProductDetailResponse>
 
+    @POST("api/products")
+    suspend fun createProduct(
+        @Body req: CreateProductRequest
+    ): Response<ProductDetailResponse>
+
+    @PUT("api/products/{id}")
+    suspend fun updateProduct(
+        @Path("id") id: String,
+        @Body req: UpdateProductRequest
+    ): Response<ProductDetailResponse>
+
+    @DELETE("api/products/{id}")
+    suspend fun deleteProduct(
+        @Path("id") id: String
+    ): Response<SimpleActionResponse>
+
+    // Categories
+    @GET("api/categories")
+    suspend fun getCategories(): Response<CategoriesResponse>
+
+    @POST("api/categories")
+    suspend fun createCategory(
+        @Body req: CreateCategoryRequest
+    ): Response<CategoryResponse>
+
     // Plans
     @GET("api/plans")
     suspend fun getPlans(
         @Query("product_id") productId: String? = null
     ): Response<PlansResponse>
+
+    @POST("api/plans")
+    suspend fun createPlan(
+        @Body req: CreatePlanRequest
+    ): Response<PlanResponse>
+
+    @DELETE("api/plans/{id}")
+    suspend fun deletePlan(
+        @Path("id") id: String
+    ): Response<SimpleActionResponse>
 
     // Inventory - Service Accounts
     @GET("api/inventory/accounts")

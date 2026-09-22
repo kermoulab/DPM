@@ -1,6 +1,7 @@
 package com.vectis.erp.feature.products
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -20,9 +21,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.vectis.erp.core.design.*
-import com.vectis.erp.data.model.ProductDto
+import com.vectis.erp.data.model.*
 import com.vectis.erp.feature.inventory.InventoryUiState
 import com.vectis.erp.feature.inventory.InventoryViewModel
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -31,10 +33,25 @@ fun ProductsScreen(
     onProductClick: (String) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
+
     var searchQuery by remember { mutableStateOf("") }
-    var selectedFilter by remember { mutableStateOf("all") }
+    var selectedCapabilityFilter by remember { mutableStateOf("all") }
+    var selectedCategoryId by remember { mutableStateOf("all") }
+
+    // Dialog States
+    var showCreateProductDialog by remember { mutableStateOf(false) }
+    var editingProduct by remember { mutableStateOf<ProductDto?>(null) }
+    var productForNewPlan by remember { mutableStateOf<ProductDto?>(null) }
+    var showCategoryManagerDialog by remember { mutableStateOf(false) }
+    var deletingProduct by remember { mutableStateOf<ProductDto?>(null) }
+    var deletingPlan by remember { mutableStateOf<PlanDto?>(null) }
+
+    val canManage = viewModel.permissionManager.canManageProducts()
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {
@@ -44,12 +61,28 @@ fun ProductsScreen(
                     }
                 },
                 actions = {
+                    if (canManage) {
+                        IconButton(onClick = { showCategoryManagerDialog = true }) {
+                            Icon(Icons.Default.Folder, contentDescription = "Manage Categories", tint = PrimaryBlue)
+                        }
+                    }
                     IconButton(onClick = { viewModel.loadData(isRefresh = true) }) {
                         Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = PrimaryBlue)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
             )
+        },
+        floatingActionButton = {
+            if (canManage) {
+                ExtendedFloatingActionButton(
+                    onClick = { showCreateProductDialog = true },
+                    containerColor = PrimaryBlue,
+                    contentColor = Color.White,
+                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                    text = { Text("Add Product", fontWeight = FontWeight.SemiBold) }
+                )
+            }
         },
         containerColor = Slate50
     ) { paddingValues ->
@@ -77,13 +110,17 @@ fun ProductsScreen(
                     val matchesQuery = searchQuery.isBlank() ||
                             prod.name.contains(searchQuery, ignoreCase = true) ||
                             (prod.brand?.contains(searchQuery, ignoreCase = true) == true)
-                    val matchesFilter = when (selectedFilter) {
+
+                    val matchesCategory = selectedCategoryId == "all" || prod.categoryId == selectedCategoryId
+
+                    val matchesCapability = when (selectedCapabilityFilter) {
                         "subscription" -> prod.isSubscription
                         "service_account" -> prod.isServiceAccount
                         "license_key" -> prod.isLicenseKey
+                        "digital_file" -> prod.isDigitalFile
                         else -> true
                     }
-                    matchesQuery && matchesFilter
+                    matchesQuery && matchesCategory && matchesCapability
                 }
 
                 Column(
@@ -115,7 +152,40 @@ fun ProductsScreen(
                         )
                     )
 
-                    // Filter Chips
+                    // Category Filter Row
+                    if (state.categories.isNotEmpty()) {
+                        LazyRow(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 2.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            item {
+                                FilterChip(
+                                    selected = selectedCategoryId == "all",
+                                    onClick = { selectedCategoryId = "all" },
+                                    label = { Text("All Categories", color = if (selectedCategoryId == "all") Color.White else Slate700) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = Slate800,
+                                        selectedLabelColor = Color.White
+                                    )
+                                )
+                            }
+                            items(state.categories, key = { it.id }) { cat ->
+                                FilterChip(
+                                    selected = selectedCategoryId == cat.id,
+                                    onClick = { selectedCategoryId = cat.id },
+                                    label = { Text(cat.name, color = if (selectedCategoryId == cat.id) Color.White else Slate700) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = Slate800,
+                                        selectedLabelColor = Color.White
+                                    )
+                                )
+                            }
+                        }
+                    }
+
+                    // Capability Filter Chips
                     LazyRow(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -124,9 +194,9 @@ fun ProductsScreen(
                     ) {
                         item {
                             FilterChip(
-                                selected = selectedFilter == "all",
-                                onClick = { selectedFilter = "all" },
-                                label = { Text("All", color = if (selectedFilter == "all") Color.White else Slate700) },
+                                selected = selectedCapabilityFilter == "all",
+                                onClick = { selectedCapabilityFilter = "all" },
+                                label = { Text("All Types", color = if (selectedCapabilityFilter == "all") Color.White else Slate700) },
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = PrimaryBlue,
                                     selectedLabelColor = Color.White
@@ -135,9 +205,9 @@ fun ProductsScreen(
                         }
                         item {
                             FilterChip(
-                                selected = selectedFilter == "subscription",
-                                onClick = { selectedFilter = "subscription" },
-                                label = { Text("Subscriptions", color = if (selectedFilter == "subscription") Color.White else Slate700) },
+                                selected = selectedCapabilityFilter == "subscription",
+                                onClick = { selectedCapabilityFilter = "subscription" },
+                                label = { Text("Subscriptions", color = if (selectedCapabilityFilter == "subscription") Color.White else Slate700) },
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = PrimaryBlue,
                                     selectedLabelColor = Color.White
@@ -146,9 +216,9 @@ fun ProductsScreen(
                         }
                         item {
                             FilterChip(
-                                selected = selectedFilter == "service_account",
-                                onClick = { selectedFilter = "service_account" },
-                                label = { Text("Service Accounts", color = if (selectedFilter == "service_account") Color.White else Slate700) },
+                                selected = selectedCapabilityFilter == "service_account",
+                                onClick = { selectedCapabilityFilter = "service_account" },
+                                label = { Text("Service Accounts", color = if (selectedCapabilityFilter == "service_account") Color.White else Slate700) },
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = PrimaryBlue,
                                     selectedLabelColor = Color.White
@@ -157,9 +227,9 @@ fun ProductsScreen(
                         }
                         item {
                             FilterChip(
-                                selected = selectedFilter == "license_key",
-                                onClick = { selectedFilter = "license_key" },
-                                label = { Text("License Keys", color = if (selectedFilter == "license_key") Color.White else Slate700) },
+                                selected = selectedCapabilityFilter == "license_key",
+                                onClick = { selectedCapabilityFilter = "license_key" },
+                                label = { Text("License Keys", color = if (selectedCapabilityFilter == "license_key") Color.White else Slate700) },
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = PrimaryBlue,
                                     selectedLabelColor = Color.White
@@ -175,7 +245,7 @@ fun ProductsScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = if (searchQuery.isBlank()) "No products in catalog." else "No products matching \"$searchQuery\"",
+                                text = if (searchQuery.isBlank()) "No products found in this category." else "No products matching \"$searchQuery\"",
                                 color = Slate400,
                                 fontSize = 14.sp
                             )
@@ -188,15 +258,148 @@ fun ProductsScreen(
                         ) {
                             items(filteredProducts, key = { it.id }) { product ->
                                 val plans = state.plans[product.id] ?: emptyList()
+                                val categoryName = state.categories.find { it.id == product.categoryId }?.name
                                 ProductCard(
                                     product = product,
+                                    categoryName = categoryName,
                                     plans = plans,
+                                    canManage = canManage,
                                     viewModel = viewModel,
-                                    onClick = { onProductClick(product.id) }
+                                    onClick = { onProductClick(product.id) },
+                                    onEdit = { editingProduct = product },
+                                    onAddPlan = { productForNewPlan = product },
+                                    onDeleteProduct = { deletingProduct = product },
+                                    onDeletePlan = { deletingPlan = it }
                                 )
                             }
                         }
                     }
+                }
+
+                // Create Product Dialog
+                if (showCreateProductDialog) {
+                    ProductFormDialog(
+                        initialProduct = null,
+                        categories = state.categories,
+                        onDismiss = { showCreateProductDialog = false },
+                        onSaveProduct = { req ->
+                            viewModel.createProduct(
+                                req = req,
+                                onSuccess = {
+                                    showCreateProductDialog = false
+                                    coroutineScope.launch { snackbarHostState.showSnackbar("Product created successfully") }
+                                },
+                                onError = { err ->
+                                    coroutineScope.launch { snackbarHostState.showSnackbar(err) }
+                                }
+                            )
+                        },
+                        onUpdateProduct = { _, _ -> }
+                    )
+                }
+
+                // Edit Product Dialog
+                editingProduct?.let { prod ->
+                    ProductFormDialog(
+                        initialProduct = prod,
+                        categories = state.categories,
+                        onDismiss = { editingProduct = null },
+                        onSaveProduct = { _ -> },
+                        onUpdateProduct = { id, req ->
+                            viewModel.updateProduct(
+                                id = id,
+                                req = req,
+                                onSuccess = {
+                                    editingProduct = null
+                                    coroutineScope.launch { snackbarHostState.showSnackbar("Product updated successfully") }
+                                },
+                                onError = { err ->
+                                    coroutineScope.launch { snackbarHostState.showSnackbar(err) }
+                                }
+                            )
+                        }
+                    )
+                }
+
+                // Add Plan Dialog
+                productForNewPlan?.let { prod ->
+                    PlanFormDialog(
+                        product = prod,
+                        onDismiss = { productForNewPlan = null },
+                        onSavePlan = { req ->
+                            viewModel.createPlan(
+                                req = req,
+                                onSuccess = {
+                                    productForNewPlan = null
+                                    coroutineScope.launch { snackbarHostState.showSnackbar("Plan added successfully") }
+                                },
+                                onError = { err ->
+                                    coroutineScope.launch { snackbarHostState.showSnackbar(err) }
+                                }
+                            )
+                        }
+                    )
+                }
+
+                // Category Manager Dialog
+                if (showCategoryManagerDialog) {
+                    CategoryManagerDialog(
+                        categories = state.categories,
+                        onDismiss = { showCategoryManagerDialog = false },
+                        onCreateCategory = { req ->
+                            viewModel.createCategory(
+                                req = req,
+                                onSuccess = {
+                                    coroutineScope.launch { snackbarHostState.showSnackbar("Category created successfully") }
+                                },
+                                onError = { err ->
+                                    coroutineScope.launch { snackbarHostState.showSnackbar(err) }
+                                }
+                            )
+                        }
+                    )
+                }
+
+                // Delete Product Confirmation
+                deletingProduct?.let { prod ->
+                    ConfirmDeleteDialog(
+                        title = "Delete Product",
+                        message = "Are you sure you want to delete \"${prod.name}\"? All associated plans will be removed.",
+                        onDismiss = { deletingProduct = null },
+                        onConfirm = {
+                            viewModel.deleteProduct(
+                                id = prod.id,
+                                onSuccess = {
+                                    deletingProduct = null
+                                    coroutineScope.launch { snackbarHostState.showSnackbar("Product deleted") }
+                                },
+                                onError = { err ->
+                                    coroutineScope.launch { snackbarHostState.showSnackbar(err) }
+                                }
+                            )
+                        }
+                    )
+                }
+
+                // Delete Plan Confirmation
+                deletingPlan?.let { pl ->
+                    ConfirmDeleteDialog(
+                        title = "Delete Plan",
+                        message = "Are you sure you want to delete plan \"${pl.name}\"?",
+                        onDismiss = { deletingPlan = null },
+                        onConfirm = {
+                            viewModel.deletePlan(
+                                id = pl.id,
+                                onSuccess = {
+                                    deletingPlan = null
+                                    coroutineScope.launch { snackbarHostState.showSnackbar("Plan deleted") }
+                                },
+                                onError = { err ->
+                                    coroutineScope.launch { snackbarHostState.showSnackbar(err) }
+                                }
+                            )
+                        }
+                    )
                 }
             }
         }
@@ -206,10 +409,18 @@ fun ProductsScreen(
 @Composable
 private fun ProductCard(
     product: ProductDto,
-    plans: List<com.vectis.erp.data.model.PlanDto>,
+    categoryName: String?,
+    plans: List<PlanDto>,
+    canManage: Boolean,
     viewModel: InventoryViewModel,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onEdit: () -> Unit,
+    onAddPlan: () -> Unit,
+    onDeleteProduct: () -> Unit,
+    onDeletePlan: (PlanDto) -> Unit
 ) {
+    var menuExpanded by remember { mutableStateOf(false) }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -217,7 +428,7 @@ private fun ProductCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            // Header: Brand, Name & Status
+            // Header: Icon, Brand, Name, Category & Actions
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -257,25 +468,82 @@ private fun ProductCard(
                     }
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
-                        product.brand?.let {
-                            Text(text = it.uppercase(), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Slate400, letterSpacing = 1.sp)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            product.brand?.let {
+                                Text(text = it.uppercase(), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Slate400, letterSpacing = 1.sp)
+                                Spacer(modifier = Modifier.width(6.dp))
+                            }
+                            categoryName?.let {
+                                Surface(
+                                    color = Slate100,
+                                    shape = RoundedCornerShape(4.dp)
+                                ) {
+                                    Text(
+                                        text = it,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = Slate600,
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                    )
+                                }
+                            }
                         }
                         Text(text = product.name, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Slate900, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
 
-                // In Stock / Out of Stock Badge
-                Surface(
-                    color = if (product.availableInventory > 0) StatusSuccess.copy(alpha = 0.12f) else StatusDanger.copy(alpha = 0.12f),
-                    shape = RoundedCornerShape(6.dp)
-                ) {
-                    Text(
-                        text = if (product.availableInventory > 0) "${product.availableInventory} in stock" else "Out of stock",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (product.availableInventory > 0) StatusSuccess else StatusDanger,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                    )
+                // In Stock Badge & Action Menu
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(
+                        color = if (product.availableInventory > 0) StatusSuccess.copy(alpha = 0.12f) else StatusDanger.copy(alpha = 0.12f),
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Text(
+                            text = if (product.availableInventory > 0) "${product.availableInventory} in stock" else "Out of stock",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (product.availableInventory > 0) StatusSuccess else StatusDanger,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                    }
+
+                    if (canManage) {
+                        Box {
+                            IconButton(onClick = { menuExpanded = true }) {
+                                Icon(Icons.Default.MoreVert, contentDescription = "Options", tint = Slate500)
+                            }
+                            DropdownMenu(
+                                expanded = menuExpanded,
+                                onDismissRequest = { menuExpanded = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Add Plan") },
+                                    leadingIcon = { Icon(Icons.Default.Add, contentDescription = null) },
+                                    onClick = {
+                                        menuExpanded = false
+                                        onAddPlan()
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Edit Product") },
+                                    leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                                    onClick = {
+                                        menuExpanded = false
+                                        onEdit()
+                                    }
+                                )
+                                HorizontalDivider()
+                                DropdownMenuItem(
+                                    text = { Text("Delete Product", color = StatusDanger) },
+                                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = StatusDanger) },
+                                    onClick = {
+                                        menuExpanded = false
+                                        onDeleteProduct()
+                                    }
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
@@ -312,50 +580,65 @@ private fun ProductCard(
             }
 
             // Plans Section
+            Spacer(modifier = Modifier.height(12.dp))
+            HorizontalDivider(color = Slate100)
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(text = "Available Plans (${plans.size})", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Slate400)
+                if (canManage && plans.isEmpty()) {
+                    TextButton(onClick = onAddPlan, contentPadding = PaddingValues(0.dp)) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp), tint = PrimaryBlue)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Add First Plan", fontSize = 11.sp, color = PrimaryBlue)
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+
             if (plans.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(12.dp))
-                HorizontalDivider(color = Slate100)
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Text(text = "Available Plans", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Slate400)
-                Spacer(modifier = Modifier.height(6.dp))
-
-                Row(
+                LazyRow(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    plans.take(3).forEach { plan ->
+                    items(plans, key = { it.id }) { plan ->
                         Surface(
                             color = Slate50,
                             shape = RoundedCornerShape(8.dp),
                             border = androidx.compose.foundation.BorderStroke(1.dp, Slate200)
                         ) {
-                            Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
-                                Text(text = plan.name, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = Slate700)
-                                Text(
-                                    text = viewModel.formatCurrency(plan.price),
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = PrimaryBlue
-                                )
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text(text = plan.name, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = Slate700)
+                                    Text(
+                                        text = viewModel.formatCurrency(plan.price),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = PrimaryBlue
+                                    )
+                                }
+                                if (canManage) {
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    IconButton(
+                                        onClick = { onDeletePlan(plan) },
+                                        modifier = Modifier.size(20.dp)
+                                    ) {
+                                        Icon(Icons.Default.Close, contentDescription = "Delete Plan", tint = Slate400, modifier = Modifier.size(14.dp))
+                                    }
+                                }
                             }
                         }
                     }
-                    if (plans.size > 3) {
-                        Surface(
-                            color = Slate50,
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.align(Alignment.CenterVertically)
-                        ) {
-                            Text(
-                                text = "+${plans.size - 3} more",
-                                fontSize = 11.sp,
-                                color = Slate500,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                            )
-                        }
-                    }
                 }
+            } else {
+                Text("No plans configured yet.", fontSize = 12.sp, color = Slate400)
             }
         }
     }

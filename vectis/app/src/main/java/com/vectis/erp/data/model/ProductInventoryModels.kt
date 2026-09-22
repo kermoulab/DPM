@@ -118,3 +118,73 @@ data class RevealCredentialResponse(
     @SerializedName("password") val password: String,
     @SerializedName("provider") val provider: String? = null
 )
+
+data class CategoryDto(
+    @SerializedName("id") val id: String,
+    @SerializedName("name") val name: String,
+    @SerializedName("slug") val slug: String,
+    @SerializedName("icon") val icon: String? = null,
+    @SerializedName("description") val description: String? = null,
+    @SerializedName("status") val status: String = "active"
+)
+
+data class CategoriesResponse(
+    @SerializedName("categories") val categories: List<CategoryDto> = emptyList()
+)
+
+data class CreateCategoryRequest(
+    @SerializedName("name") val name: String,
+    @SerializedName("icon") val icon: String? = "Folder",
+    @SerializedName("description") val description: String? = null
+)
+
+data class CategoryResponse(
+    @SerializedName("success") val success: Boolean = true,
+    @SerializedName("id") val id: String,
+    @SerializedName("name") val name: String,
+    @SerializedName("slug") val slug: String
+)
+
+data class CreateProductRequest(
+    @SerializedName("category_id") val categoryId: String,
+    @SerializedName("name") val name: String,
+    @SerializedName("brand") val brand: String? = null,
+    @SerializedName("description") val description: String? = null,
+    @SerializedName("capabilities") val capabilities: List<String> = listOf("subscription"),
+    @SerializedName("fulfillment_type") val fulfillmentType: String = "automatic",
+    @SerializedName("stock_limit") val stockLimit: Int? = null
+)
+
+data class UpdateProductRequest(
+    @SerializedName("category_id") val categoryId: String? = null,
+    @SerializedName("name") val name: String? = null,
+    @SerializedName("brand") val brand: String? = null,
+    @SerializedName("description") val description: String? = null,
+    @SerializedName("capabilities") val capabilities: List<String>? = null,
+    @SerializedName("fulfillment_type") val fulfillmentType: String? = null,
+    @SerializedName("status") val status: String? = null,
+    @SerializedName("stock_limit") val stockLimit: Int? = null
+)
+
+data class CreatePlanRequest(
+    @SerializedName("product_id") val productId: String,
+    @SerializedName("name") val name: String,
+    @SerializedName("duration") val duration: Int,
+    @SerializedName("duration_unit") val durationUnit: String = "months",
+    @SerializedName("price") val price: Double,
+    @SerializedName("cost") val cost: Double = 0.0,
+    @SerializedName("currency") val currency: String = "USD",
+    @SerializedName("stock_limit") val stockLimit: Int? = null
+)
+
+data class PlanResponse(
+    @SerializedName("success") val success: Boolean = true,
+    @SerializedName("id") val id: String,
+    @SerializedName("plan") val plan: PlanDto? = null
+)
+
+data class SimpleActionResponse(
+    @SerializedName("success") val success: Boolean = true,
+    @SerializedName("message") val message: String? = null,
+    @SerializedName("error") val error: String? = null
+)

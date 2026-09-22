@@ -13,6 +13,8 @@ sealed interface InventoryUiState {
     data class Success(
         val activeTab: InventoryTab = InventoryTab.PRODUCTS,
         val products: List<ProductDto> = emptyList(),
+        val categories: List<CategoryDto> = emptyList(),
+        val selectedCategoryId: String = "all",
         val plans: Map<String, List<PlanDto>> = emptyMap(),
         val accounts: List<ServiceAccountDto> = emptyList(),
         val licenses: List<LicenseKeyDto> = emptyList(),

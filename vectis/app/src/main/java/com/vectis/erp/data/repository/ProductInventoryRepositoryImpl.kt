@@ -109,4 +109,102 @@ class ProductInventoryRepositoryImpl(
             ApiResult.NetworkError(e)
         }
     }
+
+    override suspend fun createProduct(req: CreateProductRequest): ApiResult<ProductDetailResponse> = withContext(Dispatchers.IO) {
+        try {
+            val api = networkClient.createService<ProductInventoryApiService>()
+            val response = api.createProduct(req)
+            if (response.isSuccessful && response.body() != null) {
+                ApiResult.Success(response.body()!!)
+            } else {
+                ApiResult.Error(response.code(), "Failed to create product (${response.code()})")
+            }
+        } catch (e: Exception) {
+            ApiResult.NetworkError(e)
+        }
+    }
+
+    override suspend fun updateProduct(id: String, req: UpdateProductRequest): ApiResult<ProductDetailResponse> = withContext(Dispatchers.IO) {
+        try {
+            val api = networkClient.createService<ProductInventoryApiService>()
+            val response = api.updateProduct(id, req)
+            if (response.isSuccessful && response.body() != null) {
+                ApiResult.Success(response.body()!!)
+            } else {
+                ApiResult.Error(response.code(), "Failed to update product (${response.code()})")
+            }
+        } catch (e: Exception) {
+            ApiResult.NetworkError(e)
+        }
+    }
+
+    override suspend fun deleteProduct(id: String): ApiResult<SimpleActionResponse> = withContext(Dispatchers.IO) {
+        try {
+            val api = networkClient.createService<ProductInventoryApiService>()
+            val response = api.deleteProduct(id)
+            if (response.isSuccessful && response.body() != null) {
+                ApiResult.Success(response.body()!!)
+            } else {
+                ApiResult.Error(response.code(), "Failed to delete product (${response.code()})")
+            }
+        } catch (e: Exception) {
+            ApiResult.NetworkError(e)
+        }
+    }
+
+    override suspend fun getCategories(): ApiResult<CategoriesResponse> = withContext(Dispatchers.IO) {
+        try {
+            val api = networkClient.createService<ProductInventoryApiService>()
+            val response = api.getCategories()
+            if (response.isSuccessful && response.body() != null) {
+                ApiResult.Success(response.body()!!)
+            } else {
+                ApiResult.Error(response.code(), "Failed to fetch categories (${response.code()})")
+            }
+        } catch (e: Exception) {
+            ApiResult.NetworkError(e)
+        }
+    }
+
+    override suspend fun createCategory(req: CreateCategoryRequest): ApiResult<CategoryResponse> = withContext(Dispatchers.IO) {
+        try {
+            val api = networkClient.createService<ProductInventoryApiService>()
+            val response = api.createCategory(req)
+            if (response.isSuccessful && response.body() != null) {
+                ApiResult.Success(response.body()!!)
+            } else {
+                ApiResult.Error(response.code(), "Failed to create category (${response.code()})")
+            }
+        } catch (e: Exception) {
+            ApiResult.NetworkError(e)
+        }
+    }
+
+    override suspend fun createPlan(req: CreatePlanRequest): ApiResult<PlanResponse> = withContext(Dispatchers.IO) {
+        try {
+            val api = networkClient.createService<ProductInventoryApiService>()
+            val response = api.createPlan(req)
+            if (response.isSuccessful && response.body() != null) {
+                ApiResult.Success(response.body()!!)
+            } else {
+                ApiResult.Error(response.code(), "Failed to create plan (${response.code()})")
+            }
+        } catch (e: Exception) {
+            ApiResult.NetworkError(e)
+        }
+    }
+
+    override suspend fun deletePlan(id: String): ApiResult<SimpleActionResponse> = withContext(Dispatchers.IO) {
+        try {
+            val api = networkClient.createService<ProductInventoryApiService>()
+            val response = api.deletePlan(id)
+            if (response.isSuccessful && response.body() != null) {
+                ApiResult.Success(response.body()!!)
+            } else {
+                ApiResult.Error(response.code(), "Failed to delete plan (${response.code()})")
+            }
+        } catch (e: Exception) {
+            ApiResult.NetworkError(e)
+        }
+    }
 }

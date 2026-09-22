@@ -35,6 +35,13 @@ class InventoryViewModel(
         }
     }
 
+    fun selectCategory(categoryId: String) {
+        val current = _uiState.value
+        if (current is InventoryUiState.Success) {
+            _uiState.value = current.copy(selectedCategoryId = categoryId)
+        }
+    }
+
     fun loadData(isRefresh: Boolean = false) {
         viewModelScope.launch {
             val current = _uiState.value
@@ -45,11 +52,13 @@ class InventoryViewModel(
             }
 
             val productsRes = repository.getProducts()
+            val categoriesRes = repository.getCategories()
             val plansRes = repository.getPlans()
             val accountsRes = repository.getServiceAccounts()
             val licensesRes = repository.getLicenseKeys()
 
             val products = if (productsRes is ApiResult.Success) productsRes.data.products else emptyList()
+            val categories = if (categoriesRes is ApiResult.Success) categoriesRes.data.categories else emptyList()
             val plans = if (plansRes is ApiResult.Success) {
                 plansRes.data.plans.groupBy { it.productId }
             } else if (current is InventoryUiState.Success) {
@@ -59,6 +68,7 @@ class InventoryViewModel(
             val licenses = if (licensesRes is ApiResult.Success) licensesRes.data.licenses else emptyList()
 
             val activeTab = if (current is InventoryUiState.Success) current.activeTab else InventoryTab.PRODUCTS
+            val selectedCategory = if (current is InventoryUiState.Success) current.selectedCategoryId else "all"
             val expanded = if (current is InventoryUiState.Success) current.expandedAccountId else null
             val profiles = if (current is InventoryUiState.Success) current.accountProfiles else emptyMap()
             val creds = if (current is InventoryUiState.Success) current.revealedCredentials else emptyMap()
@@ -66,6 +76,8 @@ class InventoryViewModel(
             _uiState.value = InventoryUiState.Success(
                 activeTab = activeTab,
                 products = products,
+                categories = categories,
+                selectedCategoryId = selectedCategory,
                 plans = plans,
                 accounts = accounts,
                 licenses = licenses,
@@ -74,6 +86,108 @@ class InventoryViewModel(
                 revealedCredentials = creds,
                 isRefreshing = false
             )
+        }
+    }
+
+    fun createProduct(req: CreateProductRequest, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        if (!permissionManager.canManageProducts()) {
+            onError("Permission denied: Managing products requires Manager or Admin role.")
+            return
+        }
+        viewModelScope.launch {
+            when (val res = repository.createProduct(req)) {
+                is ApiResult.Success -> {
+                    loadData(isRefresh = true)
+                    onSuccess()
+                }
+                is ApiResult.Error -> onError(res.message)
+                is ApiResult.NetworkError -> onError(res.exception.localizedMessage ?: "Network connection failed")
+            }
+        }
+    }
+
+    fun updateProduct(id: String, req: UpdateProductRequest, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        if (!permissionManager.canManageProducts()) {
+            onError("Permission denied: Managing products requires Manager or Admin role.")
+            return
+        }
+        viewModelScope.launch {
+            when (val res = repository.updateProduct(id, req)) {
+                is ApiResult.Success -> {
+                    loadData(isRefresh = true)
+                    onSuccess()
+                }
+                is ApiResult.Error -> onError(res.message)
+                is ApiResult.NetworkError -> onError(res.exception.localizedMessage ?: "Network connection failed")
+            }
+        }
+    }
+
+    fun deleteProduct(id: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        if (!permissionManager.canManageProducts()) {
+            onError("Permission denied: Managing products requires Manager or Admin role.")
+            return
+        }
+        viewModelScope.launch {
+            when (val res = repository.deleteProduct(id)) {
+                is ApiResult.Success -> {
+                    loadData(isRefresh = true)
+                    onSuccess()
+                }
+                is ApiResult.Error -> onError(res.message)
+                is ApiResult.NetworkError -> onError(res.exception.localizedMessage ?: "Network connection failed")
+            }
+        }
+    }
+
+    fun createCategory(req: CreateCategoryRequest, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        if (!permissionManager.canManageProducts()) {
+            onError("Permission denied: Managing categories requires Manager or Admin role.")
+            return
+        }
+        viewModelScope.launch {
+            when (val res = repository.createCategory(req)) {
+                is ApiResult.Success -> {
+                    loadData(isRefresh = true)
+                    onSuccess()
+                }
+                is ApiResult.Error -> onError(res.message)
+                is ApiResult.NetworkError -> onError(res.exception.localizedMessage ?: "Network connection failed")
+            }
+        }
+    }
+
+    fun createPlan(req: CreatePlanRequest, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        if (!permissionManager.canManageProducts()) {
+            onError("Permission denied: Managing plans requires Manager or Admin role.")
+            return
+        }
+        viewModelScope.launch {
+            when (val res = repository.createPlan(req)) {
+                is ApiResult.Success -> {
+                    loadData(isRefresh = true)
+                    onSuccess()
+                }
+                is ApiResult.Error -> onError(res.message)
+                is ApiResult.NetworkError -> onError(res.exception.localizedMessage ?: "Network connection failed")
+            }
+        }
+    }
+
+    fun deletePlan(id: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        if (!permissionManager.canManageProducts()) {
+            onError("Permission denied: Managing plans requires Manager or Admin role.")
+            return
+        }
+        viewModelScope.launch {
+            when (val res = repository.deletePlan(id)) {
+                is ApiResult.Success -> {
+                    loadData(isRefresh = true)
+                    onSuccess()
+                }
+                is ApiResult.Error -> onError(res.message)
+                is ApiResult.NetworkError -> onError(res.exception.localizedMessage ?: "Network connection failed")
+            }
         }
     }
 
