@@ -207,4 +207,88 @@ class ProductInventoryRepositoryImpl(
             ApiResult.NetworkError(e)
         }
     }
+
+    override suspend fun createServiceAccount(req: CreateServiceAccountRequest): ApiResult<SimpleActionResponse> = withContext(Dispatchers.IO) {
+        try {
+            val api = networkClient.createService<ProductInventoryApiService>()
+            val response = api.createServiceAccount(req)
+            if (response.isSuccessful && response.body() != null) {
+                ApiResult.Success(response.body()!!)
+            } else {
+                ApiResult.Error(response.code(), "Failed to create service account (${response.code()})")
+            }
+        } catch (e: Exception) {
+            ApiResult.NetworkError(e)
+        }
+    }
+
+    override suspend fun updateServiceAccount(id: String, req: UpdateServiceAccountRequest): ApiResult<SimpleActionResponse> = withContext(Dispatchers.IO) {
+        try {
+            val api = networkClient.createService<ProductInventoryApiService>()
+            val response = api.updateServiceAccount(id, req)
+            if (response.isSuccessful && response.body() != null) {
+                ApiResult.Success(response.body()!!)
+            } else {
+                ApiResult.Error(response.code(), "Failed to update service account (${response.code()})")
+            }
+        } catch (e: Exception) {
+            ApiResult.NetworkError(e)
+        }
+    }
+
+    override suspend fun deleteServiceAccount(id: String): ApiResult<SimpleActionResponse> = withContext(Dispatchers.IO) {
+        try {
+            val api = networkClient.createService<ProductInventoryApiService>()
+            val response = api.deleteServiceAccount(id)
+            if (response.isSuccessful && response.body() != null) {
+                ApiResult.Success(response.body()!!)
+            } else {
+                ApiResult.Error(response.code(), "Failed to delete service account (${response.code()})")
+            }
+        } catch (e: Exception) {
+            ApiResult.NetworkError(e)
+        }
+    }
+
+    override suspend fun updateServiceProfile(id: String, req: UpdateServiceProfileRequest): ApiResult<SimpleActionResponse> = withContext(Dispatchers.IO) {
+        try {
+            val api = networkClient.createService<ProductInventoryApiService>()
+            val response = api.updateServiceProfile(id, req)
+            if (response.isSuccessful && response.body() != null) {
+                ApiResult.Success(response.body()!!)
+            } else {
+                ApiResult.Error(response.code(), "Failed to update profile (${response.code()})")
+            }
+        } catch (e: Exception) {
+            ApiResult.NetworkError(e)
+        }
+    }
+
+    override suspend fun addLicenses(req: AddLicensesRequest): ApiResult<AddLicensesResponse> = withContext(Dispatchers.IO) {
+        try {
+            val api = networkClient.createService<ProductInventoryApiService>()
+            val response = api.addLicenses(req)
+            if (response.isSuccessful && response.body() != null) {
+                ApiResult.Success(response.body()!!)
+            } else {
+                ApiResult.Error(response.code(), "Failed to add license keys (${response.code()})")
+            }
+        } catch (e: Exception) {
+            ApiResult.NetworkError(e)
+        }
+    }
+
+    override suspend fun deleteLicense(id: String): ApiResult<SimpleActionResponse> = withContext(Dispatchers.IO) {
+        try {
+            val api = networkClient.createService<ProductInventoryApiService>()
+            val response = api.deleteLicense(id)
+            if (response.isSuccessful && response.body() != null) {
+                ApiResult.Success(response.body()!!)
+            } else {
+                ApiResult.Error(response.code(), "Failed to delete license key (${response.code()})")
+            }
+        } catch (e: Exception) {
+            ApiResult.NetworkError(e)
+        }
+    }
 }

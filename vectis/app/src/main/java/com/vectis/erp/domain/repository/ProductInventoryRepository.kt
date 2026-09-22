@@ -22,4 +22,14 @@ interface ProductInventoryRepository {
     // Plan CRUD
     suspend fun createPlan(req: CreatePlanRequest): ApiResult<PlanResponse>
     suspend fun deletePlan(id: String): ApiResult<SimpleActionResponse>
+
+    // Inventory - Service Account & Profile CRUD
+    suspend fun createServiceAccount(req: CreateServiceAccountRequest): ApiResult<SimpleActionResponse>
+    suspend fun updateServiceAccount(id: String, req: UpdateServiceAccountRequest): ApiResult<SimpleActionResponse>
+    suspend fun deleteServiceAccount(id: String): ApiResult<SimpleActionResponse>
+    suspend fun updateServiceProfile(id: String, req: UpdateServiceProfileRequest): ApiResult<SimpleActionResponse>
+
+    // Inventory - License Key CRUD
+    suspend fun addLicenses(req: AddLicensesRequest): ApiResult<AddLicensesResponse>
+    suspend fun deleteLicense(id: String): ApiResult<SimpleActionResponse>
 }

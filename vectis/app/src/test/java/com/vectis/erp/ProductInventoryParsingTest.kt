@@ -228,4 +228,61 @@ class ProductInventoryParsingTest {
         assertTrue(action.success)
         assertEquals("Plan deleted successfully", action.message)
     }
+
+    @Test
+    fun testServiceAccountRequestsSerialization() {
+        val createReq = CreateServiceAccountRequest(
+            productId = "prod-netflix",
+            provider = "Netflix",
+            login = "test_nf@vectis.ma",
+            password = "SecretPassword123!",
+            capacity = 5,
+            expiryDate = "2026-12-31",
+            notes = "Test account",
+            createProfiles = true
+        )
+        val createJson = gson.toJson(createReq)
+        assertTrue(createJson.contains("test_nf@vectis.ma"))
+        assertTrue(createJson.contains("SecretPassword123!"))
+        assertTrue(createJson.contains("\"capacity\":5"))
+        assertTrue(createJson.contains("\"create_profiles\":true"))
+
+        val updateReq = UpdateServiceAccountRequest(
+            provider = "Netflix Premium",
+            capacity = 4,
+            status = "exhausted"
+        )
+        val updateJson = gson.toJson(updateReq)
+        assertTrue(updateJson.contains("Netflix Premium"))
+        assertTrue(updateJson.contains("exhausted"))
+    }
+
+    @Test
+    fun testProfileAndLicenseRequestsSerialization() {
+        val profileReq = UpdateServiceProfileRequest(
+            profileName = "VIP Profile",
+            pin = "9988",
+            status = "available"
+        )
+        val profileJson = gson.toJson(profileReq)
+        assertTrue(profileJson.contains("VIP Profile"))
+        assertTrue(profileJson.contains("9988"))
+
+        val licenseReq = AddLicensesRequest(
+            productId = "prod-win11",
+            keys = listOf("KEY1-AAAA-BBBB", "KEY2-CCCC-DDDD"),
+            expiryDate = "2027-01-01",
+            notes = "Batch 1"
+        )
+        val licJson = gson.toJson(licenseReq)
+        assertTrue(licJson.contains("KEY1-AAAA-BBBB"))
+        assertTrue(licJson.contains("KEY2-CCCC-DDDD"))
+        assertTrue(licJson.contains("Batch 1"))
+
+        val licResJson = """{"success":true,"added":2,"duplicate":0,"total":2}"""
+        val licRes = gson.fromJson(licResJson, AddLicensesResponse::class.java)
+        assertTrue(licRes.success)
+        assertEquals(2, licRes.added)
+        assertEquals(0, licRes.duplicate)
+    }
 }

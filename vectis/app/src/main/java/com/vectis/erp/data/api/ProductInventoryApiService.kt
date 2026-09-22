@@ -83,4 +83,36 @@ interface ProductInventoryApiService {
         @Query("product_id") productId: String? = null,
         @Query("status") status: String? = null
     ): Response<LicenseKeysResponse>
+
+    @POST("api/inventory/accounts")
+    suspend fun createServiceAccount(
+        @Body req: CreateServiceAccountRequest
+    ): Response<SimpleActionResponse>
+
+    @PUT("api/inventory/accounts/{id}")
+    suspend fun updateServiceAccount(
+        @Path("id") id: String,
+        @Body req: UpdateServiceAccountRequest
+    ): Response<SimpleActionResponse>
+
+    @DELETE("api/inventory/accounts/{id}")
+    suspend fun deleteServiceAccount(
+        @Path("id") id: String
+    ): Response<SimpleActionResponse>
+
+    @PUT("api/inventory/profiles/{id}")
+    suspend fun updateServiceProfile(
+        @Path("id") id: String,
+        @Body req: UpdateServiceProfileRequest
+    ): Response<SimpleActionResponse>
+
+    @POST("api/inventory/licenses")
+    suspend fun addLicenses(
+        @Body req: AddLicensesRequest
+    ): Response<AddLicensesResponse>
+
+    @DELETE("api/inventory/licenses/{id}")
+    suspend fun deleteLicense(
+        @Path("id") id: String
+    ): Response<SimpleActionResponse>
 }

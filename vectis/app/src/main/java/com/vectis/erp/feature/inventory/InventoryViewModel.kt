@@ -191,6 +191,116 @@ class InventoryViewModel(
         }
     }
 
+    fun createServiceAccount(req: CreateServiceAccountRequest, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        if (!permissionManager.canManageInventory()) {
+            onError("Permission denied: Managing inventory requires Manager or Admin role.")
+            return
+        }
+        viewModelScope.launch {
+            when (val res = repository.createServiceAccount(req)) {
+                is ApiResult.Success -> {
+                    loadData(isRefresh = true)
+                    onSuccess()
+                }
+                is ApiResult.Error -> onError(res.message)
+                is ApiResult.NetworkError -> onError(res.exception.localizedMessage ?: "Network connection failed")
+            }
+        }
+    }
+
+    fun updateServiceAccount(id: String, req: UpdateServiceAccountRequest, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        if (!permissionManager.canManageInventory()) {
+            onError("Permission denied: Managing inventory requires Manager or Admin role.")
+            return
+        }
+        viewModelScope.launch {
+            when (val res = repository.updateServiceAccount(id, req)) {
+                is ApiResult.Success -> {
+                    loadData(isRefresh = true)
+                    onSuccess()
+                }
+                is ApiResult.Error -> onError(res.message)
+                is ApiResult.NetworkError -> onError(res.exception.localizedMessage ?: "Network connection failed")
+            }
+        }
+    }
+
+    fun deleteServiceAccount(id: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        if (!permissionManager.canManageInventory()) {
+            onError("Permission denied: Managing inventory requires Manager or Admin role.")
+            return
+        }
+        viewModelScope.launch {
+            when (val res = repository.deleteServiceAccount(id)) {
+                is ApiResult.Success -> {
+                    loadData(isRefresh = true)
+                    onSuccess()
+                }
+                is ApiResult.Error -> onError(res.message)
+                is ApiResult.NetworkError -> onError(res.exception.localizedMessage ?: "Network connection failed")
+            }
+        }
+    }
+
+    fun updateServiceProfile(id: String, accountId: String, req: UpdateServiceProfileRequest, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        if (!permissionManager.canManageInventory()) {
+            onError("Permission denied: Managing inventory requires Manager or Admin role.")
+            return
+        }
+        viewModelScope.launch {
+            when (val res = repository.updateServiceProfile(id, req)) {
+                is ApiResult.Success -> {
+                    val profRes = repository.getAccountProfiles(accountId)
+                    if (profRes is ApiResult.Success) {
+                        val state = _uiState.value as? InventoryUiState.Success
+                        if (state != null) {
+                            val updated = state.accountProfiles.toMutableMap()
+                            updated[accountId] = profRes.data.profiles
+                            _uiState.value = state.copy(accountProfiles = updated)
+                        }
+                    }
+                    onSuccess()
+                }
+                is ApiResult.Error -> onError(res.message)
+                is ApiResult.NetworkError -> onError(res.exception.localizedMessage ?: "Network connection failed")
+            }
+        }
+    }
+
+    fun addLicenseKeys(req: AddLicensesRequest, onSuccess: (AddLicensesResponse) -> Unit, onError: (String) -> Unit) {
+        if (!permissionManager.canManageInventory()) {
+            onError("Permission denied: Managing inventory requires Manager or Admin role.")
+            return
+        }
+        viewModelScope.launch {
+            when (val res = repository.addLicenses(req)) {
+                is ApiResult.Success -> {
+                    loadData(isRefresh = true)
+                    onSuccess(res.data)
+                }
+                is ApiResult.Error -> onError(res.message)
+                is ApiResult.NetworkError -> onError(res.exception.localizedMessage ?: "Network connection failed")
+            }
+        }
+    }
+
+    fun deleteLicenseKey(id: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        if (!permissionManager.canManageInventory()) {
+            onError("Permission denied: Managing inventory requires Manager or Admin role.")
+            return
+        }
+        viewModelScope.launch {
+            when (val res = repository.deleteLicense(id)) {
+                is ApiResult.Success -> {
+                    loadData(isRefresh = true)
+                    onSuccess()
+                }
+                is ApiResult.Error -> onError(res.message)
+                is ApiResult.NetworkError -> onError(res.exception.localizedMessage ?: "Network connection failed")
+            }
+        }
+    }
+
     fun toggleAccountExpansion(accountId: String) {
         val current = _uiState.value as? InventoryUiState.Success ?: return
         val isCurrentlyExpanded = current.expandedAccountId == accountId

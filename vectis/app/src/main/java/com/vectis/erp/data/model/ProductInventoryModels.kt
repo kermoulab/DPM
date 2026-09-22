@@ -188,3 +188,45 @@ data class SimpleActionResponse(
     @SerializedName("message") val message: String? = null,
     @SerializedName("error") val error: String? = null
 )
+
+data class CreateServiceAccountRequest(
+    @SerializedName("product_id") val productId: String,
+    @SerializedName("provider") val provider: String,
+    @SerializedName("login") val login: String,
+    @SerializedName("password") val password: String,
+    @SerializedName("capacity") val capacity: Int = 1,
+    @SerializedName("expiry_date") val expiryDate: String? = null,
+    @SerializedName("notes") val notes: String? = null,
+    @SerializedName("create_profiles") val createProfiles: Boolean = true
+)
+
+data class UpdateServiceAccountRequest(
+    @SerializedName("product_id") val productId: String? = null,
+    @SerializedName("provider") val provider: String? = null,
+    @SerializedName("login") val login: String? = null,
+    @SerializedName("password") val password: String? = null,
+    @SerializedName("capacity") val capacity: Int? = null,
+    @SerializedName("expiry_date") val expiryDate: String? = null,
+    @SerializedName("status") val status: String? = null,
+    @SerializedName("notes") val notes: String? = null
+)
+
+data class UpdateServiceProfileRequest(
+    @SerializedName("profile_name") val profileName: String? = null,
+    @SerializedName("pin") val pin: String? = null,
+    @SerializedName("status") val status: String? = null
+)
+
+data class AddLicensesRequest(
+    @SerializedName("product_id") val productId: String,
+    @SerializedName("keys") val keys: List<String>,
+    @SerializedName("expiry_date") val expiryDate: String? = null,
+    @SerializedName("notes") val notes: String? = null
+)
+
+data class AddLicensesResponse(
+    @SerializedName("success") val success: Boolean = true,
+    @SerializedName("added") val added: Int = 0,
+    @SerializedName("duplicate") val duplicate: Int = 0,
+    @SerializedName("total") val total: Int = 0
+)

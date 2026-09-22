@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.vectis.erp.core.design.*
 import com.vectis.erp.data.model.*
+import com.vectis.erp.feature.products.ConfirmDeleteDialog
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -36,6 +37,18 @@ fun InventoryScreen(
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
+
+    val canManage = viewModel.permissionManager.canManageInventory()
+
+    // Dialog states
+    var showAddAccountDialog by remember { mutableStateOf(false) }
+    var editingAccount by remember { mutableStateOf<ServiceAccountDto?>(null) }
+    var deletingAccount by remember { mutableStateOf<ServiceAccountDto?>(null) }
+
+    var editingProfileData by remember { mutableStateOf<Pair<String, ServiceProfileDto>?>(null) } // accountId to profile
+
+    var showAddLicensesDialog by remember { mutableStateOf(false) }
+    var deletingLicense by remember { mutableStateOf<LicenseKeyDto?>(null) }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -54,6 +67,32 @@ fun InventoryScreen(
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
             )
+        },
+        floatingActionButton = {
+            val state = uiState
+            if (canManage && state is InventoryUiState.Success) {
+                when (state.activeTab) {
+                    InventoryTab.ACCOUNTS -> {
+                        ExtendedFloatingActionButton(
+                            onClick = { showAddAccountDialog = true },
+                            containerColor = PrimaryBlue,
+                            contentColor = Color.White,
+                            icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                            text = { Text("Add Account", fontWeight = FontWeight.SemiBold) }
+                        )
+                    }
+                    InventoryTab.LICENSES -> {
+                        ExtendedFloatingActionButton(
+                            onClick = { showAddLicensesDialog = true },
+                            containerColor = StatusSuccess,
+                            contentColor = Color.White,
+                            icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                            text = { Text("Import Keys", fontWeight = FontWeight.SemiBold) }
+                        )
+                    }
+                    else -> {}
+                }
+            }
         },
         containerColor = Slate50
     ) { paddingValues ->
@@ -110,6 +149,7 @@ fun InventoryScreen(
                             expandedAccountId = state.expandedAccountId,
                             accountProfiles = state.accountProfiles,
                             revealedCredentials = state.revealedCredentials,
+                            canManage = canManage,
                             onToggleExpand = { viewModel.toggleAccountExpansion(it) },
                             onReveal = { accountId ->
                                 viewModel.revealCredential(accountId) { err ->
@@ -118,9 +158,135 @@ fun InventoryScreen(
                                     }
                                 }
                             },
-                            onHide = { viewModel.hideCredential(it) }
+                            onHide = { viewModel.hideCredential(it) },
+                            onEditAccount = { editingAccount = it },
+                            onDeleteAccount = { deletingAccount = it },
+                            onEditProfile = { accId, prof -> editingProfileData = Pair(accId, prof) }
                         )
-                        InventoryTab.LICENSES -> LicenseKeysTabContent(state.licenses)
+                        InventoryTab.LICENSES -> LicenseKeysTabContent(
+                            licenses = state.licenses,
+                            canManage = canManage,
+                            onDeleteLicense = { deletingLicense = it }
+                        )
+                    }
+
+                    // Add Service Account Dialog
+                    if (showAddAccountDialog) {
+                        ServiceAccountFormDialog(
+                            initialAccount = null,
+                            products = state.products,
+                            onDismiss = { showAddAccountDialog = false },
+                            onSaveAccount = { req ->
+                                viewModel.createServiceAccount(
+                                    req = req,
+                                    onSuccess = {
+                                        showAddAccountDialog = false
+                                        coroutineScope.launch { snackbarHostState.showSnackbar("Service account created") }
+                                    },
+                                    onError = { err -> coroutineScope.launch { snackbarHostState.showSnackbar(err) } }
+                                )
+                            },
+                            onUpdateAccount = { _, _ -> }
+                        )
+                    }
+
+                    // Edit Service Account Dialog
+                    editingAccount?.let { acc ->
+                        ServiceAccountFormDialog(
+                            initialAccount = acc,
+                            products = state.products,
+                            onDismiss = { editingAccount = null },
+                            onSaveAccount = { _ -> },
+                            onUpdateAccount = { id, req ->
+                                viewModel.updateServiceAccount(
+                                    id = id,
+                                    req = req,
+                                    onSuccess = {
+                                        editingAccount = null
+                                        coroutineScope.launch { snackbarHostState.showSnackbar("Account updated") }
+                                    },
+                                    onError = { err -> coroutineScope.launch { snackbarHostState.showSnackbar(err) } }
+                                )
+                            }
+                        )
+                    }
+
+                    // Delete Service Account Confirmation Dialog
+                    deletingAccount?.let { acc ->
+                        ConfirmDeleteDialog(
+                            title = "Delete Service Account",
+                            message = "Are you sure you want to delete ${acc.provider} (${acc.login})? Active assigned profiles must be released first.",
+                            onDismiss = { deletingAccount = null },
+                            onConfirm = {
+                                viewModel.deleteServiceAccount(
+                                    id = acc.id,
+                                    onSuccess = {
+                                        deletingAccount = null
+                                        coroutineScope.launch { snackbarHostState.showSnackbar("Account deleted") }
+                                    },
+                                    onError = { err -> coroutineScope.launch { snackbarHostState.showSnackbar(err) } }
+                                )
+                            }
+                        )
+                    }
+
+                    // Edit Profile Dialog
+                    editingProfileData?.let { (accId, prof) ->
+                        ProfileEditDialog(
+                            profile = prof,
+                            onDismiss = { editingProfileData = null },
+                            onSave = { req ->
+                                viewModel.updateServiceProfile(
+                                    id = prof.id,
+                                    accountId = accId,
+                                    req = req,
+                                    onSuccess = {
+                                        editingProfileData = null
+                                        coroutineScope.launch { snackbarHostState.showSnackbar("Profile updated") }
+                                    },
+                                    onError = { err -> coroutineScope.launch { snackbarHostState.showSnackbar(err) } }
+                                )
+                            }
+                        )
+                    }
+
+                    // Bulk Add Licenses Dialog
+                    if (showAddLicensesDialog) {
+                        BulkLicenseDialog(
+                            products = state.products,
+                            onDismiss = { showAddLicensesDialog = false },
+                            onSaveLicenses = { req ->
+                                viewModel.addLicenseKeys(
+                                    req = req,
+                                    onSuccess = { res ->
+                                        showAddLicensesDialog = false
+                                        coroutineScope.launch {
+                                            snackbarHostState.showSnackbar("Imported ${res.added} keys (${res.duplicate} duplicates skipped)")
+                                        }
+                                    },
+                                    onError = { err -> coroutineScope.launch { snackbarHostState.showSnackbar(err) } }
+                                )
+                            }
+                        )
+                    }
+
+                    // Delete License Confirmation Dialog
+                    deletingLicense?.let { lic ->
+                        ConfirmDeleteDialog(
+                            title = "Delete License Key",
+                            message = "Are you sure you want to delete license key \"${lic.licenseKey}\"?",
+                            onDismiss = { deletingLicense = null },
+                            onConfirm = {
+                                viewModel.deleteLicenseKey(
+                                    id = lic.id,
+                                    onSuccess = {
+                                        deletingLicense = null
+                                        coroutineScope.launch { snackbarHostState.showSnackbar("License key deleted") }
+                                    },
+                                    onError = { err -> coroutineScope.launch { snackbarHostState.showSnackbar(err) } }
+                                )
+                            }
+                        )
                     }
                 }
             }
@@ -264,9 +430,13 @@ private fun ServiceAccountsTabContent(
     expandedAccountId: String?,
     accountProfiles: Map<String, List<ServiceProfileDto>>,
     revealedCredentials: Map<String, RevealCredentialResponse>,
+    canManage: Boolean,
     onToggleExpand: (String) -> Unit,
     onReveal: (String) -> Unit,
-    onHide: (String) -> Unit
+    onHide: (String) -> Unit,
+    onEditAccount: (ServiceAccountDto) -> Unit,
+    onDeleteAccount: (ServiceAccountDto) -> Unit,
+    onEditProfile: (String, ServiceProfileDto) -> Unit
 ) {
     if (accounts.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -284,9 +454,13 @@ private fun ServiceAccountsTabContent(
                     isExpanded = expandedAccountId == account.id,
                     profiles = accountProfiles[account.id] ?: emptyList(),
                     revealed = revealedCredentials[account.id],
+                    canManage = canManage,
                     onToggleExpand = { onToggleExpand(account.id) },
                     onReveal = { onReveal(account.id) },
-                    onHide = { onHide(account.id) }
+                    onHide = { onHide(account.id) },
+                    onEditAccount = { onEditAccount(account) },
+                    onDeleteAccount = { onDeleteAccount(account) },
+                    onEditProfile = { prof -> onEditProfile(account.id, prof) }
                 )
             }
         }
@@ -299,11 +473,16 @@ private fun ServiceAccountCard(
     isExpanded: Boolean,
     profiles: List<ServiceProfileDto>,
     revealed: RevealCredentialResponse?,
+    canManage: Boolean,
     onToggleExpand: () -> Unit,
     onReveal: () -> Unit,
-    onHide: () -> Unit
+    onHide: () -> Unit,
+    onEditAccount: () -> Unit,
+    onDeleteAccount: () -> Unit,
+    onEditProfile: (ServiceProfileDto) -> Unit
 ) {
     val clipboardManager = LocalClipboardManager.current
+    var menuExpanded by remember { mutableStateOf(false) }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -344,19 +523,51 @@ private fun ServiceAccountCard(
                     }
                 }
 
-                val isActive = account.status == "active"
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(if (isActive) StatusSuccess.copy(alpha = 0.1f) else Slate200)
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        text = if (isActive) "Active" else "Suspended",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (isActive) StatusSuccess else Slate600
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    val isActive = account.status == "active"
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isActive) StatusSuccess.copy(alpha = 0.1f) else Slate200)
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = if (isActive) "Active" else account.status.replaceFirstChar { it.uppercase() },
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (isActive) StatusSuccess else Slate600
+                        )
+                    }
+
+                    if (canManage) {
+                        Box {
+                            IconButton(onClick = { menuExpanded = true }) {
+                                Icon(Icons.Default.MoreVert, contentDescription = "Options", tint = Slate500)
+                            }
+                            DropdownMenu(
+                                expanded = menuExpanded,
+                                onDismissRequest = { menuExpanded = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Edit Account") },
+                                    leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                                    onClick = {
+                                        menuExpanded = false
+                                        onEditAccount()
+                                    }
+                                )
+                                HorizontalDivider()
+                                DropdownMenuItem(
+                                    text = { Text("Delete Account", color = StatusDanger) },
+                                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = StatusDanger) },
+                                    onClick = {
+                                        menuExpanded = false
+                                        onDeleteAccount()
+                                    }
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
@@ -471,7 +682,11 @@ private fun ServiceAccountCard(
                         )
                     } else {
                         profiles.forEach { profile ->
-                            ProfileSlotRow(profile)
+                            ProfileSlotRow(
+                                profile = profile,
+                                canManage = canManage,
+                                onEditProfile = { onEditProfile(profile) }
+                            )
                         }
                     }
                 }
@@ -481,7 +696,11 @@ private fun ServiceAccountCard(
 }
 
 @Composable
-private fun ProfileSlotRow(profile: ServiceProfileDto) {
+private fun ProfileSlotRow(
+    profile: ServiceProfileDto,
+    canManage: Boolean,
+    onEditProfile: () -> Unit
+) {
     val isAssigned = profile.status == "assigned"
     Row(
         modifier = Modifier
@@ -492,7 +711,7 @@ private fun ProfileSlotRow(profile: ServiceProfileDto) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column {
+        Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = profile.profileName,
                 fontSize = 12.sp,
@@ -516,24 +735,40 @@ private fun ProfileSlotRow(profile: ServiceProfileDto) {
             }
         }
 
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(6.dp))
-                .background(if (isAssigned) PrimaryBlue.copy(alpha = 0.1f) else StatusSuccess.copy(alpha = 0.1f))
-                .padding(horizontal = 6.dp, vertical = 2.dp)
-        ) {
-            Text(
-                text = if (isAssigned) "Assigned" else "Available",
-                fontSize = 10.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = if (isAssigned) PrimaryBlue else StatusSuccess
-            )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(if (isAssigned) PrimaryBlue.copy(alpha = 0.1f) else StatusSuccess.copy(alpha = 0.1f))
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
+            ) {
+                Text(
+                    text = if (isAssigned) "Assigned" else "Available",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (isAssigned) PrimaryBlue else StatusSuccess
+                )
+            }
+
+            if (canManage) {
+                Spacer(modifier = Modifier.width(6.dp))
+                IconButton(
+                    onClick = onEditProfile,
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Icon(Icons.Default.Edit, contentDescription = "Edit Profile", tint = Slate500, modifier = Modifier.size(14.dp))
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun LicenseKeysTabContent(licenses: List<LicenseKeyDto>) {
+private fun LicenseKeysTabContent(
+    licenses: List<LicenseKeyDto>,
+    canManage: Boolean,
+    onDeleteLicense: (LicenseKeyDto) -> Unit
+) {
     if (licenses.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text("No digital license keys registered.", color = Slate400, fontSize = 14.sp)
@@ -566,19 +801,31 @@ private fun LicenseKeysTabContent(licenses: List<LicenseKeyDto>) {
                                 color = Slate900
                             )
 
-                            val isAvail = license.status == "available"
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(if (isAvail) StatusSuccess.copy(alpha = 0.1f) else Slate200)
-                                    .padding(horizontal = 8.dp, vertical = 3.dp)
-                            ) {
-                                Text(
-                                    text = license.status.replaceFirstChar { it.uppercase() },
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = if (isAvail) StatusSuccess else Slate700
-                                )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                val isAvail = license.status == "available"
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(if (isAvail) StatusSuccess.copy(alpha = 0.1f) else Slate200)
+                                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                                ) {
+                                    Text(
+                                        text = license.status.replaceFirstChar { it.uppercase() },
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = if (isAvail) StatusSuccess else Slate700
+                                    )
+                                }
+
+                                if (canManage) {
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    IconButton(
+                                        onClick = { onDeleteLicense(license) },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(Icons.Default.Delete, contentDescription = "Delete License", tint = StatusDanger, modifier = Modifier.size(16.dp))
+                                    }
+                                }
                             }
                         }
 
