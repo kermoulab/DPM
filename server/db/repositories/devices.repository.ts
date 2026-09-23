@@ -14,7 +14,14 @@ export interface PairedDeviceRow {
 }
 
 export class DevicesRepository {
+  async cleanPendingCodes(): Promise<void> {
+    await query(`DELETE FROM paired_devices WHERE status = 'pending'`);
+  }
+
   async findAll(): Promise<PairedDeviceRow[]> {
+    try {
+      await query(`DELETE FROM paired_devices WHERE status = 'pending' AND code_expires_at <= CURRENT_TIMESTAMP`);
+    } catch {}
     const res = await query<PairedDeviceRow>(
       'SELECT * FROM paired_devices ORDER BY created_at DESC'
     );

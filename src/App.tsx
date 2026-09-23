@@ -64,19 +64,61 @@ export default function App() {
   const [selectedCurrency, setSelectedCurrency] = React.useState<string>('USD');
   const [settingsSubTab, setSettingsSubTab] = React.useState<'profile' | 'general' | 'team' | 'audit'>('profile');
 
-  // Check installation and auth on mount
-  React.useEffect(() => {
-    checkInitialState();
+  const checkInitialState = React.useCallback(async (signal?: { cancelled: boolean }) => {
+    setCheckingInstall(true);
+    try {
+      const installRes = await api.getInstallStatus();
+      if (signal?.cancelled) return;
+      setIsInstalled(installRes.installed);
+
+      if (installRes.installed) {
+        // Only attempt session verification if a token exists in storage
+        if (api.hasSession()) {
+          try {
+            const userRes = await api.getMe();
+            if (signal?.cancelled) return;
+            setCurrentUser(userRes.user);
+            loadAppData();
+          } catch {
+            if (signal?.cancelled) return;
+            api.clearToken();
+            setCurrentUser((prev) => (prev ? prev : null));
+          }
+        } else {
+          // No active session: show login screen first (never overwrite an already logged-in session)
+          if (!signal?.cancelled) {
+            setCurrentUser((prev) => (prev ? prev : null));
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Failed checking initialization', err);
+    } finally {
+      if (!signal?.cancelled) {
+        setCheckingInstall(false);
+      }
+    }
   }, []);
 
-  // Listen for unauthorized 401 events to instantly destroy session
+  // Check installation and auth on mount with unmount/StrictMode cancellation guard
+  React.useEffect(() => {
+    const signal = { cancelled: false };
+    checkInitialState(signal);
+    return () => {
+      signal.cancelled = true;
+    };
+  }, [checkInitialState]);
+
+  // Listen for unauthorized 401 events to instantly destroy session (only if active session exists)
   React.useEffect(() => {
     const handleUnauthorized = () => {
-      handleLogout();
+      if (currentUser || api.hasSession()) {
+        handleLogout();
+      }
     };
     window.addEventListener('auth:unauthorized', handleUnauthorized);
     return () => window.removeEventListener('auth:unauthorized', handleUnauthorized);
-  }, []);
+  }, [currentUser]);
 
   // Keyboard shortcut for Cmd+K search
   React.useEffect(() => {
@@ -111,35 +153,6 @@ export default function App() {
       });
     }
   }, [activeTab, currentUser]);
-
-  const checkInitialState = async () => {
-    setCheckingInstall(true);
-    try {
-      const installRes = await api.getInstallStatus();
-      setIsInstalled(installRes.installed);
-
-      if (installRes.installed) {
-        // Only attempt session verification if a token exists in storage
-        if (api.hasSession()) {
-          try {
-            const userRes = await api.getMe();
-            setCurrentUser(userRes.user);
-            loadAppData();
-          } catch {
-            api.clearToken();
-            setCurrentUser(null);
-          }
-        } else {
-          // No active session: show login screen first
-          setCurrentUser(null);
-        }
-      }
-    } catch (err) {
-      console.error('Failed checking initialization', err);
-    } finally {
-      setCheckingInstall(false);
-    }
-  };
 
   const loadAppData = async () => {
     try {

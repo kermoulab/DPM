@@ -86,11 +86,12 @@ export const DevicesView: React.FC = () => {
   };
 
   const handleGenerateCode = async () => {
+    if (generating) return;
     setGenerating(true);
     try {
       const res = await api.generatePairingCode();
       setPairingData(res);
-      loadDevices(false);
+      await loadDevices(false);
     } catch (err: any) {
       setToastMessage(err.message || 'Failed to generate pairing token');
     } finally {

@@ -102,6 +102,9 @@ devicesRouter.post('/generate-pairing-code', requireAuth, requireRole('manager')
       .update(pairingCode + expiresAt + deviceId)
       .digest('hex');
 
+    // Clean prior uncompleted pending handshake tokens so only one active token exists
+    await devicesRepo.cleanPendingCodes();
+
     await devicesRepo.create({
       id: deviceId,
       device_name: 'Android Terminal (Pending)',
