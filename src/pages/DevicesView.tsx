@@ -29,17 +29,28 @@ export const DevicesView: React.FC = () => {
     loadDevices(true);
   }, []);
 
+  const handleClosePairingModal = React.useCallback(async () => {
+    if (pairingData) {
+      const devId = pairingData.deviceId;
+      setPairingData(null);
+      try {
+        await api.revokeDevice(devId);
+      } catch {}
+      await loadDevices(false);
+    }
+  }, [pairingData]);
+
   // Keyboard shortcut to dismiss pairing dialog or confirmation modal
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         if (confirmDevice) setConfirmDevice(null);
-        else if (pairingData) setPairingData(null);
+        else if (pairingData) handleClosePairingModal();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [pairingData, confirmDevice]);
+  }, [pairingData, confirmDevice, handleClosePairingModal]);
 
   React.useEffect(() => {
     if (toastMessage) {
@@ -148,7 +159,7 @@ export const DevicesView: React.FC = () => {
       {pairingData && (
         <div
           id="pairing-modal-overlay"
-          onClick={() => setPairingData(null)}
+          onClick={handleClosePairingModal}
           className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-xs p-4 overflow-y-auto animate-in fade-in duration-150"
         >
           <div
@@ -159,7 +170,7 @@ export const DevicesView: React.FC = () => {
             {/* Top Close Button */}
             <button
               id="close-pairing-modal-btn"
-              onClick={() => setPairingData(null)}
+              onClick={handleClosePairingModal}
               className="absolute top-4 right-4 p-2 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition z-10"
               title="Close (Esc)"
             >
@@ -206,7 +217,7 @@ export const DevicesView: React.FC = () => {
         <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
             <Smartphone size={16} className="text-blue-600" />
-            Authorized Devices ({devices.length})
+            Authorized Devices ({devices.filter((d) => d.status === 'paired').length})
           </h3>
           <div className="flex items-center gap-2.5">
             <button
@@ -230,7 +241,7 @@ export const DevicesView: React.FC = () => {
 
         {loading ? (
           <div className="p-12 text-center text-xs text-slate-400">Loading authorized devices...</div>
-        ) : devices.length === 0 ? (
+        ) : devices.filter((d) => d.status === 'paired').length === 0 ? (
           <div className="p-12 text-center text-xs text-slate-400 space-y-3">
             <p>No devices currently linked.</p>
             <button
@@ -255,10 +266,11 @@ export const DevicesView: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {devices.map((d) => (
-                  <tr key={d.id} className="hover:bg-slate-50/60 transition">
-                    <td className="py-3.5 px-5 font-semibold text-slate-800">
-                      {d.status === 'paired' ? (
+                {devices
+                  .filter((d) => d.status === 'paired')
+                  .map((d) => (
+                    <tr key={d.id} className="hover:bg-slate-50/60 transition">
+                      <td className="py-3.5 px-5 font-semibold text-slate-800">
                         <div className="flex items-center gap-2.5">
                           <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-100">
                             <Smartphone size={16} />
@@ -273,59 +285,29 @@ export const DevicesView: React.FC = () => {
                             </span>
                           </div>
                         </div>
-                      ) : (
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-100">
-                            <QrCode size={16} />
-                          </div>
-                          <div className="min-w-0">
-                            <span className="font-medium text-slate-700 block text-xs">
-                              Awaiting Device Handshake
-                            </span>
-                            <span className="text-[10px] text-amber-600 font-medium">
-                              Token: {d.pairing_code || 'Pending'}
-                            </span>
-                          </div>
-                        </div>
-                      )}
-                    </td>
-                    <td className="py-3.5 px-4 text-slate-600">{d.paired_by_user || 'Admin'}</td>
-                    <td className="py-3.5 px-4">
-                      <span
-                        className={`px-2.5 py-0.5 rounded-full font-semibold text-[10px] border inline-flex items-center gap-1 ${
-                          d.status === 'paired'
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200/60'
-                            : 'bg-amber-50 text-amber-700 border-amber-200/60'
-                        }`}
-                      >
-                        {d.status === 'paired' ? (
-                          <>
-                            <CheckCircle2 size={11} className="text-emerald-600" />
-                            <span>Connected</span>
-                          </>
-                        ) : (
-                          <>
-                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse inline-block"></span>
-                            <span>Pending Scan</span>
-                          </>
-                        )}
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4 text-slate-400">{d.last_seen || (d.status === 'paired' ? 'Active Now' : 'Not yet connected')}</td>
-                    <td className="py-3.5 px-5 text-right">
-                      <button
-                        id={`delete-device-${d.id}`}
-                        onClick={() => handleDeleteDevice(d)}
-                        disabled={deletingId === d.id}
-                        className="px-2.5 py-1.5 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 transition inline-flex items-center gap-1.5 font-semibold text-[11px] disabled:opacity-50 cursor-pointer"
-                        title={d.status === 'paired' ? `Unpair & Delete ${d.device_name}` : 'Delete pending pairing token'}
-                      >
-                        <Trash2 size={13} />
-                        <span>{deletingId === d.id ? 'Deleting...' : 'Delete'}</span>
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-600">{d.paired_by_user || 'Admin'}</td>
+                      <td className="py-3.5 px-4">
+                        <span className="px-2.5 py-0.5 rounded-full font-semibold text-[10px] border inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border-emerald-200/60">
+                          <CheckCircle2 size={11} className="text-emerald-600" />
+                          <span>Connected</span>
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-400">{d.last_seen || 'Active Now'}</td>
+                      <td className="py-3.5 px-5 text-right">
+                        <button
+                          id={`delete-device-${d.id}`}
+                          onClick={() => handleDeleteDevice(d)}
+                          disabled={deletingId === d.id}
+                          className="px-2.5 py-1.5 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 transition inline-flex items-center gap-1.5 font-semibold text-[11px] disabled:opacity-50 cursor-pointer"
+                          title={`Unpair & Delete ${d.device_name}`}
+                        >
+                          <Trash2 size={13} />
+                          <span>{deletingId === d.id ? 'Deleting...' : 'Delete'}</span>
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
           </div>

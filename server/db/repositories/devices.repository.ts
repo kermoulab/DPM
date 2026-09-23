@@ -20,10 +20,10 @@ export class DevicesRepository {
 
   async findAll(): Promise<PairedDeviceRow[]> {
     try {
-      await query(`DELETE FROM paired_devices WHERE status = 'pending' AND code_expires_at <= CURRENT_TIMESTAMP`);
+      await query(`DELETE FROM paired_devices WHERE status = 'pending' AND (code_expires_at IS NULL OR code_expires_at <= CURRENT_TIMESTAMP)`);
     } catch {}
     const res = await query<PairedDeviceRow>(
-      'SELECT * FROM paired_devices ORDER BY created_at DESC'
+      `SELECT * FROM paired_devices WHERE status != 'revoked' ORDER BY created_at DESC`
     );
     return res.rows;
   }

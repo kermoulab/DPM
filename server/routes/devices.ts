@@ -180,8 +180,12 @@ devicesRouter.delete('/:id', requireAuth, requireRole('manager'), async (req: Au
       return;
     }
 
-    // Revoke device access immediately
-    await devicesRepo.revoke(id);
+    // Revoke device access immediately (or permanently delete pending pairing tokens)
+    if (existing.status === 'pending') {
+      await devicesRepo.delete(id);
+    } else {
+      await devicesRepo.revoke(id);
+    }
     await auditRepo.log(req.user || null, 'REVOKE_DEVICE', 'device', id, { device_name: existing.device_name });
 
     res.json({
