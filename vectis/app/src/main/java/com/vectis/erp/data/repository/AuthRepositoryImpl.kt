@@ -35,6 +35,13 @@ class AuthRepositoryImpl(
                     body.user.preferredCurrency?.let { curr ->
                         if (curr.isNotBlank()) secureStorage.setPreferredCurrency(curr.uppercase())
                     }
+                    val existingToken = secureStorage.getPushToken()
+                    if (!existingToken.isNullOrBlank()) {
+                        try {
+                            val notifApi = networkClient.createService<com.vectis.erp.data.api.NotificationApiService>()
+                            notifApi.registerToken(com.vectis.erp.data.model.RegisterPushTokenRequest(existingToken, secureStorage.getDeviceId()))
+                        } catch (_: Exception) {}
+                    }
                     ApiResult.Success(body.user)
                 } else {
                     ApiResult.Error(response.code(), body?.error ?: "Invalid credentials.")

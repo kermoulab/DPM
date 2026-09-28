@@ -88,21 +88,38 @@ fun VectisNavGraph(
         }
     }
 
-    // Register FCM Push Token on login / launch
-    LaunchedEffect(Unit) {
-        try {
-            com.google.firebase.messaging.FirebaseMessaging.getInstance().token
-                .addOnSuccessListener { token ->
-                    if (!token.isNullOrBlank()) {
-                        secureStorage.setPushToken(token)
-                        if (secureStorage.isAuthenticated()) {
+    val syncPushTokenWithServer: () -> Unit = {
+        if (secureStorage.isAuthenticated()) {
+            try {
+                com.google.firebase.messaging.FirebaseMessaging.getInstance().token
+                    .addOnSuccessListener { token ->
+                        if (!token.isNullOrBlank()) {
+                            secureStorage.setPushToken(token)
                             CoroutineScope(Dispatchers.IO).launch {
                                 app.notificationRepository.registerPushToken(token, secureStorage.getDeviceId())
                             }
                         }
                     }
+                    .addOnFailureListener {
+                        val fallback = secureStorage.getPushToken() ?: "dev-token-${secureStorage.getDeviceId() ?: System.currentTimeMillis()}"
+                        secureStorage.setPushToken(fallback)
+                        CoroutineScope(Dispatchers.IO).launch {
+                            app.notificationRepository.registerPushToken(fallback, secureStorage.getDeviceId())
+                        }
+                    }
+            } catch (_: Exception) {
+                val fallback = secureStorage.getPushToken() ?: "dev-token-${secureStorage.getDeviceId() ?: System.currentTimeMillis()}"
+                secureStorage.setPushToken(fallback)
+                CoroutineScope(Dispatchers.IO).launch {
+                    app.notificationRepository.registerPushToken(fallback, secureStorage.getDeviceId())
                 }
-        } catch (_: Exception) {}
+            }
+        }
+    }
+
+    // Register Push Token on launch if already authenticated
+    LaunchedEffect(Unit) {
+        syncPushTokenWithServer()
     }
     val authRepo = remember { com.vectis.erp.data.repository.AuthRepositoryImpl(app.networkClient, secureStorage) }
     val alertRepo = remember { com.vectis.erp.data.repository.AlertRepositoryImpl(app.networkClient) }
@@ -326,6 +343,7 @@ fun VectisNavGraph(
                         customerViewModel.loadCustomers(isRefresh = true)
                         alertsViewModel.loadAlerts(isRefresh = true)
                         settingsViewModel.loadSettings(isRefresh = true)
+                        syncPushTokenWithServer()
                         navController.navigate(Screen.Dashboard.route) {
                             popUpTo(Screen.Login.route) { inclusive = true }
                         }

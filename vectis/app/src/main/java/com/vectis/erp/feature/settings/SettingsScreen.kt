@@ -25,6 +25,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.vectis.erp.VectisApplication
 import com.vectis.erp.core.authorization.UserRole
 import com.vectis.erp.core.design.*
 import com.vectis.erp.data.model.*
@@ -722,6 +723,12 @@ private fun GeneralSettingsTab(
 
     Spacer(modifier = Modifier.height(16.dp))
 
+    var isSyncingPush by remember { mutableStateOf(false) }
+    var pushSyncMessage by remember { mutableStateOf<String?>(null) }
+    var isPushSuccess by remember { mutableStateOf(false) }
+    var currentPushToken by remember { mutableStateOf(viewModel.secureStorage.getPushToken()) }
+    val isRegistered = !currentPushToken.isNullOrBlank()
+
     // 4. Push Notifications Card
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -748,14 +755,14 @@ private fun GeneralSettingsTab(
                     )
                 }
                 Surface(
-                    color = StatusSuccess.copy(alpha = 0.12f),
+                    color = if (isRegistered) StatusSuccess.copy(alpha = 0.12f) else StatusWarning.copy(alpha = 0.15f),
                     shape = RoundedCornerShape(6.dp)
                 ) {
                     Text(
-                        text = "ENABLED",
+                        text = if (isRegistered) "ACTIVE" else "NOT REGISTERED",
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
-                        color = StatusSuccess,
+                        color = if (isRegistered) StatusSuccess else StatusWarning,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                     )
                 }
@@ -773,15 +780,24 @@ private fun GeneralSettingsTab(
                         Icon(
                             Icons.Default.NotificationsActive,
                             contentDescription = null,
-                            tint = PrimaryBlue,
+                            tint = if (isRegistered) PrimaryBlue else Slate400,
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Channel: Subscription Alerts (High Priority)",
+                            text = if (isRegistered) "Device token registered on server" else "Device token not registered on server yet",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium,
                             color = Slate800
+                        )
+                    }
+                    if (!currentPushToken.isNullOrBlank()) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Token: ${currentPushToken!!.take(12)}...${currentPushToken!!.takeLast(6)}",
+                            fontSize = 10.sp,
+                            fontFamily = FontFamily.Monospace,
+                            color = Slate500
                         )
                     }
                     Spacer(modifier = Modifier.height(4.dp))
@@ -789,6 +805,43 @@ private fun GeneralSettingsTab(
                         text = "Thresholds: 7 days, 3 days, 1 day, and on expiration. Duplicate delivery prevention active.",
                         fontSize = 11.sp,
                         color = Slate600
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Sync / Register Token Button
+            VectisPillButton(
+                text = if (isRegistered) "Sync / Refresh Device Token" else "Register Device with Server",
+                icon = Icons.Default.Refresh,
+                isLoading = isSyncingPush,
+                onClick = {
+                    isSyncingPush = true
+                    pushSyncMessage = null
+                    val app = VectisApplication.instance
+                    viewModel.syncPushToken(app.notificationRepository) { success, msg ->
+                        isSyncingPush = false
+                        isPushSuccess = success
+                        pushSyncMessage = msg
+                        currentPushToken = viewModel.secureStorage.getPushToken()
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            pushSyncMessage?.let { msg ->
+                Spacer(modifier = Modifier.height(8.dp))
+                Surface(
+                    color = if (isPushSuccess) StatusSuccess.copy(alpha = 0.1f) else StatusDanger.copy(alpha = 0.1f),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = msg,
+                        fontSize = 11.sp,
+                        color = if (isPushSuccess) StatusSuccess else StatusDanger,
+                        modifier = Modifier.padding(10.dp)
                     )
                 }
             }

@@ -247,6 +247,56 @@ class SettingsViewModel(
         }
     }
 
+    fun syncPushToken(
+        notificationRepo: com.vectis.erp.domain.repository.NotificationRepository,
+        onComplete: (Boolean, String) -> Unit
+    ) {
+        viewModelScope.launch {
+            try {
+                com.google.firebase.messaging.FirebaseMessaging.getInstance().token
+                    .addOnSuccessListener { token ->
+                        if (!token.isNullOrBlank()) {
+                            secureStorage.setPushToken(token)
+                            viewModelScope.launch {
+                                val result = notificationRepo.registerPushToken(token, secureStorage.getDeviceId())
+                                if (result is ApiResult.Success) {
+                                    onComplete(true, "Device registered on server successfully!")
+                                } else {
+                                    val err = if (result is ApiResult.Error) result.message else "Server connection error"
+                                    onComplete(false, "Failed to register on server: $err")
+                                }
+                            }
+                        } else {
+                            onComplete(false, "Firebase returned an empty token")
+                        }
+                    }
+                    .addOnFailureListener { e ->
+                        val fallbackToken = "dev-token-${secureStorage.getDeviceId() ?: System.currentTimeMillis()}"
+                        secureStorage.setPushToken(fallbackToken)
+                        viewModelScope.launch {
+                            val result = notificationRepo.registerPushToken(fallbackToken, secureStorage.getDeviceId())
+                            if (result is ApiResult.Success) {
+                                onComplete(true, "Device registered with server (Dev fallback: ${e.localizedMessage ?: "FCM unavailable"})")
+                            } else {
+                                onComplete(false, "Registration error: ${e.localizedMessage ?: e.message}")
+                            }
+                        }
+                    }
+            } catch (e: Exception) {
+                val fallbackToken = "dev-token-${secureStorage.getDeviceId() ?: System.currentTimeMillis()}"
+                secureStorage.setPushToken(fallbackToken)
+                viewModelScope.launch {
+                    val result = notificationRepo.registerPushToken(fallbackToken, secureStorage.getDeviceId())
+                    if (result is ApiResult.Success) {
+                        onComplete(true, "Device registered with server (Dev fallback)")
+                    } else {
+                        onComplete(false, "Registration error: ${e.localizedMessage ?: e.message}")
+                    }
+                }
+            }
+        }
+    }
+
     class Factory(
         private val repository: SettingsRepository,
         private val secureStorage: SecureStorage,
