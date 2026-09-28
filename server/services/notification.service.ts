@@ -56,13 +56,61 @@ export class NotificationService {
   }
 
   /**
+   * Strictly sanitizes and whitelists incoming service account data:
+   * 1. Rejects non-objects and prototype pollution keys.
+   * 2. Validates format of project_id, client_email, and private_key.
+   * 3. Discards ALL unexpected or extraneous fields.
+   */
+  private sanitizeServiceAccount(input: any): {
+    type: string;
+    project_id: string;
+    private_key_id?: string;
+    private_key: string;
+    client_email: string;
+    client_id?: string;
+  } {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) {
+      throw new Error('Invalid JSON: payload must be a JSON object.');
+    }
+
+    const {
+      type = 'service_account',
+      project_id,
+      private_key_id,
+      private_key,
+      client_email,
+      client_id
+    } = input;
+
+    if (typeof project_id !== 'string' || !/^[a-z0-9-]+$/.test(project_id.trim())) {
+      throw new Error('Invalid project_id: must be a valid Google Cloud project identifier.');
+    }
+
+    if (typeof client_email !== 'string' || !client_email.includes('@') || !client_email.includes('.')) {
+      throw new Error('Invalid client_email: must be a valid Google Service Account email.');
+    }
+
+    if (typeof private_key !== 'string' || !private_key.includes('BEGIN PRIVATE KEY')) {
+      throw new Error('Invalid private_key: must be a valid PEM formatted RSA private key.');
+    }
+
+    // Whitelist only legitimate properties — strictly strips all arbitrary fields
+    return {
+      type: String(type),
+      project_id: project_id.trim(),
+      ...(private_key_id ? { private_key_id: String(private_key_id).trim() } : {}),
+      private_key: private_key.trim(),
+      client_email: client_email.trim(),
+      ...(client_id ? { client_id: String(client_id).trim() } : {})
+    };
+  }
+
+  /**
    * Internal helper to parse, validate, and instantiate Firebase Admin app.
    */
   async initFirebaseWithJson(jsonStrOrObj: string | object, source: 'database' | 'env' = 'database'): Promise<{ success: boolean; projectId: string; clientEmail: string }> {
-    const parsed = typeof jsonStrOrObj === 'string' ? JSON.parse(jsonStrOrObj) : jsonStrOrObj;
-    if (!parsed || !parsed.project_id || !parsed.client_email || !parsed.private_key) {
-      throw new Error('Invalid Firebase service account: missing project_id, client_email, or private_key.');
-    }
+    const raw = typeof jsonStrOrObj === 'string' ? JSON.parse(jsonStrOrObj) : jsonStrOrObj;
+    const sanitized = this.sanitizeServiceAccount(raw);
 
     const { initializeApp, cert, getApps, deleteApp } = await import('firebase-admin/app');
     const { getMessaging } = await import('firebase-admin/messaging');
@@ -74,19 +122,19 @@ export class NotificationService {
     }
 
     const app = initializeApp({
-      credential: cert(parsed)
+      credential: cert(sanitized as any)
     });
     this.fcmMessaging = getMessaging(app);
     this.fcmInitialized = true;
-    this.currentProjectId = parsed.project_id;
-    this.currentClientEmail = parsed.client_email;
+    this.currentProjectId = sanitized.project_id;
+    this.currentClientEmail = sanitized.client_email;
     this.credentialSource = source;
-    console.log(`[NotificationService] Firebase Cloud Messaging initialized (${source}) for project: ${parsed.project_id}`);
+    console.log(`[NotificationService] Firebase Cloud Messaging initialized (${source}) for project: ${sanitized.project_id}`);
 
     return {
       success: true,
-      projectId: parsed.project_id,
-      clientEmail: parsed.client_email
+      projectId: sanitized.project_id,
+      clientEmail: sanitized.client_email
     };
   }
 
@@ -94,13 +142,11 @@ export class NotificationService {
    * Saves service account JSON to PostgreSQL system_settings and dynamically activates it live.
    */
   async configureFirebase(serviceAccountJson: string): Promise<{ success: boolean; projectId: string; clientEmail: string }> {
-    const parsed = typeof serviceAccountJson === 'string' ? JSON.parse(serviceAccountJson) : serviceAccountJson;
-    if (!parsed || !parsed.project_id || !parsed.client_email || !parsed.private_key) {
-      throw new Error('Invalid Firebase credentials. Must be a valid Google Service Account JSON with project_id, client_email, and private_key.');
-    }
+    const raw = typeof serviceAccountJson === 'string' ? JSON.parse(serviceAccountJson) : serviceAccountJson;
+    const sanitized = this.sanitizeServiceAccount(raw);
 
-    const result = await this.initFirebaseWithJson(parsed, 'database');
-    await systemSettingsRepo.set('firebase_service_account_json', JSON.stringify(parsed));
+    const result = await this.initFirebaseWithJson(sanitized, 'database');
+    await systemSettingsRepo.set('firebase_service_account_json', JSON.stringify(sanitized));
     return result;
   }
 
