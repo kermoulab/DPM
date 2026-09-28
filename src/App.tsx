@@ -62,7 +62,7 @@ export default function App() {
   const [alertCount, setAlertCount] = React.useState(0);
   const [currencies, setCurrencies] = React.useState<Currency[]>([]);
   const [selectedCurrency, setSelectedCurrency] = React.useState<string>('USD');
-  const [settingsSubTab, setSettingsSubTab] = React.useState<'profile' | 'general' | 'team' | 'audit'>('profile');
+  const [settingsSubTab, setSettingsSubTab] = React.useState<'profile' | 'general' | 'team' | 'notifications' | 'audit'>('profile');
 
   const checkInitialState = React.useCallback(async (signal?: { cancelled: boolean }) => {
     setCheckingInstall(true);

@@ -2,6 +2,7 @@ import { query } from '../db/connection/pool.js';
 import { notificationsRepo, type NotificationRow } from '../db/repositories/notifications.repository.js';
 import { usersRepo } from '../db/repositories/users.repository.js';
 import { ordersRepo } from '../db/repositories/orders.repository.js';
+import { systemSettingsRepo } from '../db/repositories/system-settings.repository.js';
 
 export interface PushPayload {
   type: string;
@@ -15,42 +16,196 @@ export interface PushPayload {
 export class NotificationService {
   private fcmInitialized = false;
   private fcmMessaging: any = null;
+  private currentProjectId?: string;
+  private currentClientEmail?: string;
+  private credentialSource: 'database' | 'env' | 'none' = 'none';
 
   constructor() {
-    this.tryInitFirebase();
+    this.tryInitFirebase().catch(() => {});
   }
 
   /**
-   * Initializes Firebase Admin SDK if credentials are provided in environment.
-   * Safe & graceful: operates cleanly in offline/development without throwing.
+   * Initializes Firebase Admin SDK from database system_settings or environment variable.
+   * Safe & graceful: operates cleanly without throwing if credentials are not configured yet.
    */
-  private tryInitFirebase() {
+  async tryInitFirebase(): Promise<void> {
     if (this.fcmInitialized) return;
 
     try {
-      const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-      if (serviceAccountJson) {
-        import('firebase-admin/app')
-          .then(async (appModule) => {
-            const { initializeApp, cert, getApps } = appModule;
-            const messagingModule = await import('firebase-admin/messaging');
-            if (!getApps().length) {
-              const parsed = JSON.parse(serviceAccountJson);
-              const app = initializeApp({
-                credential: cert(parsed)
-              });
-              this.fcmMessaging = messagingModule.getMessaging(app);
-              this.fcmInitialized = true;
-              console.log('[NotificationService] Firebase Cloud Messaging initialized successfully.');
-            }
-          })
-          .catch((err) => {
-            console.log('[NotificationService] firebase-admin package not loaded, FCM push will simulate dispatch.');
-          });
+      // 1. Check system_settings in database first
+      let serviceAccountJson: string | null = null;
+      try {
+        serviceAccountJson = await systemSettingsRepo.get('firebase_service_account_json');
+      } catch {
+        // Table may not exist yet during initial installation
+      }
+
+      let source: 'database' | 'env' = 'database';
+      // 2. Fall back to process.env if not in DB
+      if (!serviceAccountJson) {
+        serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_KEY || null;
+        source = 'env';
+      }
+
+      if (serviceAccountJson && serviceAccountJson.trim()) {
+        await this.initFirebaseWithJson(serviceAccountJson, source);
       }
     } catch (err) {
       console.warn('[NotificationService] Could not initialize Firebase Admin:', err);
     }
+  }
+
+  /**
+   * Internal helper to parse, validate, and instantiate Firebase Admin app.
+   */
+  async initFirebaseWithJson(jsonStrOrObj: string | object, source: 'database' | 'env' = 'database'): Promise<{ success: boolean; projectId: string; clientEmail: string }> {
+    const parsed = typeof jsonStrOrObj === 'string' ? JSON.parse(jsonStrOrObj) : jsonStrOrObj;
+    if (!parsed || !parsed.project_id || !parsed.client_email || !parsed.private_key) {
+      throw new Error('Invalid Firebase service account: missing project_id, client_email, or private_key.');
+    }
+
+    const { initializeApp, cert, getApps, deleteApp } = await import('firebase-admin/app');
+    const { getMessaging } = await import('firebase-admin/messaging');
+
+    // Clean up existing apps if already instantiated so new credentials replace in memory
+    const existingApps = getApps();
+    for (const app of existingApps) {
+      await deleteApp(app).catch(() => {});
+    }
+
+    const app = initializeApp({
+      credential: cert(parsed)
+    });
+    this.fcmMessaging = getMessaging(app);
+    this.fcmInitialized = true;
+    this.currentProjectId = parsed.project_id;
+    this.currentClientEmail = parsed.client_email;
+    this.credentialSource = source;
+    console.log(`[NotificationService] Firebase Cloud Messaging initialized (${source}) for project: ${parsed.project_id}`);
+
+    return {
+      success: true,
+      projectId: parsed.project_id,
+      clientEmail: parsed.client_email
+    };
+  }
+
+  /**
+   * Saves service account JSON to PostgreSQL system_settings and dynamically activates it live.
+   */
+  async configureFirebase(serviceAccountJson: string): Promise<{ success: boolean; projectId: string; clientEmail: string }> {
+    const parsed = typeof serviceAccountJson === 'string' ? JSON.parse(serviceAccountJson) : serviceAccountJson;
+    if (!parsed || !parsed.project_id || !parsed.client_email || !parsed.private_key) {
+      throw new Error('Invalid Firebase credentials. Must be a valid Google Service Account JSON with project_id, client_email, and private_key.');
+    }
+
+    const result = await this.initFirebaseWithJson(parsed, 'database');
+    await systemSettingsRepo.set('firebase_service_account_json', JSON.stringify(parsed));
+    return result;
+  }
+
+  /**
+   * Clears saved Firebase credentials from DB and tears down live Firebase Admin instance.
+   */
+  async removeFirebaseConfig(): Promise<void> {
+    try {
+      const { getApps, deleteApp } = await import('firebase-admin/app');
+      for (const app of getApps()) {
+        await deleteApp(app).catch(() => {});
+      }
+    } catch { /* ignore */ }
+
+    this.fcmMessaging = null;
+    this.fcmInitialized = false;
+    this.currentProjectId = undefined;
+    this.currentClientEmail = undefined;
+    this.credentialSource = 'none';
+
+    await systemSettingsRepo.set('firebase_service_account_json', '');
+    console.log('[NotificationService] Firebase configuration removed.');
+  }
+
+  /**
+   * Returns safe status of Firebase configuration without exposing secrets.
+   */
+  async getFirebaseStatus(): Promise<{
+    configured: boolean;
+    projectId?: string;
+    clientEmail?: string;
+    source: 'database' | 'env' | 'none';
+    activeDevicesCount: number;
+  }> {
+    if (!this.fcmInitialized) {
+      await this.tryInitFirebase().catch(() => {});
+    }
+
+    let activeDevicesCount = 0;
+    try {
+      const countRes = await query<{ count: string }>('SELECT COUNT(*)::text as count FROM push_tokens WHERE is_active = TRUE');
+      activeDevicesCount = parseInt(countRes.rows[0]?.count || '0', 10);
+    } catch {
+      activeDevicesCount = 0;
+    }
+
+    return {
+      configured: this.fcmInitialized,
+      projectId: this.currentProjectId,
+      clientEmail: this.currentClientEmail,
+      source: this.credentialSource,
+      activeDevicesCount
+    };
+  }
+
+  /**
+   * Tests connection to Firebase.
+   */
+  async testConnection(): Promise<{ success: boolean; message: string; projectId?: string }> {
+    if (!this.fcmInitialized) {
+      await this.tryInitFirebase().catch(() => {});
+    }
+
+    if (!this.fcmInitialized || !this.fcmMessaging) {
+      return {
+        success: false,
+        message: 'Firebase is not configured yet. Please upload or paste a service account JSON first.'
+      };
+    }
+
+    return {
+      success: true,
+      message: `Firebase is successfully connected to project: ${this.currentProjectId}`,
+      projectId: this.currentProjectId
+    };
+  }
+
+  /**
+   * Sends an immediate test notification to registered Android devices for a specific user.
+   */
+  async sendTestPush(userId: string): Promise<{ success: boolean; message: string; count: number }> {
+    const tokens = await notificationsRepo.getActiveTokensForUser(userId);
+    if (tokens.length === 0) {
+      return {
+        success: false,
+        message: 'No active Android devices registered for your account. Please log in to the Vectis Android app on your phone first.',
+        count: 0
+      };
+    }
+
+    const payload: PushPayload = {
+      type: 'SECURITY_ALERT',
+      title: 'Vectis ERP: Test Notification',
+      message: 'Push notifications are successfully configured and active on your Android device! 🎉',
+      entityType: 'test',
+      entityId: 'test_notification',
+      metadata: { timestamp: new Date().toISOString() }
+    };
+
+    const res = await this.sendPushToTokens(tokens, payload);
+    return {
+      success: true,
+      message: `Test notification dispatched to ${res.successCount} active device(s).`,
+      count: res.successCount
+    };
   }
 
   /**

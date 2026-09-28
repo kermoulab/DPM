@@ -6,7 +6,8 @@ import type {
   User,
   PairedDevice,
   AuditLog,
-  PaginatedAuditLogsResponse
+  PaginatedAuditLogsResponse,
+  NotificationConfigStatus
 } from '../types';
 
 export const systemApi = {
@@ -57,11 +58,25 @@ export const systemApi = {
     baseCurrency?: string;
     currencySymbol?: string;
     supportPhone?: string;
+    firebaseServiceAccount?: string;
   }) {
     return request<{ success: boolean; message?: string; alreadyInstalled?: boolean; error?: string }>(
       '/api/install/create-admin',
       { method: 'POST', body: JSON.stringify(payload) }
     );
+  },
+
+  configureBusiness(payload: {
+    companyName?: string;
+    baseCurrency?: string;
+    currencySymbol?: string;
+    supportPhone?: string;
+    firebaseServiceAccount?: string;
+  }) {
+    return request<{ success: boolean; message?: string }>('/api/install/configure-business', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
   },
 
   finalizeInstall() {
@@ -202,6 +217,32 @@ export const systemApi = {
     return request<{ success: boolean }>('/api/settings', {
       method: 'PUT',
       body: JSON.stringify(settings)
+    });
+  },
+
+  // Push Notifications Configuration (No-code / Point-and-click)
+  getNotificationConfig() {
+    return request<{ success: boolean; status: NotificationConfigStatus }>('/api/notifications/config');
+  },
+  saveNotificationConfig(serviceAccountJson: string) {
+    return request<{ success: boolean; message: string; projectId: string; clientEmail: string }>('/api/notifications/config', {
+      method: 'POST',
+      body: JSON.stringify({ serviceAccountJson })
+    });
+  },
+  deleteNotificationConfig() {
+    return request<{ success: boolean; message: string }>('/api/notifications/config', {
+      method: 'DELETE'
+    });
+  },
+  testNotificationConnection() {
+    return request<{ success: boolean; message: string; projectId?: string }>('/api/notifications/test-connection', {
+      method: 'POST'
+    });
+  },
+  sendTestNotificationPush() {
+    return request<{ success: boolean; message: string; count: number }>('/api/notifications/test-push', {
+      method: 'POST'
     });
   },
 

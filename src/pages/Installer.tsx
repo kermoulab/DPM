@@ -19,7 +19,10 @@ import {
   RefreshCw,
   Building2,
   Copy,
-  Check
+  Check,
+  Bell,
+  Upload,
+  Trash2
 } from 'lucide-react';
 import { api } from '../api';
 import { sanitizeWhatsAppPhone, User as UserType } from '../types';
@@ -155,6 +158,34 @@ export const Installer: React.FC<InstallerProps> = ({ onInstallComplete, onInsta
   const [baseCurrency, setBaseCurrency]   = React.useState('USD');
   const [supportPhone, setSupportPhone]   = React.useState('');
 
+  // Step 5: push notifications (optional)
+  const [firebaseJson, setFirebaseJson]               = React.useState('');
+  const [firebaseProjectName, setFirebaseProjectName] = React.useState('');
+  const [firebaseError, setFirebaseError]             = React.useState<string | null>(null);
+  const installerFileRef = React.useRef<HTMLInputElement | null>(null);
+
+  function handleFirebaseFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setFirebaseError(null);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const text = event.target?.result as string;
+        const parsed = JSON.parse(text);
+        if (!parsed.project_id || !parsed.client_email || !parsed.private_key) {
+          throw new Error('Missing project_id, client_email, or private_key in JSON file.');
+        }
+        setFirebaseJson(text);
+        setFirebaseProjectName(parsed.project_id);
+      } catch (err: any) {
+        setFirebaseError(err.message || 'Invalid Firebase service account JSON.');
+      }
+    };
+    reader.onerror = () => setFirebaseError('Could not read file.');
+    reader.readAsText(file);
+  }
+
   // Derived helpers
   const passwordStrength = getPasswordStrength(adminPassword);
   const effectiveDbUrl = React.useMemo(() => {
@@ -215,7 +246,21 @@ export const Installer: React.FC<InstallerProps> = ({ onInstallComplete, onInsta
       return;
     }
     if (step === 5) {
-      goTo(6);
+      setBusy(true);
+      clearError();
+      try {
+        await api.configureBusiness({
+          companyName: companyName.trim() || undefined,
+          baseCurrency,
+          supportPhone: supportPhone.trim() || undefined,
+          firebaseServiceAccount: firebaseJson.trim() || undefined
+        });
+        goTo(6);
+      } catch (err: any) {
+        setError(err.message || 'Failed to save business settings.');
+      } finally {
+        setBusy(false);
+      }
       return;
     }
     if (step === 6) {
@@ -814,6 +859,59 @@ export const Installer: React.FC<InstallerProps> = ({ onInstallComplete, onInsta
                     type="tel" value={supportPhone} onChange={(e) => setSupportPhone(sanitizeWhatsAppPhone(e.target.value))}
                     placeholder="+1 555 000 0000" />
                 </div>
+
+                {/* Push Notifications (Optional) Card */}
+                <div className="col-span-1 sm:col-span-2 p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Bell size={15} className="text-blue-600" />
+                      <span className="text-xs font-bold text-slate-800">Android Push Notifications (Optional)</span>
+                    </div>
+                    <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-600">
+                      Optional
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Upload your Firebase Service Account JSON now, or skip this step and configure it anytime later in Settings.
+                  </p>
+
+                  <input
+                    type="file"
+                    ref={installerFileRef}
+                    onChange={handleFirebaseFile}
+                    accept=".json,application/json"
+                    className="hidden"
+                  />
+
+                  {firebaseProjectName ? (
+                    <div className="flex items-center justify-between p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs">
+                      <div className="flex items-center gap-2 font-mono">
+                        <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />
+                        <span>Project: <strong>{firebaseProjectName}</strong></span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => { setFirebaseJson(''); setFirebaseProjectName(''); }}
+                        className="text-red-500 hover:text-red-700 p-1 rounded-lg hover:bg-red-50 transition"
+                        title="Remove uploaded file"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => installerFileRef.current?.click()}
+                      className="border border-dashed border-slate-300 hover:border-blue-500 hover:bg-blue-50/40 rounded-xl p-3 text-center cursor-pointer transition flex items-center justify-center gap-2"
+                    >
+                      <Upload size={14} className="text-blue-600" />
+                      <span className="text-xs text-slate-700 font-medium">Click to select Service Account JSON</span>
+                    </div>
+                  )}
+
+                  {firebaseError && (
+                    <p className="text-[11px] text-red-500 font-semibold">{firebaseError}</p>
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -837,6 +935,7 @@ export const Installer: React.FC<InstallerProps> = ({ onInstallComplete, onInsta
                 <SummaryRow label="Administrator" value={`${adminUsername} (${adminEmail})`} />
                 {companyName && <SummaryRow label="Company" value={companyName} />}
                 <SummaryRow label="Currency" value={baseCurrency} />
+                <SummaryRow label="Push Alerts" value={firebaseProjectName ? `Configured (${firebaseProjectName}) ✓` : 'Skipped (can set in Settings)'} />
                 <SummaryRow label="Database" value={maskedUrl || (status?.dbConfigured ? 'Pre-configured ✓' : 'Configured ✓')} />
                 <SummaryRow label="Schema" value={`${migrationsApplied.length || 'All'} migration(s) applied ✓`} />
               </div>

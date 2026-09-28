@@ -20,14 +20,24 @@ import {
   Coins,
   ChevronDown,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Bell,
+  Upload,
+  Smartphone,
+  Radio,
+  FileCode,
+  RefreshCw,
+  Send,
+  ExternalLink,
+  HelpCircle,
+  Loader2
 } from 'lucide-react';
 import { api } from '../api';
 import { useCurrency } from '../context/CurrencyContext';
-import { User, AuditLog, UserRole, sanitizeWhatsAppPhone } from '../types';
+import { User, AuditLog, UserRole, sanitizeWhatsAppPhone, NotificationConfigStatus } from '../types';
 
 interface SettingsViewProps {
-  initialTab?: 'profile' | 'general' | 'team' | 'audit';
+  initialTab?: 'profile' | 'general' | 'team' | 'notifications' | 'audit';
   currentUser?: User | null;
   onUserUpdated?: (user: User) => void;
 }
@@ -37,7 +47,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   currentUser,
   onUserUpdated
 }) => {
-  const [activeTab, setActiveTab] = React.useState<'profile' | 'general' | 'team' | 'audit'>(initialTab);
+  const [activeTab, setActiveTab] = React.useState<'profile' | 'general' | 'team' | 'notifications' | 'audit'>(initialTab);
   const [sessionUser, setSessionUser] = React.useState<User | null>(currentUser || null);
 
   React.useEffect(() => {
@@ -126,6 +136,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [auditTotalPages, setAuditTotalPages] = React.useState(1);
   const [auditLoading, setAuditLoading] = React.useState(false);
 
+  // Push Notifications state
+  const [notifConfig, setNotifConfig] = React.useState<NotificationConfigStatus | null>(null);
+  const [notifLoading, setNotifLoading] = React.useState(false);
+  const [notifJsonInput, setNotifJsonInput] = React.useState('');
+  const [showNotifPaste, setShowNotifPaste] = React.useState(false);
+  const [notifSaveLoading, setNotifSaveLoading] = React.useState(false);
+  const [notifError, setNotifError] = React.useState<string | null>(null);
+  const [notifSuccess, setNotifSuccess] = React.useState<string | null>(null);
+  const [testConnLoading, setTestConnLoading] = React.useState(false);
+  const [testConnResult, setTestConnResult] = React.useState<{ success: boolean; message: string; projectId?: string } | null>(null);
+  const [testPushLoading, setTestPushLoading] = React.useState(false);
+  const [testPushResult, setTestPushResult] = React.useState<{ success: boolean; message: string; count?: number } | null>(null);
+  const notifFileInputRef = React.useRef<HTMLInputElement | null>(null);
+
   // Keyboard shortcut for modals
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -159,6 +183,110 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     }
   };
 
+  const loadNotifConfig = async () => {
+    setNotifLoading(true);
+    setNotifError(null);
+    try {
+      const res = await api.getNotificationConfig();
+      if (res && res.status) {
+        setNotifConfig(res.status);
+      }
+    } catch (err: any) {
+      setNotifError(err.message || 'Failed to load push notification configuration.');
+    } finally {
+      setNotifLoading(false);
+    }
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setNotifError(null);
+    setNotifSuccess(null);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const content = event.target?.result as string;
+        const parsed = JSON.parse(content);
+        if (!parsed.project_id || !parsed.client_email || !parsed.private_key) {
+          throw new Error('Selected JSON is missing required fields (project_id, client_email, private_key).');
+        }
+        setNotifJsonInput(content);
+        setNotifSuccess(`Loaded file for Firebase project: ${parsed.project_id}`);
+      } catch (err: any) {
+        setNotifError(err.message || 'Invalid JSON file.');
+      }
+    };
+    reader.onerror = () => setNotifError('Failed to read file from disk.');
+    reader.readAsText(file);
+  };
+
+  const handleSaveNotifConfig = async () => {
+    if (!notifJsonInput.trim()) {
+      setNotifError('Please select a JSON file or paste the Firebase credentials first.');
+      return;
+    }
+    setNotifSaveLoading(true);
+    setNotifError(null);
+    setNotifSuccess(null);
+    try {
+      const res = await api.saveNotificationConfig(notifJsonInput.trim());
+      setNotifSuccess(`Firebase successfully activated for project "${res.projectId}".`);
+      setNotifJsonInput('');
+      setShowNotifPaste(false);
+      await loadNotifConfig();
+      setToastMessage('Push notifications configured successfully!');
+    } catch (err: any) {
+      setNotifError(err.message || 'Failed to save Firebase configuration.');
+    } finally {
+      setNotifSaveLoading(false);
+    }
+  };
+
+  const handleDisconnectNotif = async () => {
+    if (!window.confirm('Are you sure you want to disconnect Firebase? Android push notifications will be disabled.')) return;
+    setNotifSaveLoading(true);
+    try {
+      await api.deleteNotificationConfig();
+      setNotifSuccess('Firebase disconnected successfully.');
+      await loadNotifConfig();
+      setToastMessage('Firebase configuration removed.');
+    } catch (err: any) {
+      setNotifError(err.message || 'Failed to disconnect Firebase.');
+    } finally {
+      setNotifSaveLoading(false);
+    }
+  };
+
+  const handleTestConnection = async () => {
+    setTestConnLoading(true);
+    setTestConnResult(null);
+    try {
+      const res = await api.testNotificationConnection();
+      setTestConnResult(res);
+    } catch (err: any) {
+      setTestConnResult({ success: false, message: err.message || 'Connection test failed.' });
+    } finally {
+      setTestConnLoading(false);
+    }
+  };
+
+  const handleSendTestPush = async () => {
+    setTestPushLoading(true);
+    setTestPushResult(null);
+    try {
+      const res = await api.sendTestNotificationPush();
+      setTestPushResult(res);
+      if (res.success) {
+        setToastMessage('Test notification sent to your Android device!');
+      }
+    } catch (err: any) {
+      setTestPushResult({ success: false, message: err.message || 'Failed to dispatch test notification.' });
+    } finally {
+      setTestPushLoading(false);
+    }
+  };
+
   React.useEffect(() => {
     loadTabContent(true);
   }, [activeTab]);
@@ -177,6 +305,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       } else if (activeTab === 'team') {
         const res = await api.getUsers();
         setUsers(res.users);
+      } else if (activeTab === 'notifications') {
+        await loadNotifConfig();
       } else if (activeTab === 'audit') {
         await loadAuditLogs(1);
       }
@@ -445,6 +575,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           { id: 'profile', label: 'My Profile', icon: UserIcon },
           { id: 'general', label: 'General Configuration', icon: Settings },
           { id: 'team', label: 'Staff & Roles (RBAC)', icon: ShieldCheck },
+          { id: 'notifications', label: 'Push Notifications', icon: Bell },
           { id: 'audit', label: 'Security Audit Log', icon: FileText }
         ].map((tab) => {
           const Icon = tab.icon;
@@ -949,6 +1080,263 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 })}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Tab 4: Push Notifications */}
+      {activeTab === 'notifications' && (
+        <div className="space-y-6">
+          {/* Card 1: Overview & Live Status */}
+          <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-slate-100">
+              <div className="flex items-center gap-3.5">
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-xs ${
+                  notifConfig?.configured
+                    ? 'bg-gradient-to-br from-emerald-500 to-teal-600'
+                    : 'bg-gradient-to-br from-slate-400 to-slate-600'
+                }`}>
+                  <Bell size={22} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 tracking-tight">Android Push Notifications</h3>
+                  <p className="text-xs text-slate-500">Firebase Cloud Messaging (FCM) Integration</p>
+                </div>
+              </div>
+
+              <div>
+                {notifLoading ? (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">
+                    <Loader2 size={12} className="animate-spin" /> Checking status...
+                  </span>
+                ) : notifConfig?.configured ? (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    Connected & Active
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                    <span className="w-2 h-2 rounded-full bg-slate-400" />
+                    Not Configured
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Quick Metrics */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/70">
+                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Connected Project</p>
+                <p className="text-sm font-bold text-slate-800 mt-1 font-mono truncate">
+                  {notifConfig?.projectId || '—'}
+                </p>
+                <span className="text-[10px] text-slate-400">
+                  {notifConfig?.source === 'database' ? 'Stored in DB (Web Settings)' : notifConfig?.source === 'env' ? 'Configured via .env' : 'No credentials loaded'}
+                </span>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/70">
+                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Service Account</p>
+                <p className="text-sm font-bold text-slate-800 mt-1 font-mono truncate" title={notifConfig?.clientEmail}>
+                  {notifConfig?.clientEmail ? notifConfig.clientEmail.split('@')[0] + '@...' : '—'}
+                </p>
+                <span className="text-[10px] text-slate-400">Google Cloud IAM role</span>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/70">
+                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Registered Android Devices</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <Smartphone size={16} className="text-blue-600" />
+                  <p className="text-sm font-bold text-slate-800">
+                    {notifConfig?.activeDevicesCount ?? 0}
+                  </p>
+                </div>
+                <span className="text-[10px] text-slate-400">Active tokens ready to receive alerts</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 2: Configuration & Credentials */}
+          <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">Firebase Service Account Credentials</h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                No code or server commands needed. Simply upload the JSON key file you downloaded from your Firebase Console.
+              </p>
+            </div>
+
+            {/* Error / Alert */}
+            {notifError && (
+              <div className="p-4 rounded-2xl bg-red-50 border border-red-200 flex items-start gap-3 text-xs text-red-700 animate-in fade-in">
+                <AlertCircle size={16} className="shrink-0 mt-0.5 text-red-600" />
+                <div className="flex-1">
+                  <p className="font-bold">Configuration Error</p>
+                  <p className="mt-0.5">{notifError}</p>
+                </div>
+                <button type="button" onClick={() => setNotifError(null)} className="text-red-400 hover:text-red-700 p-0.5">
+                  <X size={14} />
+                </button>
+              </div>
+            )}
+
+            {/* Success */}
+            {notifSuccess && (
+              <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center gap-3 text-xs text-emerald-800 animate-in fade-in">
+                <CheckCircle2 size={16} className="shrink-0 text-emerald-600" />
+                <span className="font-semibold">{notifSuccess}</span>
+              </div>
+            )}
+
+            {/* Upload Area */}
+            <div className="space-y-4">
+              <input
+                type="file"
+                ref={notifFileInputRef}
+                onChange={handleFileUpload}
+                accept=".json,application/json"
+                className="hidden"
+              />
+
+              <div
+                onClick={() => notifFileInputRef.current?.click()}
+                className="border-2 border-dashed border-slate-300 hover:border-blue-500 hover:bg-blue-50/30 rounded-2xl p-6 text-center cursor-pointer transition flex flex-col items-center justify-center gap-2 group"
+              >
+                <div className="w-12 h-12 rounded-2xl bg-blue-50 group-hover:bg-blue-100 flex items-center justify-center text-blue-600 transition">
+                  <Upload size={20} />
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-slate-800 group-hover:text-blue-700 transition">
+                    Click to browse and upload Firebase Service Account JSON
+                  </p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Select your downloaded <code className="bg-slate-100 px-1 py-0.5 rounded font-mono">service-account.json</code> file
+                  </p>
+                </div>
+              </div>
+
+              {/* Paste Manual Accordion */}
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setShowNotifPaste(!showNotifPaste)}
+                  className="text-xs font-semibold text-blue-600 hover:text-blue-500 inline-flex items-center gap-1.5 transition"
+                >
+                  <ChevronDown size={14} className={`transform transition-transform ${showNotifPaste ? 'rotate-180' : ''}`} />
+                  <span>{showNotifPaste ? 'Hide manual paste area' : 'Or paste JSON content manually'}</span>
+                </button>
+
+                {showNotifPaste && (
+                  <div className="mt-3 space-y-2 animate-in fade-in duration-150">
+                    <textarea
+                      rows={6}
+                      value={notifJsonInput}
+                      onChange={(e) => setNotifJsonInput(e.target.value)}
+                      placeholder='{ "type": "service_account", "project_id": "...", "private_key": "..." }'
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 font-mono text-[11px] text-slate-800 focus:outline-hidden focus:bg-white focus:border-blue-500 transition"
+                    />
+                    <p className="text-[10px] text-slate-400">
+                      Paste the raw contents of your Google Service Account key file here.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-wrap items-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={handleSaveNotifConfig}
+                  disabled={notifSaveLoading || !notifJsonInput.trim()}
+                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow-xs disabled:opacity-50 transition"
+                >
+                  {notifSaveLoading ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                  <span>Save & Activate Firebase</span>
+                </button>
+
+                {notifConfig?.configured && (
+                  <button
+                    type="button"
+                    onClick={handleDisconnectNotif}
+                    disabled={notifSaveLoading}
+                    className="px-4 py-2.5 border border-red-200 text-red-600 hover:bg-red-50 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition disabled:opacity-50"
+                  >
+                    <Trash2 size={13} />
+                    <span>Disconnect Firebase</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Simple 3-step Instructions */}
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
+              <p className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <HelpCircle size={14} className="text-blue-600" />
+                <span>How to get your Firebase key in 3 simple steps:</span>
+              </p>
+              <ol className="list-decimal list-inside text-[11px] text-slate-600 space-y-1.5 leading-relaxed pl-1">
+                <li>
+                  Open <a href="https://console.firebase.google.com" target="_blank" rel="noreferrer" className="text-blue-600 font-semibold inline-flex items-center gap-0.5 hover:underline">Firebase Console <ExternalLink size={10} /></a> and select or create your project.
+                </li>
+                <li>
+                  Click the gear icon <strong>⚙️ Project settings</strong> &gt; open the <strong>Service accounts</strong> tab.
+                </li>
+                <li>
+                  Click <strong>Generate new private key</strong> &gt; choose <strong>Generate key</strong>. Upload or paste that downloaded file here.
+                </li>
+              </ol>
+            </div>
+          </div>
+
+          {/* Card 3: Live Diagnostics & Verification */}
+          <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">Live Diagnostics & Verification</h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Test your server-to-Firebase connection and send an actual test push to your phone to confirm everything works.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={handleTestConnection}
+                disabled={testConnLoading}
+                className="px-4 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs font-semibold flex items-center gap-1.5 transition disabled:opacity-50 shadow-2xs"
+              >
+                {testConnLoading ? <Loader2 size={13} className="animate-spin text-blue-600" /> : <RefreshCw size={13} />}
+                <span>Test Firebase Connection</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSendTestPush}
+                disabled={testPushLoading || !notifConfig?.configured}
+                className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold flex items-center gap-1.5 transition disabled:opacity-50 shadow-xs"
+              >
+                {testPushLoading ? <Loader2 size={13} className="animate-spin text-white" /> : <Send size={13} />}
+                <span>Send Test Push to My Device</span>
+              </button>
+            </div>
+
+            {/* Test Connection Result */}
+            {testConnResult && (
+              <div className={`p-3.5 rounded-xl border text-xs font-medium flex items-center gap-2.5 animate-in fade-in ${
+                testConnResult.success ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-red-50 border-red-200 text-red-700'
+              }`}>
+                {testConnResult.success ? <CheckCircle2 size={15} className="text-emerald-600 shrink-0" /> : <AlertCircle size={15} className="text-red-600 shrink-0" />}
+                <span>{testConnResult.message}</span>
+              </div>
+            )}
+
+            {/* Test Push Result */}
+            {testPushResult && (
+              <div className={`p-3.5 rounded-xl border text-xs font-medium flex items-center gap-2.5 animate-in fade-in ${
+                testPushResult.success ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-amber-50 border-amber-200 text-amber-800'
+              }`}>
+                {testPushResult.success ? <CheckCircle2 size={15} className="text-emerald-600 shrink-0" /> : <AlertCircle size={15} className="text-amber-600 shrink-0" />}
+                <span>{testPushResult.message}</span>
+              </div>
+            )}
           </div>
         </div>
       )}

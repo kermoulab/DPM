@@ -12,6 +12,13 @@ export interface User {
   created_at: string;
   last_login?: string;
 }
+export interface NotificationConfigStatus {
+  configured: boolean;
+  projectId?: string;
+  clientEmail?: string;
+  source: 'database' | 'env' | 'none';
+  activeDevicesCount: number;
+}
 
 export interface Category {
   id: string;

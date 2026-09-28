@@ -109,3 +109,80 @@ notificationsRouter.post('/check-expirations', requireAuth, requireRole('manager
     next(err);
   }
 });
+
+// GET /api/notifications/config (Admin only)
+notificationsRouter.get('/config', requireAuth, requireRole('admin'), async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const status = await notificationService.getFirebaseStatus();
+    res.json({
+      success: true,
+      status
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/notifications/config (Admin only - upload or paste serviceAccount JSON)
+notificationsRouter.post('/config', requireAuth, requireRole('admin'), async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const { serviceAccountJson } = req.body;
+    if (!serviceAccountJson) {
+      res.status(400).json({ success: false, error: 'Firebase service account JSON is required.' });
+      return;
+    }
+
+    const result = await notificationService.configureFirebase(serviceAccountJson);
+    res.json({
+      success: true,
+      message: 'Firebase configuration saved and activated successfully.',
+      projectId: result.projectId,
+      clientEmail: result.clientEmail
+    });
+  } catch (err: any) {
+    res.status(400).json({
+      success: false,
+      error: err.message || 'Failed to configure Firebase credentials.'
+    });
+  }
+});
+
+// DELETE /api/notifications/config (Admin only - remove configuration)
+notificationsRouter.delete('/config', requireAuth, requireRole('admin'), async (req: AuthenticatedRequest, res, next) => {
+  try {
+    await notificationService.removeFirebaseConfig();
+    res.json({
+      success: true,
+      message: 'Firebase configuration removed successfully.'
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/notifications/test-connection (Admin only - test Firebase connection)
+notificationsRouter.post('/test-connection', requireAuth, requireRole('admin'), async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const result = await notificationService.testConnection();
+    res.json(result);
+  } catch (err: any) {
+    res.status(400).json({
+      success: false,
+      error: err.message || 'Firebase connection test failed.'
+    });
+  }
+});
+
+// POST /api/notifications/test-push (Admin only - send test notification to caller's registered devices)
+notificationsRouter.post('/test-push', requireAuth, requireRole('admin'), async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const result = await notificationService.sendTestPush(req.user!.id);
+    res.json(result);
+  } catch (err: any) {
+    res.status(400).json({
+      success: false,
+      error: err.message || 'Failed to dispatch test push notification.'
+    });
+  }
+});
+

@@ -462,7 +462,8 @@ installRouter.post('/create-admin', validateBody({
     companyName,
     baseCurrency,
     currencySymbol,
-    supportPhone
+    supportPhone,
+    firebaseServiceAccount
   } = req.body;
 
   // Password strength check: at least 1 uppercase, 1 lowercase, 1 digit
@@ -522,6 +523,18 @@ installRouter.post('/create-admin', validateBody({
           ['currency_symbol', symbol],
           ['support_phone', (supportPhone?.trim()) || '']
         ];
+
+        if (firebaseServiceAccount && typeof firebaseServiceAccount === 'string' && firebaseServiceAccount.trim()) {
+          try {
+            const parsed = JSON.parse(firebaseServiceAccount);
+            if (parsed.project_id && parsed.client_email && parsed.private_key) {
+              settings.push(['firebase_service_account_json', JSON.stringify(parsed)]);
+            }
+          } catch {
+            // Non-fatal if malformed during install
+          }
+        }
+
         for (const [k, val] of settings) {
           await client.query(
             `INSERT INTO system_settings (key, value, updated_at)
@@ -579,6 +592,44 @@ installRouter.post('/create-admin', validateBody({
       error: 'Failed to create administrator account. Please check server logs.'
     });
   }
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// POST /api/install/configure-business
+// ──────────────────────────────────────────────────────────────────────────────
+// Optional step 5: update business settings and save optional Firebase push config
+installRouter.post('/configure-business', async (req, res) => {
+  const installState = await systemSettingsRepo.getInstallState().catch(() => 'not_installed' as const);
+  if (installState !== 'installing' && installState !== 'installed') {
+    res.status(403).json({ success: false, error: 'Installation is not in a configurable state.' });
+    return;
+  }
+
+  const { companyName, baseCurrency, currencySymbol, supportPhone, firebaseServiceAccount } = req.body;
+  if (companyName && typeof companyName === 'string') {
+    await systemSettingsRepo.set('company_name', companyName.trim());
+  }
+  if (baseCurrency && typeof baseCurrency === 'string') {
+    await systemSettingsRepo.set('base_currency', baseCurrency.trim().toUpperCase());
+  }
+  if (currencySymbol && typeof currencySymbol === 'string') {
+    await systemSettingsRepo.set('currency_symbol', currencySymbol.trim());
+  }
+  if (supportPhone !== undefined && typeof supportPhone === 'string') {
+    await systemSettingsRepo.set('support_phone', supportPhone.trim());
+  }
+  if (firebaseServiceAccount && typeof firebaseServiceAccount === 'string' && firebaseServiceAccount.trim()) {
+    try {
+      const parsed = JSON.parse(firebaseServiceAccount);
+      if (parsed.project_id && parsed.client_email && parsed.private_key) {
+        await systemSettingsRepo.set('firebase_service_account_json', JSON.stringify(parsed));
+      }
+    } catch {
+      // Non-fatal if invalid during install
+    }
+  }
+
+  res.json({ success: true, message: 'Business and notification settings updated.' });
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
