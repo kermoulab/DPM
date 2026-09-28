@@ -247,9 +247,20 @@ export class NotificationService {
     };
 
     const res = await this.sendPushToTokens(tokens, payload);
+    if (res.successCount === 0) {
+      const errDetails = res.errors && res.errors.length > 0
+        ? res.errors.join(' | ')
+        : 'Google FCM could not deliver to any registered device.';
+      return {
+        success: false,
+        message: `Dispatched to 0 devices. ${errDetails}`,
+        count: 0
+      };
+    }
+
     return {
       success: true,
-      message: `Test notification dispatched to ${res.successCount} active device(s).`,
+      message: `Test notification successfully dispatched to ${res.successCount} active device(s)!`,
       count: res.successCount
     };
   }
@@ -257,16 +268,23 @@ export class NotificationService {
   /**
    * Low-level dispatcher: sends FCM push notification to tokens.
    */
-  async sendPushToTokens(tokens: string[], payload: PushPayload): Promise<{ successCount: number; failureCount: number }> {
+  async sendPushToTokens(tokens: string[], payload: PushPayload): Promise<{ successCount: number; failureCount: number; errors?: string[] }> {
     if (!tokens || tokens.length === 0) {
-      return { successCount: 0, failureCount: 0 };
+      return { successCount: 0, failureCount: 0, errors: [] };
     }
 
-    // If Firebase Messaging is available, dispatch live multicast
-    if (this.fcmMessaging) {
+    const devTokens = tokens.filter(t => t.startsWith('dev-token-'));
+    const realTokens = tokens.filter(t => !t.startsWith('dev-token-'));
+
+    let successCount = 0;
+    let failureCount = 0;
+    const errors: string[] = [];
+
+    // If Firebase Messaging is available, dispatch live multicast to real FCM tokens
+    if (this.fcmMessaging && realTokens.length > 0) {
       try {
         const message = {
-          tokens,
+          tokens: realTokens,
           notification: {
             title: payload.title,
             body: payload.message
@@ -287,18 +305,31 @@ export class NotificationService {
         };
 
         const response = await this.fcmMessaging.sendEachForMulticast(message);
-        return {
-          successCount: response.successCount,
-          failureCount: response.failureCount
-        };
-      } catch (err) {
+        successCount = response.successCount;
+        failureCount = response.failureCount;
+
+        response.responses.forEach((resp, idx) => {
+          if (!resp.success && resp.error) {
+            console.error(`[NotificationService] FCM delivery error for token ${realTokens[idx]?.slice(0, 10)}...:`, resp.error.code, resp.error.message);
+            errors.push(`${resp.error.code}: ${resp.error.message}`);
+          }
+        });
+      } catch (err: any) {
         console.error('[NotificationService] FCM multicast error:', err);
-        return { successCount: 0, failureCount: tokens.length };
+        failureCount = realTokens.length;
+        errors.push(err.message || 'FCM multicast error');
       }
+    } else if (!this.fcmMessaging && realTokens.length > 0) {
+      // Graceful simulated dispatch when FCM credentials not configured
+      successCount = realTokens.length;
     }
 
-    // Graceful simulated dispatch for development / when FCM credentials are not configured yet
-    return { successCount: tokens.length, failureCount: 0 };
+    if (devTokens.length > 0) {
+      failureCount += devTokens.length;
+      errors.push(`${devTokens.length} device(s) registered with dev fallback token. To receive push on your physical phone, download google-services.json from your Firebase console and place it in the Android project.`);
+    }
+
+    return { successCount, failureCount, errors };
   }
 
   /**
