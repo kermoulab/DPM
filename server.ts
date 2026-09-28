@@ -25,7 +25,9 @@ import { devicesRouter } from './server/routes/devices.js';
 import { auditRouter } from './server/routes/audit.js';
 import { settingsRouter } from './server/routes/settings.js';
 import { searchRouter } from './server/routes/search.js';
+import { notificationsRouter } from './server/routes/notifications.js';
 import { auditRepo } from './server/db/repositories/audit.repository.js';
+import { notificationService } from './server/services/notification.service.js';
 
 async function startServer() {
   const app = express();
@@ -47,6 +49,18 @@ async function startServer() {
     setInterval(() => {
       auditRepo.purgeOldLogs(30).catch(err => console.error('[Audit] Scheduled purge failed:', err));
     }, 24 * 60 * 60 * 1000).unref();
+
+    // Periodic subscription and service account expiration notification checks
+    const runExpirationCheck = async () => {
+      try {
+        await notificationService.checkExpiringOrders();
+        await notificationService.checkExpiringServiceAccounts();
+      } catch (err) {
+        console.error('[NotificationEngine] Expiration check error:', err);
+      }
+    };
+    setTimeout(runExpirationCheck, 60 * 1000).unref();
+    setInterval(runExpirationCheck, 60 * 60 * 1000).unref();
   }
 
   // Middleware
@@ -111,6 +125,7 @@ async function startServer() {
   app.use('/api/audit', auditRouter);
   app.use('/api/settings', settingsRouter);
   app.use('/api/search', searchRouter);
+  app.use('/api/notifications', notificationsRouter);
 
   // Health check
   app.get('/api/health', async (req, res) => {

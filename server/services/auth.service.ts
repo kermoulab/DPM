@@ -2,6 +2,7 @@ import { usersRepo, type UserRow } from '../db/repositories/users.repository.js'
 import { auditRepo } from '../db/repositories/audit.repository.js';
 import { hashPassword, verifyPassword } from '../utils/crypto.js';
 import { createSessionToken, type AuthUser } from '../middleware/auth.middleware.js';
+import { notificationService } from './notification.service.js';
 
 export class AuthService {
   async login(username: string, password: string, ip: string = '127.0.0.1'): Promise<{ user: AuthUser; token: string }> {
@@ -17,6 +18,9 @@ export class AuthService {
 
     if (!user || !isValid) {
       await auditRepo.log(null, 'LOGIN_FAILED', 'user', null, { attemptedUsername: trimmed }, ip);
+      if (user) {
+        notificationService.notifyFailedLogin(trimmed, ip).catch(err => console.error('[Notification] Failed login alert error:', err));
+      }
       const err = new Error('Invalid username or password.');
       (err as any).statusCode = 401;
       throw err;
@@ -148,6 +152,9 @@ export class AuthService {
 
     const token = createSessionToken(authUser);
     await auditRepo.log(authUser, 'UPDATE_PROFILE', 'user', userId, { passwordChanged }, ip);
+    if (passwordChanged) {
+      notificationService.notifyPasswordChanged(userId).catch(err => console.error('[Notification] Password change alert error:', err));
+    }
 
     return {
       user: authUser,
@@ -190,6 +197,7 @@ export class AuthService {
     });
 
     await auditRepo.log({ id: user.id, username: user.username }, 'PASSWORD_CHANGED', 'user', userId, {}, ip);
+    notificationService.notifyPasswordChanged(userId).catch(err => console.error('[Notification] Password change alert error:', err));
   }
 }
 

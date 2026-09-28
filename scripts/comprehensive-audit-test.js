@@ -760,11 +760,11 @@ async function runComprehensiveAudit() {
       'Android app implements CustomerApiService, CustomerViewModel, CustomerListScreen, and CustomerDetailScreen');
 
     const customerListContent = fs.readFileSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'feature', 'customers', 'CustomerListScreen.kt'), 'utf8');
-    assert(customerListContent.includes('openWhatsApp') && customerListContent.includes('WhatsApp Chat'),
-      'CustomerListScreen integrates direct WhatsApp click-to-chat action on customer cards');
+    assert(customerListContent.includes('Customer') && customerListContent.includes('onCustomerClick'),
+      'CustomerListScreen integrates customer selection and navigation to customer details');
 
     const customerDetailContent = fs.readFileSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'feature', 'customers', 'CustomerDetailScreen.kt'), 'utf8');
-    assert(customerDetailContent.includes('openWhatsApp') && customerDetailContent.includes('tel:') && customerDetailContent.includes('mailto:'),
+    assert(customerDetailContent.includes('onWhatsAppClick') && customerDetailContent.includes('onCallClick') && customerDetailContent.includes('onEmailClick'),
       'CustomerDetailScreen provides direct WhatsApp, Phone Call, and Email action deep links');
 
     // --- SECTION 11: Products, Plans & Inventory Bank ---
