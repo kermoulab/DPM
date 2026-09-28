@@ -28,7 +28,8 @@ class OrderViewModel(
     private val customerRepository: CustomerRepository,
     private val productRepository: ProductInventoryRepository,
     private val secureStorage: SecureStorage,
-    val permissionManager: PermissionManager
+    val permissionManager: PermissionManager,
+    private val authRepository: com.vectis.erp.domain.repository.AuthRepository? = null
 ) : ViewModel() {
 
     private val _listUiState = MutableStateFlow<OrderListUiState>(OrderListUiState.Loading)
@@ -36,6 +37,8 @@ class OrderViewModel(
 
     private val _detailUiState = MutableStateFlow<OrderDetailUiState>(OrderDetailUiState.Loading)
     val detailUiState: StateFlow<OrderDetailUiState> = _detailUiState.asStateFlow()
+
+    val preferredCurrency: StateFlow<String> = secureStorage.preferredCurrencyFlow
 
     private val _wizardState = MutableStateFlow(CreateOrderWizardState())
     val wizardState: StateFlow<CreateOrderWizardState> = _wizardState.asStateFlow()
@@ -45,7 +48,21 @@ class OrderViewModel(
     private var searchJob: Job? = null
 
     init {
-        loadOrders()
+        if (secureStorage.isAuthenticated()) {
+            loadOrders()
+        }
+        viewModelScope.launch {
+            secureStorage.preferredCurrencyFlow.collect {
+                val currentList = _listUiState.value
+                if (currentList is OrderListUiState.Success) {
+                    _listUiState.value = OrderListUiState.Success(currentList.orders, currentList.counts)
+                }
+                val currentDetail = _detailUiState.value
+                if (currentDetail is OrderDetailUiState.Success) {
+                    _detailUiState.value = OrderDetailUiState.Success(currentDetail.order, currentDetail.renewals)
+                }
+            }
+        }
     }
 
     fun loadOrders(isRefresh: Boolean = false) {
@@ -187,6 +204,30 @@ class OrderViewModel(
         }
     }
 
+    fun updateOrder(
+        id: String,
+        request: UpdateOrderRequest,
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
+    ) {
+        if (!permissionManager.canEditOrder()) {
+            onError("Permission denied: You do not have permission to edit orders.")
+            return
+        }
+
+        viewModelScope.launch {
+            when (val result = orderRepository.updateOrder(id, request)) {
+                is ApiResult.Success -> {
+                    loadOrders(isRefresh = true)
+                    loadOrderDetail(id)
+                    onSuccess()
+                }
+                is ApiResult.Error -> onError(result.message)
+                is ApiResult.NetworkError -> onError(result.exception.localizedMessage ?: "Network error")
+            }
+        }
+    }
+
     // --- Dynamic Universal Order Wizard ---
 
     fun initCreateOrderWizard() {
@@ -209,6 +250,45 @@ class OrderViewModel(
 
     fun selectWizardCustomer(customer: CustomerDto) {
         _wizardState.value = _wizardState.value.copy(selectedCustomer = customer)
+    }
+
+    fun quickAddCustomer(
+        name: String,
+        email: String,
+        whatsapp: String,
+        onSuccess: (CustomerDto) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        if (name.isBlank()) {
+            onError("Customer name is required.")
+            return
+        }
+        viewModelScope.launch {
+            when (val res = customerRepository.createCustomer(
+                com.vectis.erp.data.model.CreateCustomerRequest(
+                    name = name.trim(),
+                    email = email.trim().ifEmpty { null },
+                    whatsapp = whatsapp.trim().ifEmpty { null }
+                )
+            )) {
+                is ApiResult.Success -> {
+                    val newCust = res.data.customer ?: CustomerDto(
+                        id = res.data.id ?: java.util.UUID.randomUUID().toString(),
+                        name = name.trim(),
+                        email = email.trim().ifEmpty { null },
+                        whatsapp = whatsapp.trim().ifEmpty { null }
+                    )
+                    val updated = listOf(newCust) + _wizardState.value.customers
+                    _wizardState.value = _wizardState.value.copy(
+                        customers = updated,
+                        selectedCustomer = newCust
+                    )
+                    onSuccess(newCust)
+                }
+                is ApiResult.Error -> onError(res.message)
+                is ApiResult.NetworkError -> onError(res.exception.localizedMessage ?: "Network error")
+            }
+        }
     }
 
     fun selectWizardProduct(product: ProductDto) {
@@ -286,8 +366,9 @@ class OrderViewModel(
                 planId = plan.id,
                 startDate = state.startDate.ifBlank { null },
                 customPrice = price,
-                paymentMethod = state.paymentMethod,
-                paymentStatus = state.paymentStatus,
+                customCost = plan.cost,
+                paymentMethod = state.paymentMethod.lowercase().trim().ifBlank { "cash" },
+                paymentStatus = state.paymentStatus.lowercase().trim().ifBlank { "paid" },
                 notes = state.notes.ifBlank { null }
             )
 
@@ -310,12 +391,16 @@ class OrderViewModel(
         }
     }
 
-    private fun calculateEndDateLocally(startDateStr: String, duration: Int, unit: String): String {
+    fun calculateEndDateLocally(startDateStr: String, duration: Int, unit: String): String {
         return try {
-            val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-            val cal = Calendar.getInstance()
-            cal.time = sdf.parse(startDateStr) ?: Date()
+            val cleanDate = startDateStr.split("T")[0]
+            val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply {
+                timeZone = TimeZone.getTimeZone("UTC")
+            }
+            val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+            cal.time = sdf.parse(cleanDate) ?: Date()
             when (unit.lowercase()) {
+                "hours" -> cal.add(Calendar.HOUR_OF_DAY, duration)
                 "days" -> cal.add(Calendar.DAY_OF_YEAR, duration)
                 "weeks" -> cal.add(Calendar.WEEK_OF_YEAR, duration)
                 "months" -> cal.add(Calendar.MONTH, duration)
@@ -328,33 +413,114 @@ class OrderViewModel(
         }
     }
 
-    fun sendWhatsAppReceipt(context: Context, order: OrderDto) {
-        val phone = sanitizeWhatsAppPhone(order.customerWhatsapp) ?: return
-        val digitsOnly = phone.removePrefix("+")
+    fun calculateStatusForEndDate(endDateStr: String): String {
+        if (endDateStr.isBlank()) return "active"
+        val clean = endDateStr.split("T")[0]
+        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply {
+            timeZone = TimeZone.getTimeZone("UTC")
+        }
+        val todayStr = sdf.format(Date())
+        if (clean < todayStr) return "expired"
+        val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+        cal.add(Calendar.DAY_OF_YEAR, 7)
+        val sevenDaysStr = sdf.format(cal.time)
+        if (clean <= sevenDaysStr) return "expiring"
+        return "active"
+    }
 
-        val sb = StringBuilder()
-        sb.append("👋 Hello ${order.customerName ?: "Valued Customer"},\n\n")
-        sb.append("📦 *Order Receipt: ${order.orderNumber}*\n")
-        sb.append("• *Product:* ${order.productName ?: "Service"}\n")
-        sb.append("• *Plan:* ${order.planName ?: ""}\n")
-        sb.append("• *Price:* ${formatCurrency(order.price)}\n")
-        if (!order.startDate.isNullOrBlank()) sb.append("• *Start Date:* ${order.startDate}\n")
-        if (!order.endDate.isNullOrBlank()) sb.append("• *Valid Until:* ${order.endDate}\n")
+    suspend fun fetchCustomers(): List<CustomerDto> {
+        return when (val res = customerRepository.getCustomers()) {
+            is ApiResult.Success -> res.data.customers
+            else -> emptyList()
+        }
+    }
 
-        // Dynamic Fulfillment details
-        if (order.isServiceAccount && !order.accountLogin.isNullOrBlank()) {
-            sb.append("\n🔐 *Access Credentials:*\n")
-            sb.append("• *Login:* `${order.accountLogin}`\n")
-            if (!order.profileName.isNullOrBlank()) sb.append("• *Profile:* ${order.profileName}\n")
-            if (!order.profilePin.isNullOrBlank()) sb.append("• *PIN:* ${order.profilePin}\n")
-        } else if (order.isLicenseKey && !order.licenseKeyString.isNullOrBlank()) {
-            sb.append("\n🔑 *License Key:*\n")
-            sb.append("`${order.licenseKeyString}`\n")
+    suspend fun fetchProducts(): List<ProductDto> {
+        return when (val res = productRepository.getProducts()) {
+            is ApiResult.Success -> res.data.products
+            else -> emptyList()
+        }
+    }
+
+    suspend fun fetchPlans(productId: String): List<PlanDto> {
+        return when (val res = productRepository.getPlans(productId)) {
+            is ApiResult.Success -> res.data.plans
+            else -> emptyList()
+        }
+    }
+
+    suspend fun revealServiceAccountPassword(accountId: String): String? {
+        return when (val res = productRepository.revealCredentials(accountId)) {
+            is ApiResult.Success -> res.data.password
+            else -> null
+        }
+    }
+
+    fun buildWhatsAppReceiptText(order: OrderDto, lang: String = "en", overridePassword: String? = null): String {
+        val cName = order.customerName ?: "Valued Customer"
+        val oNum = order.orderNumber
+        val pName = order.productName ?: "Product"
+        val eDate = order.endDate ?: ""
+        val lic = order.licenseKeyString ?: ""
+        val login = order.accountLogin ?: ""
+        val password = overridePassword ?: order.accountPassword ?: ""
+        val prof = order.profileName ?: ""
+        val pin = order.profilePin ?: ""
+
+        val creds = when {
+            lic.isNotBlank() -> when (lang) {
+                "fr" -> "🔑 Clé de licence: $lic"
+                "ar" -> "🔑 مفتاح الترخيص: $lic"
+                "ru" -> "🔑 Лицензионный ключ: $lic"
+                else -> "🔑 License Key: $lic"
+            }
+            login.isNotBlank() || password.isNotBlank() || prof.isNotBlank() -> {
+                val parts = mutableListOf<String>()
+                when (lang) {
+                    "fr" -> {
+                        if (login.isNotBlank()) parts.add("📧 Identifiant: $login")
+                        if (password.isNotBlank()) parts.add("🔑 Mot de passe: $password")
+                        if (prof.isNotBlank()) parts.add("👤 Profil: $prof")
+                        if (pin.isNotBlank()) parts.add("🔒 Code PIN: $pin")
+                    }
+                    "ar" -> {
+                        if (login.isNotBlank()) parts.add("📧 البريد / الحساب: $login")
+                        if (password.isNotBlank()) parts.add("🔑 كلمة المرور: $password")
+                        if (prof.isNotBlank()) parts.add("👤 الملف الشخصي: $prof")
+                        if (pin.isNotBlank()) parts.add("🔒 رمز PIN: $pin")
+                    }
+                    "ru" -> {
+                        if (login.isNotBlank()) parts.add("📧 Логин / Email: $login")
+                        if (password.isNotBlank()) parts.add("🔑 Пароль: $password")
+                        if (prof.isNotBlank()) parts.add("👤 Профиль: $prof")
+                        if (pin.isNotBlank()) parts.add("🔒 PIN-код: $pin")
+                    }
+                    else -> {
+                        if (login.isNotBlank()) parts.add("📧 Email/Login: $login")
+                        if (password.isNotBlank()) parts.add("🔑 Password: $password")
+                        if (prof.isNotBlank()) parts.add("👤 Profile: $prof")
+                        if (pin.isNotBlank()) parts.add("🔒 PIN: $pin")
+                    }
+                }
+                parts.joinToString("\n")
+            }
+            else -> ""
         }
 
-        sb.append("\nThank you for choosing Vectis ERP!")
+        return when (lang) {
+            "fr" -> "Merci $cName pour votre achat!\nVotre commande #$oNum pour $pName est active jusqu'au $eDate.\n\nDétails d'accès:\n$creds\n\nMerci pour votre confiance!"
+            "ar" -> "شكراً لك $cName على طلبك!\nطلبك رقم #$oNum لخدمة $pName مفعّل حتى تاريخ $eDate.\n\nبيانات الدخول:\n$creds\n\nشكراً لاختيارك لنا!"
+            "ru" -> "Спасибо за ваш заказ, $cName!\nВаш заказ #$oNum на $pName активен до $eDate.\n\nДанные для доступа:\n$creds\n\nСпасибо, что выбрали нас!"
+            else -> "Thank you $cName for your purchase!\nYour order #$oNum for $pName is active until $eDate.\n\nAccess Details:\n$creds\n\nThank you for choosing us! If you have any questions, feel free to reach out."
+        }
+    }
 
-        val encodedMessage = Uri.encode(sb.toString())
+    fun sendWhatsAppReceipt(context: Context, order: OrderDto, lang: String = "en", overridePassword: String? = null) {
+        val phone = sanitizeWhatsAppPhone(order.customerWhatsapp) ?: return
+        val digitsOnly = phone.removePrefix("+")
+        val message = buildWhatsAppReceiptText(order, lang, overridePassword)
+
+        val encodedMessage = Uri.encode(message)
         val url = "https://wa.me/$digitsOnly?text=$encodedMessage"
         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK
@@ -362,30 +528,18 @@ class OrderViewModel(
         try {
             context.startActivity(intent)
         } catch (e: Exception) {
-            val fallback = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            }
-            context.startActivity(fallback)
+            try {
+                val fallback = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                context.startActivity(fallback)
+            } catch (_: Exception) {}
         }
     }
 
     fun formatCurrency(amount: Double): String {
-        val currency = secureStorage.getPreferredCurrency()
-        val format = NumberFormat.getNumberInstance(Locale.US).apply {
-            minimumFractionDigits = 2
-            maximumFractionDigits = 2
-        }
-        val symbol = when (currency.uppercase()) {
-            "MAD" -> " MAD"
-            "EUR" -> "€"
-            "USD" -> "$"
-            else -> " $currency"
-        }
-        return if (currency.uppercase() == "MAD") {
-            "${format.format(amount)}$symbol"
-        } else {
-            "$symbol${format.format(amount)}"
-        }
+        val target = secureStorage.getPreferredCurrency()
+        return com.vectis.erp.core.currency.CurrencyFormatter.formatWithConversion(amount, fromCode = "USD", toCode = target)
     }
 
     class Factory(
@@ -393,7 +547,8 @@ class OrderViewModel(
         private val customerRepository: CustomerRepository,
         private val productRepository: ProductInventoryRepository,
         private val secureStorage: SecureStorage,
-        private val permissionManager: PermissionManager
+        private val permissionManager: PermissionManager,
+        private val authRepository: com.vectis.erp.domain.repository.AuthRepository? = null
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -402,7 +557,8 @@ class OrderViewModel(
                 customerRepository,
                 productRepository,
                 secureStorage,
-                permissionManager
+                permissionManager,
+                authRepository
             ) as T
         }
     }

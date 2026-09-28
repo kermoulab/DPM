@@ -1,6 +1,7 @@
 package com.vectis.erp.feature.orders
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -27,6 +28,7 @@ import androidx.compose.ui.unit.sp
 import com.vectis.erp.core.design.*
 import com.vectis.erp.data.model.OrderDto
 import com.vectis.erp.data.model.OrderRenewalDto
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -37,6 +39,7 @@ fun OrderDetailScreen(
     onNavigateBack: () -> Unit
 ) {
     val uiState by viewModel.detailUiState.collectAsState()
+    val preferredCurrency by viewModel.preferredCurrency.collectAsState()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -44,13 +47,16 @@ fun OrderDetailScreen(
     var showRenewDialog by remember { mutableStateOf(false) }
     var showCancelDialog by remember { mutableStateOf(false) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+    var showEditDialog by remember { mutableStateOf(false) }
+    var showReceiptDialog by remember { mutableStateOf(false) }
+    var isRefreshing by remember { mutableStateOf(false) }
 
     LaunchedEffect(orderId) {
         viewModel.loadOrderDetail(orderId)
     }
 
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = { VectisSnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("Order Details", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Slate900) },
@@ -60,6 +66,11 @@ fun OrderDetailScreen(
                     }
                 },
                 actions = {
+                    if (viewModel.permissionManager.canEditOrder()) {
+                        IconButton(onClick = { showEditDialog = true }) {
+                            Icon(Icons.Default.Edit, contentDescription = "Edit Order", tint = PrimaryBlue)
+                        }
+                    }
                     if (viewModel.permissionManager.canRenewOrder()) {
                         IconButton(onClick = { showRenewDialog = true }) {
                             Icon(Icons.Default.Autorenew, contentDescription = "Renew Order", tint = PrimaryBlue)
@@ -76,7 +87,16 @@ fun OrderDetailScreen(
         },
         containerColor = Slate50
     ) { paddingValues ->
-        Box(
+        VectisPullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = {
+                coroutineScope.launch {
+                    isRefreshing = true
+                    viewModel.loadOrderDetail(orderId)
+                    delay(500)
+                    isRefreshing = false
+                }
+            },
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
@@ -94,19 +114,31 @@ fun OrderDetailScreen(
                             Spacer(modifier = Modifier.height(12.dp))
                             Text(text = state.message, color = Slate700, fontSize = 14.sp)
                             Spacer(modifier = Modifier.height(16.dp))
-                            Button(onClick = { viewModel.loadOrderDetail(orderId) }) {
-                                Text("Retry")
+                            Button(
+                                onClick = { viewModel.loadOrderDetail(orderId) },
+                                colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue, contentColor = Color.White)
+                            ) {
+                                Text("Retry", color = Color.White)
                             }
                         }
                     }
                 }
                 is OrderDetailUiState.Success -> {
+                    var revealedPassword by remember(state.order.id) { mutableStateOf<String?>(null) }
+
+                    LaunchedEffect(state.order.id, state.order.assignedServiceAccountId) {
+                        if (state.order.accountPassword.isNullOrBlank() && !state.order.assignedServiceAccountId.isNullOrBlank()) {
+                            revealedPassword = viewModel.revealServiceAccountPassword(state.order.assignedServiceAccountId)
+                        }
+                    }
+
                     OrderDetailContent(
                         order = state.order,
                         renewals = state.renewals,
                         viewModel = viewModel,
+                        revealedPassword = revealedPassword,
                         onWhatsAppReceiptClick = {
-                            viewModel.sendWhatsAppReceipt(context, state.order)
+                            showReceiptDialog = true
                         },
                         onCancelClick = { showCancelDialog = true }
                     )
@@ -139,6 +171,7 @@ fun OrderDetailScreen(
                     if (showCancelDialog) {
                         AlertDialog(
                             onDismissRequest = { showCancelDialog = false },
+                            containerColor = Color.White,
                             title = { Text("Cancel Order") },
                             text = { Text("Are you sure you want to cancel this order? Allocated inventory (service profiles or license keys) will be released back to the available pool.") },
                             confirmButton = {
@@ -176,6 +209,7 @@ fun OrderDetailScreen(
                     if (showDeleteConfirmDialog) {
                         AlertDialog(
                             onDismissRequest = { showDeleteConfirmDialog = false },
+                            containerColor = Color.White,
                             title = { Text("Delete Order Permanently") },
                             text = { Text("Are you sure you want to permanently delete order ${state.order.orderNumber}? This action is restricted to Admins and cannot be undone.") },
                             confirmButton = {
@@ -206,6 +240,40 @@ fun OrderDetailScreen(
                             }
                         )
                     }
+
+                    if (showEditDialog) {
+                        EditOrderDialog(
+                            order = state.order,
+                            viewModel = viewModel,
+                            onDismiss = { showEditDialog = false },
+                            onSave = { req ->
+                                viewModel.updateOrder(
+                                    id = state.order.id,
+                                    request = req,
+                                    onSuccess = {
+                                        showEditDialog = false
+                                        coroutineScope.launch {
+                                            snackbarHostState.showSnackbar("Order updated successfully.")
+                                        }
+                                    },
+                                    onError = { err ->
+                                        coroutineScope.launch {
+                                            snackbarHostState.showSnackbar("Failed to update: $err")
+                                        }
+                                    }
+                                )
+                            }
+                        )
+                    }
+
+                    if (showReceiptDialog) {
+                        DeliveryReceiptDialog(
+                            order = state.order,
+                            viewModel = viewModel,
+                            revealedPassword = revealedPassword,
+                            onDismiss = { showReceiptDialog = false }
+                        )
+                    }
                 }
             }
         }
@@ -217,6 +285,7 @@ private fun OrderDetailContent(
     order: OrderDto,
     renewals: List<OrderRenewalDto>,
     viewModel: OrderViewModel,
+    revealedPassword: String? = null,
     onWhatsAppReceiptClick: () -> Unit,
     onCancelClick: () -> Unit
 ) {
@@ -256,7 +325,7 @@ private fun OrderDetailContent(
                             )
                         }
 
-                        val (statusBg, statusFg) = when (order.status.lowercase()) {
+                        val (statusBg, statusFg) = when (order.effectiveStatus) {
                             "active" -> StatusSuccess.copy(alpha = 0.1f) to StatusSuccess
                             "expiring" -> StatusWarning.copy(alpha = 0.1f) to StatusWarning
                             "expired" -> StatusDanger.copy(alpha = 0.1f) to StatusDanger
@@ -270,7 +339,7 @@ private fun OrderDetailContent(
                                 .padding(horizontal = 10.dp, vertical = 4.dp)
                         ) {
                             Text(
-                                text = order.status.replaceFirstChar { it.uppercase() },
+                                text = order.effectiveStatus.replaceFirstChar { it.uppercase() },
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = statusFg
@@ -370,6 +439,22 @@ private fun OrderDetailContent(
                                     }
                                 }
                             }
+                            val password = order.accountPassword ?: revealedPassword
+                            if (!password.isNullOrBlank()) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("Password:", fontSize = 12.sp, color = Slate500)
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(password, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, color = Slate900)
+                                        IconButton(onClick = { clipboardManager.setText(AnnotatedString(password)) }, modifier = Modifier.size(24.dp)) {
+                                            Icon(Icons.Default.ContentCopy, contentDescription = "Copy", tint = PrimaryBlue, modifier = Modifier.size(14.dp))
+                                        }
+                                    }
+                                }
+                            }
                             order.profileName?.let { profile ->
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
@@ -457,11 +542,23 @@ private fun OrderDetailContent(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween
+                                    .padding(vertical = 10.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text("${ren.previousEndDate} → ${ren.newEndDate}", fontSize = 12.sp, color = Slate700)
-                                Text(viewModel.formatCurrency(ren.price), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Slate900)
+                                val renewalDate = ren.createdAt?.take(10) ?: ren.previousEndDate
+                                Text(
+                                    text = renewalDate,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Slate800
+                                )
+                                Text(
+                                    text = viewModel.formatCurrency(ren.price),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Slate900
+                                )
                             }
                             HorizontalDivider(color = Slate100)
                         }
@@ -483,6 +580,7 @@ private fun RenewOrderDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = Color.White,
         title = { Text("Renew Subscription") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -511,17 +609,153 @@ private fun RenewOrderDialog(
             }
         },
         confirmButton = {
-            Button(
+            VectisPillButton(
+                text = "Renew",
+                icon = Icons.Default.Autorenew,
                 onClick = {
                     onConfirm(extendFrom, priceText.toDoubleOrNull())
                 }
-            ) {
-                Text("Renew")
-            }
+            )
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
                 Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+private fun DeliveryReceiptDialog(
+    order: OrderDto,
+    viewModel: OrderViewModel,
+    revealedPassword: String? = null,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
+    var selectedLang by remember { mutableStateOf("en") }
+    var copied by remember { mutableStateOf(false) }
+
+    val languages = listOf("en" to "EN", "fr" to "FR", "ar" to "AR", "ru" to "RU")
+    val messageText = viewModel.buildWhatsAppReceiptText(order, selectedLang, revealedPassword)
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color.White,
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("WhatsApp Delivery Receipt", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Slate900)
+            }
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                // Language selection bar
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Language:", fontSize = 12.sp, color = Slate600, fontWeight = FontWeight.Medium)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        languages.forEach { (code, label) ->
+                            val isSel = selectedLang == code
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isSel) PrimaryBlue else Slate100)
+                                    .clickable {
+                                        selectedLang = code
+                                        copied = false
+                                    }
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = label,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isSel) Color.White else Slate700
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // WhatsApp Phone
+                if (!order.customerWhatsapp.isNullOrBlank()) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Phone,
+                            contentDescription = null,
+                            tint = Color(0xFF25D366),
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(order.customerWhatsapp, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Slate700)
+                    }
+                }
+
+                // Message Preview Box
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Slate50)
+                        .padding(12.dp)
+                ) {
+                    Text(
+                        text = messageText,
+                        fontSize = 11.sp,
+                        fontFamily = FontFamily.Monospace,
+                        color = Slate800,
+                        lineHeight = 16.sp
+                    )
+                }
+
+                // Copy to Clipboard button
+                OutlinedButton(
+                    onClick = {
+                        clipboardManager.setText(AnnotatedString(messageText))
+                        copied = true
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(
+                        if (copied) Icons.Default.Check else Icons.Default.ContentCopy,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = if (copied) StatusSuccess else PrimaryBlue
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = if (copied) "Copied to Clipboard!" else "Copy Message",
+                        fontSize = 12.sp,
+                        color = if (copied) StatusSuccess else PrimaryBlue
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            VectisPillButton(
+                text = "Send WhatsApp",
+                icon = Icons.Default.Share,
+                containerColor = Color(0xFF25D366),
+                onClick = {
+                    viewModel.sendWhatsAppReceipt(context, order, selectedLang, revealedPassword)
+                    onDismiss()
+                }
+            )
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close", color = Slate600)
             }
         }
     )

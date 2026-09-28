@@ -12,56 +12,128 @@ import androidx.security.crypto.MasterKey
  */
 class SecureStorage(private val prefs: SharedPreferences) {
 
+    @Volatile private var memoryServerUrl: String? = prefs.getString(KEY_SERVER_URL, DEFAULT_SERVER_URL)
+    @Volatile private var memoryDeviceId: String? = prefs.getString(KEY_DEVICE_ID, null)
+    @Volatile private var memoryDeviceToken: String? = prefs.getString(KEY_DEVICE_TOKEN, null)
+    @Volatile private var memoryAuthToken: String? = prefs.getString(KEY_AUTH_TOKEN, null)
+    @Volatile private var memoryUserId: String? = prefs.getString(KEY_USER_ID, null)
+    @Volatile private var memoryUserRole: String? = prefs.getString(KEY_USER_ROLE, null)
+    @Volatile private var memoryUserName: String? = prefs.getString(KEY_USER_NAME, null)
+    @Volatile private var memoryPreferredCurrency: String? = prefs.getString(KEY_PREFERRED_CURRENCY, "USD")
+    @Volatile private var memoryLastSessionError: String? = null
+
     // Server Configuration
-    fun getServerUrl(): String = prefs.getString(KEY_SERVER_URL, DEFAULT_SERVER_URL) ?: DEFAULT_SERVER_URL
-    fun setServerUrl(url: String) = prefs.edit().putString(KEY_SERVER_URL, url.trimEnd('/')).apply()
+    fun getServerUrl(): String = memoryServerUrl ?: DEFAULT_SERVER_URL
+    fun setServerUrl(url: String) {
+        val cleanUrl = url.trim().trimEnd('/')
+        memoryServerUrl = cleanUrl
+        try { prefs.edit().putString(KEY_SERVER_URL, cleanUrl).commit() } catch (_: Exception) {}
+    }
 
     // Device Pairing Credentials
-    fun getDeviceId(): String? = prefs.getString(KEY_DEVICE_ID, null)
-    fun setDeviceId(deviceId: String) = prefs.edit().putString(KEY_DEVICE_ID, deviceId).apply()
+    fun getDeviceId(): String? = (memoryDeviceId ?: try { prefs.getString(KEY_DEVICE_ID, null) } catch (_: Exception) { null }?.also { memoryDeviceId = it })?.trim()?.trim('"', '\'')
+    fun setDeviceId(deviceId: String) {
+        val clean = deviceId.trim().trim('"', '\'')
+        memoryDeviceId = clean
+        try { prefs.edit().putString(KEY_DEVICE_ID, clean).commit() } catch (_: Exception) {}
+    }
 
-    fun getDeviceToken(): String? = prefs.getString(KEY_DEVICE_TOKEN, null)
-    fun setDeviceToken(token: String) = prefs.edit().putString(KEY_DEVICE_TOKEN, token).apply()
+    fun getDeviceToken(): String? = (memoryDeviceToken ?: try { prefs.getString(KEY_DEVICE_TOKEN, null) } catch (_: Exception) { null }?.also { memoryDeviceToken = it })?.trim()?.trim('"', '\'')
+    fun setDeviceToken(token: String) {
+        val clean = token.trim().trim('"', '\'')
+        memoryDeviceToken = clean
+        try { prefs.edit().putString(KEY_DEVICE_TOKEN, clean).commit() } catch (_: Exception) {}
+    }
 
     fun isDevicePaired(): Boolean = !getDeviceId().isNullOrBlank() && !getDeviceToken().isNullOrBlank()
 
     fun clearDevicePairing() {
-        prefs.edit()
-            .remove(KEY_DEVICE_ID)
-            .remove(KEY_DEVICE_TOKEN)
-            .apply()
+        memoryDeviceId = null
+        memoryDeviceToken = null
+        try {
+            prefs.edit()
+                .remove(KEY_DEVICE_ID)
+                .remove(KEY_DEVICE_TOKEN)
+                .commit()
+        } catch (_: Exception) {}
     }
 
     // User Session Token (JWT)
-    fun getAuthToken(): String? = prefs.getString(KEY_AUTH_TOKEN, null)
-    fun setAuthToken(token: String) = prefs.edit().putString(KEY_AUTH_TOKEN, token).apply()
+    fun getAuthToken(): String? = (memoryAuthToken ?: try { prefs.getString(KEY_AUTH_TOKEN, null) } catch (_: Exception) { null }?.also { memoryAuthToken = it })?.trim()?.trim('"', '\'')
+    fun setAuthToken(token: String) {
+        val clean = token.trim().trim('"', '\'')
+        memoryAuthToken = clean
+        try { prefs.edit().putString(KEY_AUTH_TOKEN, clean).commit() } catch (_: Exception) {}
+    }
 
-    fun getUserId(): String? = prefs.getString(KEY_USER_ID, null)
-    fun setUserId(userId: String) = prefs.edit().putString(KEY_USER_ID, userId).apply()
+    fun getUserId(): String? = memoryUserId ?: try { prefs.getString(KEY_USER_ID, null) } catch (_: Exception) { null }?.also { memoryUserId = it }
+    fun setUserId(userId: String) {
+        memoryUserId = userId
+        try { prefs.edit().putString(KEY_USER_ID, userId).commit() } catch (_: Exception) {}
+    }
 
-    fun getUserRole(): String? = prefs.getString(KEY_USER_ROLE, null)
-    fun setUserRole(role: String) = prefs.edit().putString(KEY_USER_ROLE, role).apply()
+    fun getUserRole(): String? = memoryUserRole ?: try { prefs.getString(KEY_USER_ROLE, null) } catch (_: Exception) { null }?.also { memoryUserRole = it }
+    fun setUserRole(role: String) {
+        memoryUserRole = role
+        try { prefs.edit().putString(KEY_USER_ROLE, role).commit() } catch (_: Exception) {}
+    }
 
-    fun getUserName(): String? = prefs.getString(KEY_USER_NAME, null)
-    fun setUserName(name: String) = prefs.edit().putString(KEY_USER_NAME, name).apply()
+    fun getUserName(): String? = memoryUserName ?: try { prefs.getString(KEY_USER_NAME, null) } catch (_: Exception) { null }?.also { memoryUserName = it }
+    fun setUserName(name: String) {
+        memoryUserName = name
+        try { prefs.edit().putString(KEY_USER_NAME, name).commit() } catch (_: Exception) {}
+    }
 
     fun isAuthenticated(): Boolean = !getAuthToken().isNullOrBlank()
 
-    fun getPreferredCurrency(): String = prefs.getString(KEY_PREFERRED_CURRENCY, "MAD") ?: "MAD"
-    fun setPreferredCurrency(currency: String) = prefs.edit().putString(KEY_PREFERRED_CURRENCY, currency).apply()
+    private val _preferredCurrencyFlow = kotlinx.coroutines.flow.MutableStateFlow(getPreferredCurrency())
+    val preferredCurrencyFlow: kotlinx.coroutines.flow.StateFlow<String> = _preferredCurrencyFlow
+
+    fun getPreferredCurrency(): String = memoryPreferredCurrency ?: "USD"
+    fun setPreferredCurrency(currency: String) {
+        val upper = currency.trim().uppercase()
+        memoryPreferredCurrency = upper
+        try { prefs.edit().putString(KEY_PREFERRED_CURRENCY, upper).commit() } catch (_: Exception) {}
+        _preferredCurrencyFlow.value = upper
+    }
+
+    fun getLastSessionError(): String? = memoryLastSessionError
+    fun setLastSessionError(error: String?) {
+        memoryLastSessionError = error
+    }
+    fun clearLastSessionError() {
+        memoryLastSessionError = null
+    }
 
     fun clearSession() {
-        prefs.edit()
-            .remove(KEY_AUTH_TOKEN)
-            .remove(KEY_USER_ID)
-            .remove(KEY_USER_ROLE)
-            .remove(KEY_USER_NAME)
-            .remove(KEY_PREFERRED_CURRENCY)
-            .apply()
+        memoryAuthToken = null
+        memoryUserId = null
+        memoryUserRole = null
+        memoryUserName = null
+        memoryPreferredCurrency = "USD"
+        try {
+            prefs.edit()
+                .remove(KEY_AUTH_TOKEN)
+                .remove(KEY_USER_ID)
+                .remove(KEY_USER_ROLE)
+                .remove(KEY_USER_NAME)
+                .remove(KEY_PREFERRED_CURRENCY)
+                .commit()
+        } catch (_: Exception) {}
+        _preferredCurrencyFlow.value = "USD"
     }
 
     fun clearAll() {
-        prefs.edit().clear().apply()
+        memoryServerUrl = DEFAULT_SERVER_URL
+        memoryDeviceId = null
+        memoryDeviceToken = null
+        memoryAuthToken = null
+        memoryUserId = null
+        memoryUserRole = null
+        memoryUserName = null
+        memoryPreferredCurrency = "USD"
+        try { prefs.edit().clear().commit() } catch (_: Exception) {}
+        _preferredCurrencyFlow.value = "USD"
     }
 
     companion object {
@@ -91,6 +163,9 @@ class SecureStorage(private val prefs: SharedPreferences) {
                     EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
                     EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
                 )
+                // Test read/write probe to ensure Keystore is actually functional on this OEM device
+                encryptedPrefs.edit().putString("__keystore_probe__", "ok").commit()
+                encryptedPrefs.getString("__keystore_probe__", null)
                 SecureStorage(encryptedPrefs)
             } catch (e: Exception) {
                 // Fallback to standard private preferences if Keystore encounters device-specific OEM bugs

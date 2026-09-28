@@ -72,6 +72,9 @@ data class MeResponse(
     @SerializedName("user")
     val user: UserDto? = null,
 
+    @SerializedName("token")
+    val token: String? = null,
+
     @SerializedName("error")
     val error: String? = null
 )

@@ -8,6 +8,7 @@ import com.vectis.erp.core.network.ApiResult
 import com.vectis.erp.core.security.SecureStorage
 import com.vectis.erp.data.model.*
 import com.vectis.erp.domain.repository.ProductInventoryRepository
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -18,14 +19,27 @@ import java.util.Locale
 class InventoryViewModel(
     private val repository: ProductInventoryRepository,
     private val secureStorage: SecureStorage,
-    val permissionManager: PermissionManager
+    val permissionManager: PermissionManager,
+    private val authRepository: com.vectis.erp.domain.repository.AuthRepository? = null
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<InventoryUiState>(InventoryUiState.Loading)
     val uiState: StateFlow<InventoryUiState> = _uiState.asStateFlow()
 
+    val preferredCurrency: StateFlow<String> = secureStorage.preferredCurrencyFlow
+
     init {
-        loadData()
+        if (secureStorage.isAuthenticated()) {
+            loadData()
+        }
+        viewModelScope.launch {
+            secureStorage.preferredCurrencyFlow.collect {
+                val current = _uiState.value
+                if (current is InventoryUiState.Success) {
+                    _uiState.value = current.copy()
+                }
+            }
+        }
     }
 
     fun selectTab(tab: InventoryTab) {
@@ -51,11 +65,17 @@ class InventoryViewModel(
                 _uiState.value = current.copy(isRefreshing = true)
             }
 
-            val productsRes = repository.getProducts()
-            val categoriesRes = repository.getCategories()
-            val plansRes = repository.getPlans()
-            val accountsRes = repository.getServiceAccounts()
-            val licensesRes = repository.getLicenseKeys()
+            val productsDef = async { repository.getProducts() }
+            val categoriesDef = async { repository.getCategories() }
+            val plansDef = async { repository.getPlans() }
+            val accountsDef = async { repository.getServiceAccounts() }
+            val licensesDef = async { repository.getLicenseKeys() }
+
+            val productsRes = productsDef.await()
+            val categoriesRes = categoriesDef.await()
+            val plansRes = plansDef.await()
+            val accountsRes = accountsDef.await()
+            val licensesRes = licensesDef.await()
 
             val products = if (productsRes is ApiResult.Success) productsRes.data.products else emptyList()
             val categories = if (categoriesRes is ApiResult.Success) categoriesRes.data.categories else emptyList()
@@ -67,10 +87,16 @@ class InventoryViewModel(
             val accounts = if (accountsRes is ApiResult.Success) accountsRes.data.accounts else emptyList()
             val licenses = if (licensesRes is ApiResult.Success) licensesRes.data.licenses else emptyList()
 
-            val activeTab = if (current is InventoryUiState.Success) current.activeTab else InventoryTab.PRODUCTS
+            val activeTab = if (current is InventoryUiState.Success) current.activeTab else InventoryTab.ACCOUNTS
             val selectedCategory = if (current is InventoryUiState.Success) current.selectedCategoryId else "all"
             val expanded = if (current is InventoryUiState.Success) current.expandedAccountId else null
-            val profiles = if (current is InventoryUiState.Success) current.accountProfiles else emptyMap()
+            val profilesMap = (if (current is InventoryUiState.Success) current.accountProfiles else emptyMap()).toMutableMap()
+            if (expanded != null && !profilesMap.containsKey(expanded)) {
+                val pRes = repository.getAccountProfiles(expanded)
+                if (pRes is ApiResult.Success) {
+                    profilesMap[expanded] = pRes.data.profiles
+                }
+            }
             val creds = if (current is InventoryUiState.Success) current.revealedCredentials else emptyMap()
 
             _uiState.value = InventoryUiState.Success(
@@ -82,7 +108,7 @@ class InventoryViewModel(
                 accounts = accounts,
                 licenses = licenses,
                 expandedAccountId = expanded,
-                accountProfiles = profiles,
+                accountProfiles = profilesMap,
                 revealedCredentials = creds,
                 isRefreshing = false
             )
@@ -157,6 +183,40 @@ class InventoryViewModel(
         }
     }
 
+    fun updateCategory(id: String, req: UpdateCategoryRequest, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        if (!permissionManager.canManageProducts()) {
+            onError("Permission denied: Managing categories requires Manager or Admin role.")
+            return
+        }
+        viewModelScope.launch {
+            when (val res = repository.updateCategory(id, req)) {
+                is ApiResult.Success -> {
+                    loadData(isRefresh = true)
+                    onSuccess()
+                }
+                is ApiResult.Error -> onError(res.message)
+                is ApiResult.NetworkError -> onError(res.exception.localizedMessage ?: "Network connection failed")
+            }
+        }
+    }
+
+    fun deleteCategory(id: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        if (!permissionManager.canManageProducts()) {
+            onError("Permission denied: Managing categories requires Manager or Admin role.")
+            return
+        }
+        viewModelScope.launch {
+            when (val res = repository.deleteCategory(id)) {
+                is ApiResult.Success -> {
+                    loadData(isRefresh = true)
+                    onSuccess()
+                }
+                is ApiResult.Error -> onError(res.message)
+                is ApiResult.NetworkError -> onError(res.exception.localizedMessage ?: "Network connection failed")
+            }
+        }
+    }
+
     fun createPlan(req: CreatePlanRequest, onSuccess: () -> Unit, onError: (String) -> Unit) {
         if (!permissionManager.canManageProducts()) {
             onError("Permission denied: Managing plans requires Manager or Admin role.")
@@ -164,6 +224,23 @@ class InventoryViewModel(
         }
         viewModelScope.launch {
             when (val res = repository.createPlan(req)) {
+                is ApiResult.Success -> {
+                    loadData(isRefresh = true)
+                    onSuccess()
+                }
+                is ApiResult.Error -> onError(res.message)
+                is ApiResult.NetworkError -> onError(res.exception.localizedMessage ?: "Network connection failed")
+            }
+        }
+    }
+
+    fun updatePlan(id: String, req: UpdatePlanRequest, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        if (!permissionManager.canManageProducts()) {
+            onError("Permission denied: Managing plans requires Manager or Admin role.")
+            return
+        }
+        viewModelScope.launch {
+            when (val res = repository.updatePlan(id, req)) {
                 is ApiResult.Success -> {
                     loadData(isRefresh = true)
                     onSuccess()
@@ -355,32 +432,19 @@ class InventoryViewModel(
     }
 
     fun formatCurrency(amount: Double): String {
-        val currency = secureStorage.getPreferredCurrency()
-        val format = NumberFormat.getNumberInstance(Locale.US).apply {
-            minimumFractionDigits = 2
-            maximumFractionDigits = 2
-        }
-        val symbol = when (currency.uppercase()) {
-            "MAD" -> " MAD"
-            "EUR" -> "€"
-            "USD" -> "$"
-            else -> " $currency"
-        }
-        return if (currency.uppercase() == "MAD") {
-            "${format.format(amount)}$symbol"
-        } else {
-            "$symbol${format.format(amount)}"
-        }
+        val target = secureStorage.getPreferredCurrency()
+        return com.vectis.erp.core.currency.CurrencyFormatter.formatWithConversion(amount, fromCode = "USD", toCode = target)
     }
 
     class Factory(
         private val repository: ProductInventoryRepository,
         private val secureStorage: SecureStorage,
-        private val permissionManager: PermissionManager
+        private val permissionManager: PermissionManager,
+        private val authRepository: com.vectis.erp.domain.repository.AuthRepository? = null
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return InventoryViewModel(repository, secureStorage, permissionManager) as T
+            return InventoryViewModel(repository, secureStorage, permissionManager, authRepository) as T
         }
     }
 }

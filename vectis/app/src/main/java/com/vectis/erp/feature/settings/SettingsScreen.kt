@@ -20,14 +20,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.vectis.erp.core.authorization.UserRole
 import com.vectis.erp.core.design.*
-import com.vectis.erp.data.model.AuditLogDto
-import com.vectis.erp.data.model.UserDto
+import com.vectis.erp.data.model.*
 import com.vectis.erp.feature.products.ConfirmDeleteDialog
 import kotlinx.coroutines.launch
 
@@ -37,7 +37,11 @@ fun SettingsScreen(
     viewModel: SettingsViewModel,
     onNavigateToLogin: () -> Unit,
     onNavigateToPairing: () -> Unit,
-    onNavigateBack: (() -> Unit)? = null
+    onNavigateBack: (() -> Unit)? = null,
+    preferredCurrency: String = "USD",
+    alertCount: Int = 0,
+    onOpenSearch: () -> Unit = {},
+    onNavigateToAlerts: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val coroutineScope = rememberCoroutineScope()
@@ -52,25 +56,18 @@ fun SettingsScreen(
     var tempUrl by remember { mutableStateOf("") }
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0.dp, 0.dp, 0.dp, 0.dp),
         topBar = {
-            TopAppBar(
-                title = { Text("Settings & Preferences", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    if (onNavigateBack != null) {
-                        IconButton(onClick = onNavigateBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Slate700)
-                        }
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { viewModel.loadSettings(isRefresh = true) }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Slate50)
+            VectisTopAppBar(
+                onRefresh = { viewModel.loadSettings(isRefresh = true) },
+                onNavigateToSettings = {},
+                onNavigateToAlerts = onNavigateToAlerts,
+                onOpenSearch = onOpenSearch,
+                alertCount = alertCount,
+                preferredCurrency = preferredCurrency
             )
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = { VectisSnackbarHost(snackbarHostState) },
         containerColor = Slate50
     ) { paddingValues ->
         when (val state = uiState) {
@@ -78,7 +75,7 @@ fun SettingsScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(paddingValues),
+                        .padding(top = paddingValues.calculateTopPadding()),
                     contentAlignment = Alignment.Center
                 ) {
                     CircularProgressIndicator(color = PrimaryBlue)
@@ -88,14 +85,17 @@ fun SettingsScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(paddingValues),
+                        .padding(top = paddingValues.calculateTopPadding()),
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(text = state.message, color = StatusDanger)
                         Spacer(modifier = Modifier.height(12.dp))
-                        Button(onClick = { viewModel.loadSettings() }) {
-                            Text("Retry")
+                        Button(
+                            onClick = { viewModel.loadSettings() },
+                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue, contentColor = Color.White)
+                        ) {
+                            Text("Retry", color = Color.White)
                         }
                     }
                 }
@@ -104,8 +104,13 @@ fun SettingsScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(paddingValues)
+                        .padding(top = paddingValues.calculateTopPadding())
                 ) {
+                    ViewHeader(
+                        title = "Settings & Preferences",
+                        description = "Configuration, Users & Profile"
+                    )
+
                     // Navigation Tab Row
                     TabRow(
                         selectedTabIndex = state.activeTab.ordinal,
@@ -146,30 +151,30 @@ fun SettingsScreen(
                     }
 
                     // Tab Content Body
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 16.dp)
-                            .verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        Spacer(modifier = Modifier.height(4.dp))
+                    key(state.activeTab) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .verticalScroll(rememberScrollState())
+                                .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 80.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Spacer(modifier = Modifier.height(4.dp))
 
                         when (state.activeTab) {
                             SettingsTab.GENERAL -> {
                                 GeneralSettingsTab(
                                     state = state,
-                                    viewModel = viewModel,
-                                    onEditUrl = {
-                                        tempUrl = state.serverUrl
-                                        showEditUrlDialog = true
-                                    }
+                                    viewModel = viewModel
                                 )
                             }
                             SettingsTab.SECURITY -> {
                                 SecuritySettingsTab(
-                                    onChangePassword = { showChangePasswordDialog = true },
-                                    onLogout = { showLogoutDialog = true },
+                                    state = state,
+                                    onEditUrl = {
+                                        tempUrl = state.serverUrl
+                                        showEditUrlDialog = true
+                                    },
                                     onUnpair = { showUnpairDialog = true }
                                 )
                             }
@@ -199,6 +204,7 @@ fun SettingsScreen(
                                 .padding(vertical = 16.dp),
                             textAlign = TextAlign.Center
                         )
+                    }
                     }
                 }
             }
@@ -282,6 +288,7 @@ fun SettingsScreen(
     if (showEditUrlDialog) {
         AlertDialog(
             onDismissRequest = { showEditUrlDialog = false },
+            containerColor = Color.White,
             title = { Text("Update Server Base URL") },
             text = {
                 Column {
@@ -298,14 +305,14 @@ fun SettingsScreen(
                 }
             },
             confirmButton = {
-                Button(
+                VectisPillButton(
+                    text = "Save & Reconnect",
+                    icon = Icons.Default.Check,
                     onClick = {
                         showEditUrlDialog = false
                         viewModel.updateServerUrl(tempUrl)
                     }
-                ) {
-                    Text("Save & Reconnect")
-                }
+                )
             },
             dismissButton = {
                 TextButton(onClick = { showEditUrlDialog = false }) {
@@ -319,17 +326,18 @@ fun SettingsScreen(
     if (showLogoutDialog) {
         AlertDialog(
             onDismissRequest = { showLogoutDialog = false },
+            containerColor = Color.White,
             title = { Text("Log Out") },
             text = { Text("Are you sure you want to end your current session? You can log back in using your username and password.") },
             confirmButton = {
-                Button(
+                VectisPillButton(
+                    text = "Log Out",
+                    containerColor = StatusDanger,
                     onClick = {
                         showLogoutDialog = false
                         viewModel.logout(onSuccess = onNavigateToLogin)
                     }
-                ) {
-                    Text("Log Out")
-                }
+                )
             },
             dismissButton = {
                 TextButton(onClick = { showLogoutDialog = false }) {
@@ -343,18 +351,18 @@ fun SettingsScreen(
     if (showUnpairDialog) {
         AlertDialog(
             onDismissRequest = { showUnpairDialog = false },
+            containerColor = Color.White,
             title = { Text("Unpair This Device?") },
             text = { Text("Unpairing will remove this device's cryptographic identity from the server. You will need to scan a new pairing QR code or enter a new pairing code to connect again.") },
             confirmButton = {
-                Button(
+                VectisPillButton(
+                    text = "Unpair Device",
+                    containerColor = StatusDanger,
                     onClick = {
                         showUnpairDialog = false
                         viewModel.unpairDevice(onSuccess = onNavigateToPairing)
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = StatusDanger)
-                ) {
-                    Text("Unpair Device")
-                }
+                    }
+                )
             },
             dismissButton = {
                 TextButton(onClick = { showUnpairDialog = false }) {
@@ -371,8 +379,7 @@ fun SettingsScreen(
 @Composable
 private fun GeneralSettingsTab(
     state: SettingsUiState.Success,
-    viewModel: SettingsViewModel,
-    onEditUrl: () -> Unit
+    viewModel: SettingsViewModel
 ) {
     // 1. User Profile Card
     Card(
@@ -440,7 +447,224 @@ private fun GeneralSettingsTab(
         }
     }
 
-    // 2. Preferred Currency Card
+    // 2. Active User Profile Edit Section
+    var profileName by remember(state.user?.name) { mutableStateOf(state.user?.name ?: "") }
+    var profileUsername by remember(state.user?.username) { mutableStateOf(state.user?.username ?: "") }
+    var profileEmail by remember(state.user?.email) { mutableStateOf(state.user?.email ?: "") }
+    var currentPassword by remember { mutableStateOf("") }
+    var newPassword by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
+    var showPasswordFields by remember { mutableStateOf(false) }
+    var profileStatusMessage by remember { mutableStateOf<String?>(null) }
+    var isProfileSuccess by remember { mutableStateOf(false) }
+    var isSavingProfile by remember { mutableStateOf(false) }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "Edit Active User Profile",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Slate900
+                    )
+                    Text(
+                        text = "Update staff details, username, email & password",
+                        fontSize = 12.sp,
+                        color = Slate500
+                    )
+                }
+                Icon(
+                    Icons.Default.PersonOutline,
+                    contentDescription = null,
+                    tint = PrimaryBlue,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            OutlinedTextField(
+                value = profileName,
+                onValueChange = { profileName = it; profileStatusMessage = null },
+                label = { Text("Full Name *") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(10.dp)
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            OutlinedTextField(
+                value = profileUsername,
+                onValueChange = { profileUsername = it; profileStatusMessage = null },
+                label = { Text("Username *") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(10.dp)
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            OutlinedTextField(
+                value = profileEmail,
+                onValueChange = { profileEmail = it; profileStatusMessage = null },
+                label = { Text("Email Address *") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(10.dp)
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Password Toggle
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Change Account Password",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Slate700
+                )
+                TextButton(onClick = { showPasswordFields = !showPasswordFields }) {
+                    Text(if (showPasswordFields) "Hide" else "Update Password", color = PrimaryBlue, fontSize = 12.sp)
+                }
+            }
+
+            if (showPasswordFields) {
+                Spacer(modifier = Modifier.height(6.dp))
+                OutlinedTextField(
+                    value = currentPassword,
+                    onValueChange = { currentPassword = it; profileStatusMessage = null },
+                    label = { Text("Current Password *") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp)
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                OutlinedTextField(
+                    value = newPassword,
+                    onValueChange = { newPassword = it; profileStatusMessage = null },
+                    label = { Text("New Password (min 8 chars, A-Z, 0-9, symbol)") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp)
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                OutlinedTextField(
+                    value = confirmPassword,
+                    onValueChange = { confirmPassword = it; profileStatusMessage = null },
+                    label = { Text("Confirm New Password") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp)
+                )
+            }
+
+            profileStatusMessage?.let { msg ->
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = msg,
+                    color = if (isProfileSuccess) StatusSuccess else StatusDanger,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            VectisPillButton(
+                text = "Save Profile Changes",
+                onClick = {
+                    if (profileName.isBlank()) {
+                        profileStatusMessage = "Full name cannot be blank."
+                        isProfileSuccess = false
+                        return@VectisPillButton
+                    }
+                    if (profileUsername.isBlank()) {
+                        profileStatusMessage = "Username cannot be blank."
+                        isProfileSuccess = false
+                        return@VectisPillButton
+                    }
+                    if (profileEmail.isBlank() || !profileEmail.contains("@")) {
+                        profileStatusMessage = "A valid email address is required."
+                        isProfileSuccess = false
+                        return@VectisPillButton
+                    }
+                    if (showPasswordFields && (currentPassword.isNotBlank() || newPassword.isNotBlank() || confirmPassword.isNotBlank())) {
+                        if (currentPassword.isBlank()) {
+                            profileStatusMessage = "Current password is required to change password."
+                            isProfileSuccess = false
+                            return@VectisPillButton
+                        }
+                        val pwError = com.vectis.erp.core.security.PasswordValidator.validate(newPassword)
+                        if (pwError != null) {
+                            profileStatusMessage = pwError
+                            isProfileSuccess = false
+                            return@VectisPillButton
+                        }
+                        if (newPassword != confirmPassword) {
+                            profileStatusMessage = "New password and confirmation do not match."
+                            isProfileSuccess = false
+                            return@VectisPillButton
+                        }
+                    }
+
+                    isSavingProfile = true
+                    profileStatusMessage = null
+                    viewModel.updateProfile(
+                        req = UpdateProfileRequest(
+                            name = profileName.trim(),
+                            username = profileUsername.trim(),
+                            email = profileEmail.trim(),
+                            preferredCurrency = state.preferredCurrency,
+                            currentPassword = currentPassword.ifBlank { null },
+                            newPassword = newPassword.ifBlank { null },
+                            confirmPassword = confirmPassword.ifBlank { null }
+                        ),
+                        onSuccess = { msg ->
+                            isSavingProfile = false
+                            isProfileSuccess = true
+                            profileStatusMessage = msg
+                            currentPassword = ""
+                            newPassword = ""
+                            confirmPassword = ""
+                            showPasswordFields = false
+                        },
+                        onError = { err ->
+                            isSavingProfile = false
+                            isProfileSuccess = false
+                            profileStatusMessage = err
+                        }
+                    )
+                },
+                isLoading = isSavingProfile,
+                icon = Icons.Default.Save,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+
+    // 3. Preferred Currency Card
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -495,8 +719,18 @@ private fun GeneralSettingsTab(
             )
         }
     }
+}
 
-    // 3. Server Connection & Device Identity Card
+// ---------------------------------------------------------------------------
+// 2. SECURITY TAB
+// ---------------------------------------------------------------------------
+@Composable
+private fun SecuritySettingsTab(
+    state: SettingsUiState.Success,
+    onEditUrl: () -> Unit,
+    onUnpair: () -> Unit
+) {
+    // Connected ERP Server & Device Identity Card
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -568,198 +802,18 @@ private fun GeneralSettingsTab(
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Change Server URL")
             }
-        }
-    }
-
-    // 4. System Diagnostics Card
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = "System Diagnostics",
-                fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Slate900
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("Database Status", fontSize = 13.sp, color = Slate600)
-                Surface(
-                    color = if (state.health?.database == "connected" || state.isServerOnline) StatusSuccess.copy(alpha = 0.12f) else StatusWarning.copy(alpha = 0.12f),
-                    shape = RoundedCornerShape(6.dp)
-                ) {
-                    Text(
-                        text = (state.health?.database ?: if (state.isServerOnline) "connected" else "unknown").uppercase(),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (state.health?.database == "connected" || state.isServerOnline) StatusSuccess else StatusWarning,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-            HorizontalDivider(color = Slate100)
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("Backend Uptime", fontSize = 13.sp, color = Slate600)
-                Text(
-                    text = formatUptime(state.serverUptime),
-                    fontSize = 13.sp,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Slate800
-                )
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-            HorizontalDivider(color = Slate100)
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("ERP System Name", fontSize = 13.sp, color = Slate600)
-                Text(
-                    text = state.companyName,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Slate800
-                )
-            }
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------
-// 2. SECURITY TAB
-// ---------------------------------------------------------------------------
-@Composable
-private fun SecuritySettingsTab(
-    onChangePassword: () -> Unit,
-    onLogout: () -> Unit,
-    onUnpair: () -> Unit
-) {
-    // Password Management Card
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = "Account Password",
-                fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Slate900
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "Update your staff password regularly to maintain account security. Passwords must be at least 8 characters long.",
-                fontSize = 12.sp,
-                color = Slate500
-            )
-            Spacer(modifier = Modifier.height(14.dp))
-
-            Button(
-                onClick = onChangePassword,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(10.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
-            ) {
-                Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Change Account Password")
-            }
-        }
-    }
-
-    // Session & Device Actions Card
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = "Session & Security Controls",
-                fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Slate900
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "Manage your active session or disconnect your mobile companion identity.",
-                fontSize = 12.sp,
-                color = Slate500
-            )
-            Spacer(modifier = Modifier.height(14.dp))
-
-            Button(
-                onClick = onLogout,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Slate800)
-            ) {
-                Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Log Out of Session")
-            }
 
             Spacer(modifier = Modifier.height(8.dp))
 
             OutlinedButton(
                 onClick = onUnpair,
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(10.dp),
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = StatusDanger)
             ) {
                 Icon(Icons.Default.PhonelinkErase, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Unpair & Disconnect Device")
-            }
-        }
-    }
-
-    // Security Notice Card
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Slate100)
-    ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(Icons.Default.Security, contentDescription = null, tint = PrimaryBlue, modifier = Modifier.size(28.dp))
-            Spacer(modifier = Modifier.width(12.dp))
-            Column {
-                Text(
-                    text = "Hardware-Secured Pairing",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Slate900
-                )
-                Text(
-                    text = "This device communicates via TLS mutual cryptographic authentication. Sensitive credentials are never stored unencrypted on mobile storage.",
-                    fontSize = 11.sp,
-                    color = Slate600
-                )
             }
         }
     }
@@ -821,16 +875,11 @@ private fun TeamSettingsTab(
             fontWeight = FontWeight.Bold,
             color = Slate900
         )
-        Button(
-            onClick = onAddUser,
-            shape = RoundedCornerShape(10.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-        ) {
-            Icon(Icons.Default.PersonAdd, contentDescription = null, modifier = Modifier.size(16.dp))
-            Spacer(modifier = Modifier.width(6.dp))
-            Text("Add Member", fontSize = 13.sp)
-        }
+        VectisPillButton(
+            text = "Add Member",
+            icon = Icons.Default.PersonAdd,
+            onClick = onAddUser
+        )
     }
 
     if (state.teamUsers.isEmpty()) {
@@ -1133,21 +1182,26 @@ private fun AuditLogCard(log: AuditLogDto) {
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            val entityName = log.entity ?: "System"
-            val entitySnippet = if (!log.entityId.isNullOrBlank()) " #${log.entityId.take(8)}" else ""
+            val actorName = log.userName?.takeIf { it.isNotBlank() }
+                ?: log.userId?.takeIf { it.isNotBlank() }?.let { if (it.length > 8) it.take(8) else it }
+                ?: "System"
+
             Text(
-                text = "$entityName$entitySnippet",
+                text = actorName,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = Slate900
             )
 
-            val actor = log.userName ?: log.userId ?: "System"
-            Text(
-                text = "by $actor",
-                fontSize = 12.sp,
-                color = Slate600
-            )
+            val targetName = extractAuditTargetName(log)
+            if (!targetName.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = targetName,
+                    fontSize = 12.sp,
+                    color = Slate600
+                )
+            }
 
             if (!log.ipAddress.isNullOrBlank()) {
                 Spacer(modifier = Modifier.height(4.dp))

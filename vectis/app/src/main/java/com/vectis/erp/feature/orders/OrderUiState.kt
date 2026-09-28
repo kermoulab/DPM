@@ -34,7 +34,7 @@ data class CreateOrderWizardState(
     val startDate: String = "",
     val endDate: String = "",
     val customPrice: String = "",
-    val paymentMethod: String = "Cash",
+    val paymentMethod: String = "cash",
     val paymentStatus: String = "paid",
     val notes: String = "",
     val isLoading: Boolean = false,

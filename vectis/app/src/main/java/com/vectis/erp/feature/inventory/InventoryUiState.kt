@@ -3,7 +3,6 @@ package com.vectis.erp.feature.inventory
 import com.vectis.erp.data.model.*
 
 enum class InventoryTab(val title: String) {
-    PRODUCTS("Products & Plans"),
     ACCOUNTS("Service Accounts"),
     LICENSES("License Keys")
 }
@@ -11,7 +10,7 @@ enum class InventoryTab(val title: String) {
 sealed interface InventoryUiState {
     data object Loading : InventoryUiState
     data class Success(
-        val activeTab: InventoryTab = InventoryTab.PRODUCTS,
+        val activeTab: InventoryTab = InventoryTab.ACCOUNTS,
         val products: List<ProductDto> = emptyList(),
         val categories: List<CategoryDto> = emptyList(),
         val selectedCategoryId: String = "all",

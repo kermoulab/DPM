@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -30,7 +32,12 @@ import kotlinx.coroutines.launch
 @Composable
 fun CustomerListScreen(
     viewModel: CustomerViewModel,
-    onCustomerClick: (String) -> Unit
+    onCustomerClick: (String) -> Unit,
+    preferredCurrency: String = "USD",
+    onOpenSearch: () -> Unit = {},
+    onNavigateToAlerts: () -> Unit = {},
+    onNavigateToSettings: () -> Unit = {},
+    alertCount: Int = 0
 ) {
     val uiState by viewModel.listUiState.collectAsState()
     val context = LocalContext.current
@@ -40,27 +47,23 @@ fun CustomerListScreen(
     var showCreateDialog by remember { mutableStateOf(false) }
 
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        contentWindowInsets = WindowInsets(0.dp, 0.dp, 0.dp, 0.dp),
+        snackbarHost = { VectisSnackbarHost(snackbarHostState) },
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text("Customers", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Slate900)
-                        Text("Customer Directory & Contacts", fontSize = 12.sp, color = Slate500)
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { viewModel.loadCustomers(isRefresh = true) }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = PrimaryBlue)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+            VectisTopAppBar(
+                onRefresh = { viewModel.loadCustomers(isRefresh = true) },
+                onNavigateToSettings = onNavigateToSettings,
+                onNavigateToAlerts = onNavigateToAlerts,
+                onOpenSearch = onOpenSearch,
+                alertCount = alertCount,
+                preferredCurrency = preferredCurrency
             )
         },
         floatingActionButton = {
             if (viewModel.permissionManager.canCreateCustomer()) {
                 FloatingActionButton(
                     onClick = { showCreateDialog = true },
+                    modifier = Modifier.padding(bottom = 72.dp),
                     containerColor = PrimaryBlue,
                     contentColor = Color.White,
                     shape = CircleShape
@@ -76,37 +79,9 @@ fun CustomerListScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Search Input
-            var searchText by remember { mutableStateOf("") }
-            OutlinedTextField(
-                value = searchText,
-                onValueChange = {
-                    searchText = it
-                    viewModel.onSearchQueryChanged(it)
-                },
-                placeholder = { Text("Search by name, WhatsApp, or email...", fontSize = 14.sp, color = Slate400) },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Slate400) },
-                trailingIcon = {
-                    if (searchText.isNotEmpty()) {
-                        IconButton(onClick = {
-                            searchText = ""
-                            viewModel.onSearchQueryChanged("")
-                        }) {
-                            Icon(Icons.Default.Close, contentDescription = "Clear", tint = Slate400)
-                        }
-                    }
-                },
-                singleLine = true,
-                shape = RoundedCornerShape(16.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = Color.White,
-                    unfocusedContainerColor = Color.White,
-                    focusedBorderColor = PrimaryBlue,
-                    unfocusedBorderColor = Slate200
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            ViewHeader(
+                title = "Customers",
+                description = "Customer Directory & Contacts"
             )
 
             // Filter Chips
@@ -164,54 +139,71 @@ fun CustomerListScreen(
             Spacer(modifier = Modifier.height(4.dp))
 
             // Body content
-            when (val state = uiState) {
-                is CustomerListUiState.Loading -> {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = PrimaryBlue)
-                    }
-                }
-                is CustomerListUiState.Error -> {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
-                            Icon(Icons.Default.Warning, contentDescription = null, tint = StatusDanger, modifier = Modifier.size(48.dp))
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text(text = state.message, color = Slate700, fontSize = 14.sp)
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Button(onClick = { viewModel.loadCustomers() }) {
-                                Text("Retry")
-                            }
-                        }
-                    }
-                }
-                is CustomerListUiState.Success -> {
-                    if (state.customers.isEmpty()) {
+            val isRefreshing = (uiState as? CustomerListUiState.Success)?.isRefreshing == true
+            VectisPullToRefreshBox(
+                isRefreshing = isRefreshing,
+                onRefresh = { viewModel.loadCustomers(isRefresh = true) },
+                modifier = Modifier.fillMaxSize()
+            ) {
+                when (val state = uiState) {
+                    is CustomerListUiState.Loading -> {
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(color = PrimaryBlue)
+                        }
+                    }
+                    is CustomerListUiState.Error -> {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .verticalScroll(rememberScrollState()),
+                            contentAlignment = Alignment.Center
+                        ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
-                                Icon(Icons.Default.PersonOff, contentDescription = null, tint = Slate300, modifier = Modifier.size(56.dp))
+                                Icon(Icons.Default.Warning, contentDescription = null, tint = StatusDanger, modifier = Modifier.size(48.dp))
                                 Spacer(modifier = Modifier.height(12.dp))
-                                Text(
-                                    text = if (searchText.isNotBlank()) "No customers found matching \"$searchText\"" else "No customers registered yet.",
-                                    color = Slate500,
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
+                                Text(text = state.message, color = Slate700, fontSize = 14.sp)
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Button(
+                                    onClick = { viewModel.loadCustomers() },
+                                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue, contentColor = Color.White)
+                                ) {
+                                    Text("Retry", color = Color.White)
+                                }
                             }
                         }
-                    } else {
-                        LazyColumn(
-                            modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 80.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            items(state.customers, key = { it.id }) { customer ->
-                                CustomerCard(
-                                    customer = customer,
-                                    viewModel = viewModel,
-                                    onClick = { onCustomerClick(customer.id) },
-                                    onWhatsAppClick = {
-                                        viewModel.openWhatsApp(context, customer.whatsapp, customer.name)
-                                    }
-                                )
+                    }
+                    is CustomerListUiState.Success -> {
+                        if (state.customers.isEmpty()) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .verticalScroll(rememberScrollState()),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
+                                    Icon(Icons.Default.PersonOff, contentDescription = null, tint = Slate300, modifier = Modifier.size(56.dp))
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Text(
+                                        text = "No customers registered yet.",
+                                        color = Slate500,
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+                        } else {
+                            LazyColumn(
+                                modifier = Modifier.fillMaxSize(),
+                                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 80.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                items(state.customers, key = { it.id }) { customer ->
+                                    CustomerCard(
+                                        customer = customer,
+                                        viewModel = viewModel,
+                                        onClick = { onCustomerClick(customer.id) }
+                                    )
+                                }
                             }
                         }
                     }
@@ -254,8 +246,7 @@ fun CustomerListScreen(
 private fun CustomerCard(
     customer: CustomerDto,
     viewModel: CustomerViewModel,
-    onClick: () -> Unit,
-    onWhatsAppClick: () -> Unit
+    onClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -315,27 +306,6 @@ private fun CustomerCard(
                         )
                     }
                 }
-
-                // WhatsApp Action Button
-                if (!customer.whatsapp.isNullOrBlank()) {
-                    IconButton(
-                        onClick = onWhatsAppClick,
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF25D366).copy(alpha = 0.12f))
-                    ) {
-                        @Suppress("DEPRECATION")
-                        Icon(
-                            imageVector = Icons.Default.Chat,
-                            contentDescription = "WhatsApp Chat",
-                            tint = Color(0xFF128C7E),
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.width(6.dp))
 
                 // Status Pill
                 val isActive = customer.status == "active"

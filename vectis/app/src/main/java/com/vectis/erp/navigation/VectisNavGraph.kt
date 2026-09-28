@@ -1,7 +1,10 @@
 package com.vectis.erp.navigation
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -9,13 +12,36 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.vectis.erp.core.design.PrimaryBlue
+import com.vectis.erp.core.design.Slate500
 import com.vectis.erp.core.security.SecureStorage
+import com.vectis.erp.feature.alerts.AlertsUiState
+import com.vectis.erp.feature.customers.CustomerListUiState
+import com.vectis.erp.feature.dashboard.DashboardUiState
+import com.vectis.erp.feature.inventory.InventoryUiState
+import com.vectis.erp.feature.orders.OrderListUiState
+import com.vectis.erp.feature.settings.SettingsUiState
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -37,12 +63,56 @@ fun VectisNavGraph(
 
     val context = androidx.compose.ui.platform.LocalContext.current
     val app = context.applicationContext as com.vectis.erp.VectisApplication
+    val authRepo = remember { com.vectis.erp.data.repository.AuthRepositoryImpl(app.networkClient, secureStorage) }
+    val alertRepo = remember { com.vectis.erp.data.repository.AlertRepositoryImpl(app.networkClient) }
+
+    val preferredCurrency by secureStorage.preferredCurrencyFlow.collectAsState()
+    var alertCount by remember { mutableStateOf(0) }
+
+    LaunchedEffect(Unit) {
+        delay(10_000)
+        while (true) {
+            if (secureStorage.isAuthenticated()) {
+                val res = alertRepo.getAlerts()
+                if (res is com.vectis.erp.core.network.ApiResult.Success) {
+                    alertCount = res.data.badgeCount
+                }
+            }
+            delay(15_000)
+        }
+    }
 
     val searchRepo = remember { com.vectis.erp.data.repository.SearchRepositoryImpl(app.networkClient) }
     val searchViewModel: com.vectis.erp.feature.search.SearchViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
         factory = com.vectis.erp.feature.search.SearchViewModel.Factory(searchRepo)
     )
     var showGlobalSearch by remember { mutableStateOf(false) }
+
+    val dashboardRepo = remember { com.vectis.erp.data.repository.DashboardRepositoryImpl(app.networkClient) }
+    val orderRepo = remember { com.vectis.erp.data.repository.OrderRepositoryImpl(app.networkClient) }
+    val customerRepo = remember { com.vectis.erp.data.repository.CustomerRepositoryImpl(app.networkClient) }
+    val productRepo = remember { com.vectis.erp.data.repository.ProductInventoryRepositoryImpl(app.networkClient) }
+    val permissionManager = remember { com.vectis.erp.core.authorization.PermissionManager(secureStorage) }
+    val settingsRepo = remember { com.vectis.erp.data.repository.SettingsRepositoryImpl(app.networkClient) }
+
+    val dashboardViewModel: com.vectis.erp.feature.dashboard.DashboardViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+        factory = com.vectis.erp.feature.dashboard.DashboardViewModel.Factory(dashboardRepo, app.secureStorage, authRepo)
+    )
+    val orderViewModel: com.vectis.erp.feature.orders.OrderViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+        factory = com.vectis.erp.feature.orders.OrderViewModel.Factory(orderRepo, customerRepo, productRepo, secureStorage, permissionManager, authRepo)
+    )
+    val inventoryViewModel: com.vectis.erp.feature.inventory.InventoryViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+        factory = com.vectis.erp.feature.inventory.InventoryViewModel.Factory(productRepo, secureStorage, permissionManager, authRepo)
+    )
+    val customerViewModel: com.vectis.erp.feature.customers.CustomerViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+        factory = com.vectis.erp.feature.customers.CustomerViewModel.Factory(customerRepo, secureStorage, permissionManager, authRepo)
+    )
+    val alertsViewModel: com.vectis.erp.feature.alerts.AlertsViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+        factory = com.vectis.erp.feature.alerts.AlertsViewModel.Factory(alertRepo, orderRepo, secureStorage)
+    )
+    val settingsViewModel: com.vectis.erp.feature.settings.SettingsViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+        factory = com.vectis.erp.feature.settings.SettingsViewModel.Factory(settingsRepo, secureStorage)
+    )
 
     LaunchedEffect(Unit) {
         app.networkClient.deviceRevokedEvents.collect {
@@ -54,15 +124,23 @@ fun VectisNavGraph(
 
     LaunchedEffect(Unit) {
         app.networkClient.unauthorizedEvents.collect {
-            if (secureStorage.isDevicePaired()) {
-                navController.navigate(Screen.Login.route) {
-                    popUpTo(0) { inclusive = true }
-                }
-            } else {
-                navController.navigate(Screen.Pairing.route) {
+            val destination = if (secureStorage.isDevicePaired()) Screen.Login.route else Screen.Pairing.route
+            if (navController.currentDestination?.route != destination) {
+                navController.navigate(destination) {
                     popUpTo(0) { inclusive = true }
                 }
             }
+        }
+    }
+
+    // Periodic session keep-alive and profile sync (every 15 minutes) while authenticated
+    LaunchedEffect(Unit) {
+        delay(60_000)
+        while (true) {
+            if (secureStorage.isAuthenticated()) {
+                authRepo.getMe()
+            }
+            delay(15 * 60_000L)
         }
     }
 
@@ -79,79 +157,70 @@ fun VectisNavGraph(
         Screen.Settings.route
     )
 
-    Scaffold(
-        bottomBar = {
-            if (isMainScreen) {
-                NavigationBar {
-                    NavigationBarItem(
-                        selected = currentRoute == Screen.Dashboard.route,
-                        onClick = {
-                            navController.navigate(Screen.Dashboard.route) {
-                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                        icon = { Icon(Icons.Default.Dashboard, contentDescription = "Dashboard") },
-                        label = { Text("Dashboard") }
-                    )
-                    NavigationBarItem(
-                        selected = currentRoute == Screen.Orders.route,
-                        onClick = {
-                            navController.navigate(Screen.Orders.route) {
-                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                        icon = { Icon(Icons.Default.ShoppingCart, contentDescription = "Orders") },
-                        label = { Text("Orders") }
-                    )
-                    NavigationBarItem(
-                        selected = currentRoute == Screen.Products.route,
-                        onClick = {
-                            navController.navigate(Screen.Products.route) {
-                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                        icon = { Icon(Icons.Default.Inventory2, contentDescription = "Products") },
-                        label = { Text("Products") }
-                    )
-                    NavigationBarItem(
-                        selected = currentRoute == Screen.Inventory.route,
-                        onClick = {
-                            navController.navigate(Screen.Inventory.route) {
-                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                        icon = { Icon(Icons.Default.Layers, contentDescription = "Inventory") },
-                        label = { Text("Inventory") }
-                    )
-                    NavigationBarItem(
-                        selected = currentRoute == Screen.Customers.route,
-                        onClick = {
-                            navController.navigate(Screen.Customers.route) {
-                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                        icon = { Icon(Icons.Default.People, contentDescription = "Customers") },
-                        label = { Text("Customers") }
-                    )
+    val navItemClick: (String) -> Unit = { targetRoute ->
+        if (currentRoute != targetRoute) {
+            navController.navigate(targetRoute) {
+                popUpTo(Screen.Dashboard.route) {
+                    saveState = true
+                }
+                launchSingleTop = true
+                restoreState = true
+            }
+        }
+    }
+
+    val handleLogout: () -> Unit = {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                authRepo.logout()
+            } catch (_: Exception) {}
+            withContext(Dispatchers.Main) {
+                navController.navigate(Screen.Login.route) {
+                    popUpTo(0) { inclusive = true }
                 }
             }
         }
-    ) { paddingValues ->
-        NavHost(
-            navController = navController,
-            startDestination = startDestination,
-            modifier = Modifier.padding(paddingValues)
+    }
+
+    var isBottomBarVisible by remember { mutableStateOf(true) }
+
+    LaunchedEffect(currentRoute) {
+        isBottomBarVisible = true
+    }
+
+    val nestedScrollConnection = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (available.y < -8f) {
+                    isBottomBarVisible = false
+                } else if (available.y > 8f) {
+                    isBottomBarVisible = true
+                }
+                return Offset.Zero
+            }
+        }
+    }
+
+    val animatedBottomBarOffset by animateDpAsState(
+        targetValue = if (isBottomBarVisible) 0.dp else 140.dp,
+        animationSpec = tween(
+            durationMillis = 220,
+            easing = FastOutSlowInEasing
+        ),
+        label = "BottomBarOffset"
+    )
+
+    CompositionLocalProvider(com.vectis.erp.core.design.LocalLogoutHandler provides handleLogout) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .nestedScroll(nestedScrollConnection)
         ) {
+            NavHost(
+                navController = navController,
+                startDestination = startDestination,
+                modifier = Modifier.fillMaxSize()
+            ) {
             composable(Screen.Pairing.route) {
                 val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as com.vectis.erp.VectisApplication
                 val pairingRepo = remember { com.vectis.erp.data.repository.PairingRepositoryImpl(app.networkClient, secureStorage) }
@@ -210,6 +279,12 @@ fun VectisNavGraph(
                     viewModel = viewModel,
                     deviceId = secureStorage.getDeviceId(),
                     onLoginSuccess = {
+                        dashboardViewModel.loadStats()
+                        orderViewModel.loadOrders(isRefresh = true)
+                        inventoryViewModel.loadData(isRefresh = true)
+                        customerViewModel.loadCustomers(isRefresh = true)
+                        alertsViewModel.loadAlerts(isRefresh = true)
+                        settingsViewModel.loadSettings(isRefresh = true)
                         navController.navigate(Screen.Dashboard.route) {
                             popUpTo(Screen.Login.route) { inclusive = true }
                         }
@@ -222,14 +297,13 @@ fun VectisNavGraph(
                 )
             }
             composable(Screen.Dashboard.route) {
-                val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as com.vectis.erp.VectisApplication
-                val dashboardRepo = remember { com.vectis.erp.data.repository.DashboardRepositoryImpl(app.networkClient) }
-                val viewModel: com.vectis.erp.feature.dashboard.DashboardViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
-                    factory = com.vectis.erp.feature.dashboard.DashboardViewModel.Factory(dashboardRepo)
-                )
-
+                LaunchedEffect(Unit) {
+                    if (secureStorage.isAuthenticated() && dashboardViewModel.uiState.value !is DashboardUiState.Success) {
+                        dashboardViewModel.loadStats()
+                    }
+                }
                 com.vectis.erp.feature.dashboard.DashboardScreen(
-                    viewModel = viewModel,
+                    viewModel = dashboardViewModel,
                     onNavigateToOrders = { navController.navigate(Screen.Orders.route) },
                     onNavigateToProducts = { navController.navigate(Screen.Products.route) },
                     onNavigateToInventory = { navController.navigate(Screen.Inventory.route) },
@@ -239,17 +313,18 @@ fun VectisNavGraph(
                 )
             }
             composable(Screen.Orders.route) {
-                val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as com.vectis.erp.VectisApplication
-                val orderRepo = remember { com.vectis.erp.data.repository.OrderRepositoryImpl(app.networkClient) }
-                val customerRepo = remember { com.vectis.erp.data.repository.CustomerRepositoryImpl(app.networkClient) }
-                val productRepo = remember { com.vectis.erp.data.repository.ProductInventoryRepositoryImpl(app.networkClient) }
-                val permissionManager = remember { com.vectis.erp.core.authorization.PermissionManager(secureStorage) }
-                val viewModel: com.vectis.erp.feature.orders.OrderViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
-                    factory = com.vectis.erp.feature.orders.OrderViewModel.Factory(orderRepo, customerRepo, productRepo, secureStorage, permissionManager)
-                )
-
+                LaunchedEffect(Unit) {
+                    if (secureStorage.isAuthenticated() && orderViewModel.listUiState.value !is OrderListUiState.Success) {
+                        orderViewModel.loadOrders(isRefresh = true)
+                    }
+                }
                 com.vectis.erp.feature.orders.OrderListScreen(
-                    viewModel = viewModel,
+                    viewModel = orderViewModel,
+                    preferredCurrency = preferredCurrency,
+                    alertCount = alertCount,
+                    onOpenSearch = { showGlobalSearch = true },
+                    onNavigateToAlerts = { navController.navigate(Screen.Alerts.route) },
+                    onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
                     onOrderClick = { orderId ->
                         navController.navigate(Screen.OrderDetail.createRoute(orderId))
                     },
@@ -260,33 +335,15 @@ fun VectisNavGraph(
             }
             composable(Screen.OrderDetail.route) { backStackEntry ->
                 val orderId = backStackEntry.arguments?.getString("orderId") ?: ""
-                val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as com.vectis.erp.VectisApplication
-                val orderRepo = remember { com.vectis.erp.data.repository.OrderRepositoryImpl(app.networkClient) }
-                val customerRepo = remember { com.vectis.erp.data.repository.CustomerRepositoryImpl(app.networkClient) }
-                val productRepo = remember { com.vectis.erp.data.repository.ProductInventoryRepositoryImpl(app.networkClient) }
-                val permissionManager = remember { com.vectis.erp.core.authorization.PermissionManager(secureStorage) }
-                val viewModel: com.vectis.erp.feature.orders.OrderViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
-                    factory = com.vectis.erp.feature.orders.OrderViewModel.Factory(orderRepo, customerRepo, productRepo, secureStorage, permissionManager)
-                )
-
                 com.vectis.erp.feature.orders.OrderDetailScreen(
                     orderId = orderId,
-                    viewModel = viewModel,
+                    viewModel = orderViewModel,
                     onNavigateBack = { navController.popBackStack() }
                 )
             }
             composable(Screen.CreateOrder.route) {
-                val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as com.vectis.erp.VectisApplication
-                val orderRepo = remember { com.vectis.erp.data.repository.OrderRepositoryImpl(app.networkClient) }
-                val customerRepo = remember { com.vectis.erp.data.repository.CustomerRepositoryImpl(app.networkClient) }
-                val productRepo = remember { com.vectis.erp.data.repository.ProductInventoryRepositoryImpl(app.networkClient) }
-                val permissionManager = remember { com.vectis.erp.core.authorization.PermissionManager(secureStorage) }
-                val viewModel: com.vectis.erp.feature.orders.OrderViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
-                    factory = com.vectis.erp.feature.orders.OrderViewModel.Factory(orderRepo, customerRepo, productRepo, secureStorage, permissionManager)
-                )
-
                 com.vectis.erp.feature.orders.CreateOrderScreen(
-                    viewModel = viewModel,
+                    viewModel = orderViewModel,
                     onNavigateBack = { navController.popBackStack() },
                     onOrderCreated = { newOrderId ->
                         navController.navigate(Screen.OrderDetail.createRoute(newOrderId)) {
@@ -296,27 +353,33 @@ fun VectisNavGraph(
                 )
             }
             composable(Screen.Products.route) {
-                val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as com.vectis.erp.VectisApplication
-                val inventoryRepo = remember { com.vectis.erp.data.repository.ProductInventoryRepositoryImpl(app.networkClient) }
-                val permissionManager = remember { com.vectis.erp.core.authorization.PermissionManager(secureStorage) }
-                val viewModel: com.vectis.erp.feature.inventory.InventoryViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
-                    factory = com.vectis.erp.feature.inventory.InventoryViewModel.Factory(inventoryRepo, secureStorage, permissionManager)
-                )
-
+                LaunchedEffect(Unit) {
+                    if (secureStorage.isAuthenticated() && inventoryViewModel.uiState.value !is InventoryUiState.Success) {
+                        inventoryViewModel.loadData(isRefresh = true)
+                    }
+                }
                 com.vectis.erp.feature.products.ProductsScreen(
-                    viewModel = viewModel
+                    viewModel = inventoryViewModel,
+                    preferredCurrency = preferredCurrency,
+                    alertCount = alertCount,
+                    onOpenSearch = { showGlobalSearch = true },
+                    onNavigateToAlerts = { navController.navigate(Screen.Alerts.route) },
+                    onNavigateToSettings = { navController.navigate(Screen.Settings.route) }
                 )
             }
             composable(Screen.Customers.route) {
-                val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as com.vectis.erp.VectisApplication
-                val customerRepo = remember { com.vectis.erp.data.repository.CustomerRepositoryImpl(app.networkClient) }
-                val permissionManager = remember { com.vectis.erp.core.authorization.PermissionManager(secureStorage) }
-                val viewModel: com.vectis.erp.feature.customers.CustomerViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
-                    factory = com.vectis.erp.feature.customers.CustomerViewModel.Factory(customerRepo, secureStorage, permissionManager)
-                )
-
+                LaunchedEffect(Unit) {
+                    if (secureStorage.isAuthenticated() && customerViewModel.listUiState.value !is CustomerListUiState.Success) {
+                        customerViewModel.loadCustomers(isRefresh = true)
+                    }
+                }
                 com.vectis.erp.feature.customers.CustomerListScreen(
-                    viewModel = viewModel,
+                    viewModel = customerViewModel,
+                    preferredCurrency = preferredCurrency,
+                    alertCount = alertCount,
+                    onOpenSearch = { showGlobalSearch = true },
+                    onNavigateToAlerts = { navController.navigate(Screen.Alerts.route) },
+                    onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
                     onCustomerClick = { customerId ->
                         navController.navigate(Screen.CustomerDetail.createRoute(customerId))
                     }
@@ -324,16 +387,9 @@ fun VectisNavGraph(
             }
             composable(Screen.CustomerDetail.route) { backStackEntry ->
                 val customerId = backStackEntry.arguments?.getString("customerId") ?: ""
-                val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as com.vectis.erp.VectisApplication
-                val customerRepo = remember { com.vectis.erp.data.repository.CustomerRepositoryImpl(app.networkClient) }
-                val permissionManager = remember { com.vectis.erp.core.authorization.PermissionManager(secureStorage) }
-                val viewModel: com.vectis.erp.feature.customers.CustomerViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
-                    factory = com.vectis.erp.feature.customers.CustomerViewModel.Factory(customerRepo, secureStorage, permissionManager)
-                )
-
                 com.vectis.erp.feature.customers.CustomerDetailScreen(
                     customerId = customerId,
-                    viewModel = viewModel,
+                    viewModel = customerViewModel,
                     onNavigateBack = { navController.popBackStack() },
                     onOrderClick = { orderId ->
                         navController.navigate(Screen.OrderDetail.createRoute(orderId))
@@ -341,26 +397,31 @@ fun VectisNavGraph(
                 )
             }
             composable(Screen.Inventory.route) {
-                val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as com.vectis.erp.VectisApplication
-                val inventoryRepo = remember { com.vectis.erp.data.repository.ProductInventoryRepositoryImpl(app.networkClient) }
-                val permissionManager = remember { com.vectis.erp.core.authorization.PermissionManager(secureStorage) }
-                val viewModel: com.vectis.erp.feature.inventory.InventoryViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
-                    factory = com.vectis.erp.feature.inventory.InventoryViewModel.Factory(inventoryRepo, secureStorage, permissionManager)
-                )
-
+                LaunchedEffect(Unit) {
+                    if (secureStorage.isAuthenticated() && inventoryViewModel.uiState.value !is InventoryUiState.Success) {
+                        inventoryViewModel.loadData(isRefresh = true)
+                    }
+                }
                 com.vectis.erp.feature.inventory.InventoryScreen(
-                    viewModel = viewModel
+                    viewModel = inventoryViewModel,
+                    preferredCurrency = preferredCurrency,
+                    alertCount = alertCount,
+                    onOpenSearch = { showGlobalSearch = true },
+                    onNavigateToAlerts = { navController.navigate(Screen.Alerts.route) },
+                    onNavigateToSettings = { navController.navigate(Screen.Settings.route) }
                 )
             }
             composable(Screen.Alerts.route) {
-                val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as com.vectis.erp.VectisApplication
-                val alertRepo = remember { com.vectis.erp.data.repository.AlertRepositoryImpl(app.networkClient) }
-                val viewModel: com.vectis.erp.feature.alerts.AlertsViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
-                    factory = com.vectis.erp.feature.alerts.AlertsViewModel.Factory(alertRepo, secureStorage)
-                )
-
+                LaunchedEffect(Unit) {
+                    if (secureStorage.isAuthenticated() && alertsViewModel.uiState.value !is AlertsUiState.Success) {
+                        alertsViewModel.loadAlerts(isRefresh = true)
+                    }
+                }
                 com.vectis.erp.feature.alerts.AlertsScreen(
-                    viewModel = viewModel,
+                    viewModel = alertsViewModel,
+                    preferredCurrency = preferredCurrency,
+                    onOpenSearch = { showGlobalSearch = true },
+                    onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
                     onOrderClick = { orderId ->
                         navController.navigate(Screen.OrderDetail.createRoute(orderId))
                     },
@@ -368,14 +429,17 @@ fun VectisNavGraph(
                 )
             }
             composable(Screen.Settings.route) {
-                val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as com.vectis.erp.VectisApplication
-                val settingsRepo = remember { com.vectis.erp.data.repository.SettingsRepositoryImpl(app.networkClient) }
-                val viewModel: com.vectis.erp.feature.settings.SettingsViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
-                    factory = com.vectis.erp.feature.settings.SettingsViewModel.Factory(settingsRepo, secureStorage)
-                )
-
+                LaunchedEffect(Unit) {
+                    if (secureStorage.isAuthenticated() && settingsViewModel.uiState.value !is SettingsUiState.Success) {
+                        settingsViewModel.loadSettings(isRefresh = true)
+                    }
+                }
                 com.vectis.erp.feature.settings.SettingsScreen(
-                    viewModel = viewModel,
+                    viewModel = settingsViewModel,
+                    preferredCurrency = preferredCurrency,
+                    alertCount = alertCount,
+                    onOpenSearch = { showGlobalSearch = true },
+                    onNavigateToAlerts = { navController.navigate(Screen.Alerts.route) },
                     onNavigateToLogin = {
                         navController.navigate(Screen.Login.route) {
                             popUpTo(0) { inclusive = true }
@@ -388,6 +452,63 @@ fun VectisNavGraph(
                     },
                     onNavigateBack = { navController.popBackStack() }
                 )
+            }
+        }
+
+        if (isMainScreen) {
+            val navItemColors = NavigationBarItemDefaults.colors(
+                selectedIconColor = PrimaryBlue,
+                unselectedIconColor = Slate500,
+                indicatorColor = Color.Transparent
+            )
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .offset(y = animatedBottomBarOffset),
+                color = Color.White,
+                shadowElevation = 8.dp
+            ) {
+                NavigationBar(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .height(56.dp),
+                    containerColor = Color.White,
+                    tonalElevation = 0.dp,
+                    windowInsets = WindowInsets(0.dp, 0.dp, 0.dp, 0.dp)
+                ) {
+                    NavigationBarItem(
+                        selected = currentRoute == Screen.Dashboard.route,
+                        onClick = { navItemClick(Screen.Dashboard.route) },
+                        icon = { Icon(Icons.Default.Dashboard, contentDescription = "Dashboard") },
+                        colors = navItemColors
+                    )
+                    NavigationBarItem(
+                        selected = currentRoute == Screen.Orders.route,
+                        onClick = { navItemClick(Screen.Orders.route) },
+                        icon = { Icon(Icons.Default.ShoppingCart, contentDescription = "Orders") },
+                        colors = navItemColors
+                    )
+                    NavigationBarItem(
+                        selected = currentRoute == Screen.Products.route,
+                        onClick = { navItemClick(Screen.Products.route) },
+                        icon = { Icon(Icons.Default.Inventory2, contentDescription = "Products") },
+                        colors = navItemColors
+                    )
+                    NavigationBarItem(
+                        selected = currentRoute == Screen.Inventory.route,
+                        onClick = { navItemClick(Screen.Inventory.route) },
+                        icon = { Icon(Icons.Default.Layers, contentDescription = "Inventory") },
+                        colors = navItemColors
+                    )
+                    NavigationBarItem(
+                        selected = currentRoute == Screen.Customers.route,
+                        onClick = { navItemClick(Screen.Customers.route) },
+                        icon = { Icon(Icons.Default.People, contentDescription = "Customers") },
+                        colors = navItemColors
+                    )
+                }
             }
         }
 
@@ -415,6 +536,7 @@ fun VectisNavGraph(
             )
         }
     }
+}
 }
 
 @Composable

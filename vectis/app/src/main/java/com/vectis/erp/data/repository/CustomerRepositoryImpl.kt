@@ -48,7 +48,8 @@ class CustomerRepositoryImpl(
                 ApiResult.Success(response.body()!!)
             } else {
                 val errorBody = response.errorBody()?.string() ?: ""
-                ApiResult.Error(response.code(), if (errorBody.isNotBlank()) errorBody else "Failed to create customer (${response.code()})")
+                val cleanErr = com.vectis.erp.core.design.cleanUserFacingMessage(errorBody)
+                ApiResult.Error(response.code(), if (cleanErr.isNotBlank()) cleanErr else "Failed to create customer (${response.code()})")
             }
         } catch (e: Exception) {
             ApiResult.NetworkError(e)
@@ -63,7 +64,8 @@ class CustomerRepositoryImpl(
                 ApiResult.Success(response.body()!!)
             } else {
                 val errorBody = response.errorBody()?.string() ?: ""
-                ApiResult.Error(response.code(), if (errorBody.isNotBlank()) errorBody else "Failed to update customer (${response.code()})")
+                val cleanErr = com.vectis.erp.core.design.cleanUserFacingMessage(errorBody)
+                ApiResult.Error(response.code(), if (cleanErr.isNotBlank()) cleanErr else "Failed to update customer (${response.code()})")
             }
         } catch (e: Exception) {
             ApiResult.NetworkError(e)

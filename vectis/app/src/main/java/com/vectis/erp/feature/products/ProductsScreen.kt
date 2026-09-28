@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -30,7 +32,12 @@ import kotlinx.coroutines.launch
 @Composable
 fun ProductsScreen(
     viewModel: InventoryViewModel,
-    onProductClick: (String) -> Unit = {}
+    onProductClick: (String) -> Unit = {},
+    preferredCurrency: String = "USD",
+    onOpenSearch: () -> Unit = {},
+    onNavigateToAlerts: () -> Unit = {},
+    onNavigateToSettings: () -> Unit = {},
+    alertCount: Int = 0
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -44,6 +51,7 @@ fun ProductsScreen(
     var showCreateProductDialog by remember { mutableStateOf(false) }
     var editingProduct by remember { mutableStateOf<ProductDto?>(null) }
     var productForNewPlan by remember { mutableStateOf<ProductDto?>(null) }
+    var productForManagePlans by remember { mutableStateOf<ProductDto?>(null) }
     var showCategoryManagerDialog by remember { mutableStateOf(false) }
     var deletingProduct by remember { mutableStateOf<ProductDto?>(null) }
     var deletingPlan by remember { mutableStateOf<PlanDto?>(null) }
@@ -51,105 +59,100 @@ fun ProductsScreen(
     val canManage = viewModel.permissionManager.canManageProducts()
 
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        contentWindowInsets = WindowInsets(0.dp, 0.dp, 0.dp, 0.dp),
+        snackbarHost = { VectisSnackbarHost(snackbarHostState) },
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text("Products & Plans", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Slate900)
-                        Text("Catalog & Subscription Tiers", fontSize = 12.sp, color = Slate500)
-                    }
-                },
-                actions = {
-                    if (canManage) {
-                        IconButton(onClick = { showCategoryManagerDialog = true }) {
-                            Icon(Icons.Default.Folder, contentDescription = "Manage Categories", tint = PrimaryBlue)
-                        }
-                    }
-                    IconButton(onClick = { viewModel.loadData(isRefresh = true) }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = PrimaryBlue)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+            VectisTopAppBar(
+                onRefresh = { viewModel.loadData(isRefresh = true) },
+                onNavigateToSettings = onNavigateToSettings,
+                onNavigateToAlerts = onNavigateToAlerts,
+                onOpenSearch = onOpenSearch,
+                alertCount = alertCount,
+                preferredCurrency = preferredCurrency
             )
         },
         floatingActionButton = {
             if (canManage) {
-                ExtendedFloatingActionButton(
+                FloatingActionButton(
                     onClick = { showCreateProductDialog = true },
+                    modifier = Modifier.padding(bottom = 72.dp),
                     containerColor = PrimaryBlue,
                     contentColor = Color.White,
-                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                    text = { Text("Add Product", fontWeight = FontWeight.SemiBold) }
-                )
+                    shape = CircleShape
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Add Product")
+                }
             }
         },
         containerColor = Slate50
     ) { paddingValues ->
-        when (val state = uiState) {
-            is InventoryUiState.Loading -> {
-                Box(modifier = Modifier.fillMaxSize().padding(paddingValues), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = PrimaryBlue)
+        val isRefreshing = (uiState as? InventoryUiState.Success)?.isRefreshing == true
+        VectisPullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = { viewModel.loadData(isRefresh = true) },
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            when (val state = uiState) {
+                is InventoryUiState.Loading -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = PrimaryBlue)
+                    }
                 }
-            }
-            is InventoryUiState.Error -> {
-                Box(modifier = Modifier.fillMaxSize().padding(paddingValues), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
-                        Icon(Icons.Default.Warning, contentDescription = null, tint = StatusDanger, modifier = Modifier.size(48.dp))
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(text = state.message, color = Slate700, fontSize = 14.sp)
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Button(onClick = { viewModel.loadData() }) {
-                            Text("Retry")
+                is InventoryUiState.Error -> {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState()),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
+                            Icon(Icons.Default.Warning, contentDescription = null, tint = StatusDanger, modifier = Modifier.size(48.dp))
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(text = state.message, color = Slate700, fontSize = 14.sp)
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Button(onClick = { viewModel.loadData() }) {
+                                Text("Retry")
+                            }
                         }
                     }
                 }
-            }
-            is InventoryUiState.Success -> {
-                val filteredProducts = state.products.filter { prod ->
-                    val matchesQuery = searchQuery.isBlank() ||
-                            prod.name.contains(searchQuery, ignoreCase = true) ||
-                            (prod.brand?.contains(searchQuery, ignoreCase = true) == true)
+                is InventoryUiState.Success -> {
+                    val filteredProducts = state.products.filter { prod ->
+                        val matchesQuery = searchQuery.isBlank() ||
+                                prod.name.contains(searchQuery, ignoreCase = true) ||
+                                (prod.brand?.contains(searchQuery, ignoreCase = true) == true)
 
-                    val matchesCategory = selectedCategoryId == "all" || prod.categoryId == selectedCategoryId
+                        val matchesCategory = selectedCategoryId == "all" || prod.categoryId == selectedCategoryId
 
-                    val matchesCapability = when (selectedCapabilityFilter) {
-                        "subscription" -> prod.isSubscription
-                        "service_account" -> prod.isServiceAccount
-                        "license_key" -> prod.isLicenseKey
-                        "digital_file" -> prod.isDigitalFile
-                        else -> true
+                        val matchesCapability = when (selectedCapabilityFilter) {
+                            "subscription" -> prod.isSubscription
+                            "service_account" -> prod.isServiceAccount
+                            "license_key" -> prod.isLicenseKey
+                            "digital_file" -> prod.isDigitalFile
+                            else -> true
+                        }
+                        matchesQuery && matchesCategory && matchesCapability
                     }
-                    matchesQuery && matchesCategory && matchesCapability
-                }
 
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues)
-                ) {
-                    // Search Bar
-                    OutlinedTextField(
-                        value = searchQuery,
-                        onValueChange = { searchQuery = it },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        placeholder = { Text("Search products by name or brand...", fontSize = 14.sp) },
-                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Slate400) },
-                        trailingIcon = {
-                            if (searchQuery.isNotEmpty()) {
-                                IconButton(onClick = { searchQuery = "" }) {
-                                    Icon(Icons.Default.Clear, contentDescription = "Clear")
+                    Column(
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        ViewHeader(
+                        title = "Products & Plans",
+                        description = "Catalog & Subscription Tiers",
+                        actions = {
+                            if (canManage) {
+                                IconButton(onClick = { showCategoryManagerDialog = true }) {
+                                    Icon(
+                                        Icons.Default.Folder,
+                                        contentDescription = "Manage Categories",
+                                        tint = Slate700
+                                    )
                                 }
                             }
-                        },
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = Color.White,
-                            unfocusedContainerColor = Color.White
-                        )
+                        }
                     )
 
                     // Category Filter Row
@@ -158,7 +161,8 @@ fun ProductsScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 16.dp, vertical = 2.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             item {
                                 FilterChip(
@@ -253,7 +257,7 @@ fun ProductsScreen(
                     } else {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(16.dp),
+                            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 80.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             items(filteredProducts, key = { it.id }) { product ->
@@ -268,6 +272,7 @@ fun ProductsScreen(
                                     onClick = { onProductClick(product.id) },
                                     onEdit = { editingProduct = product },
                                     onAddPlan = { productForNewPlan = product },
+                                    onManagePlans = { productForManagePlans = product },
                                     onDeleteProduct = { deletingProduct = product },
                                     onDeletePlan = { deletingPlan = it }
                                 )
@@ -341,6 +346,41 @@ fun ProductsScreen(
                     )
                 }
 
+                // Manage Plans Dialog
+                productForManagePlans?.let { prod ->
+                    val plans = state.plans[prod.id] ?: emptyList()
+                    ManagePlansDialog(
+                        product = prod,
+                        plans = plans,
+                        formatCurrency = { viewModel.formatCurrency(it) },
+                        onDismiss = { productForManagePlans = null },
+                        onAddPlan = { productForNewPlan = prod },
+                        onUpdatePlan = { planId, req ->
+                            viewModel.updatePlan(
+                                id = planId,
+                                req = req,
+                                onSuccess = {
+                                    coroutineScope.launch { snackbarHostState.showSnackbar("Plan updated successfully") }
+                                },
+                                onError = { err ->
+                                    coroutineScope.launch { snackbarHostState.showSnackbar(err) }
+                                }
+                            )
+                        },
+                        onDeletePlan = { plan ->
+                            viewModel.deletePlan(
+                                id = plan.id,
+                                onSuccess = {
+                                    coroutineScope.launch { snackbarHostState.showSnackbar("Plan deleted successfully") }
+                                },
+                                onError = { err ->
+                                    coroutineScope.launch { snackbarHostState.showSnackbar(err) }
+                                }
+                            )
+                        }
+                    )
+                }
+
                 // Category Manager Dialog
                 if (showCategoryManagerDialog) {
                     CategoryManagerDialog(
@@ -351,6 +391,29 @@ fun ProductsScreen(
                                 req = req,
                                 onSuccess = {
                                     coroutineScope.launch { snackbarHostState.showSnackbar("Category created successfully") }
+                                },
+                                onError = { err ->
+                                    coroutineScope.launch { snackbarHostState.showSnackbar(err) }
+                                }
+                            )
+                        },
+                        onUpdateCategory = { id, req ->
+                            viewModel.updateCategory(
+                                id = id,
+                                req = req,
+                                onSuccess = {
+                                    coroutineScope.launch { snackbarHostState.showSnackbar("Category updated successfully") }
+                                },
+                                onError = { err ->
+                                    coroutineScope.launch { snackbarHostState.showSnackbar(err) }
+                                }
+                            )
+                        },
+                        onDeleteCategory = { cat ->
+                            viewModel.deleteCategory(
+                                id = cat.id,
+                                onSuccess = {
+                                    coroutineScope.launch { snackbarHostState.showSnackbar("Category deleted successfully") }
                                 },
                                 onError = { err ->
                                     coroutineScope.launch { snackbarHostState.showSnackbar(err) }
@@ -405,6 +468,7 @@ fun ProductsScreen(
         }
     }
 }
+}
 
 @Composable
 private fun ProductCard(
@@ -416,6 +480,7 @@ private fun ProductCard(
     onClick: () -> Unit,
     onEdit: () -> Unit,
     onAddPlan: () -> Unit,
+    onManagePlans: () -> Unit,
     onDeleteProduct: () -> Unit,
     onDeletePlan: (PlanDto) -> Unit
 ) {
@@ -516,6 +581,14 @@ private fun ProductCard(
                                 expanded = menuExpanded,
                                 onDismissRequest = { menuExpanded = false }
                             ) {
+                                DropdownMenuItem(
+                                    text = { Text("Manage Plans") },
+                                    leadingIcon = { Icon(Icons.Default.Tune, contentDescription = null) },
+                                    onClick = {
+                                        menuExpanded = false
+                                        onManagePlans()
+                                    }
+                                )
                                 DropdownMenuItem(
                                     text = { Text("Add Plan") },
                                     leadingIcon = { Icon(Icons.Default.Add, contentDescription = null) },
@@ -639,6 +712,20 @@ private fun ProductCard(
                 }
             } else {
                 Text("No plans configured yet.", fontSize = 12.sp, color = Slate400)
+            }
+
+            if (canManage) {
+                Spacer(modifier = Modifier.height(10.dp))
+                OutlinedButton(
+                    onClick = onManagePlans,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = PrimaryBlue)
+                ) {
+                    Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Manage Plans", fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                }
             }
         }
     }

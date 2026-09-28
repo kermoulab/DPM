@@ -48,7 +48,8 @@ class OrderRepositoryImpl(
                 ApiResult.Success(response.body()!!)
             } else {
                 val errorBody = response.errorBody()?.string() ?: ""
-                ApiResult.Error(response.code(), if (errorBody.isNotBlank()) errorBody else "Failed to create order (${response.code()})")
+                val cleanError = com.vectis.erp.core.design.cleanUserFacingMessage(errorBody)
+                ApiResult.Error(response.code(), if (cleanError.isNotBlank()) cleanError else "Failed to create order (${response.code()})")
             }
         } catch (e: Exception) {
             ApiResult.NetworkError(e)
@@ -63,7 +64,8 @@ class OrderRepositoryImpl(
                 ApiResult.Success(response.body()!!)
             } else {
                 val errorBody = response.errorBody()?.string() ?: ""
-                ApiResult.Error(response.code(), if (errorBody.isNotBlank()) errorBody else "Failed to renew order (${response.code()})")
+                val cleanError = com.vectis.erp.core.design.cleanUserFacingMessage(errorBody)
+                ApiResult.Error(response.code(), if (cleanError.isNotBlank()) cleanError else "Failed to renew order (${response.code()})")
             }
         } catch (e: Exception) {
             ApiResult.NetworkError(e)
@@ -78,7 +80,24 @@ class OrderRepositoryImpl(
                 ApiResult.Success(response.body()!!)
             } else {
                 val errorBody = response.errorBody()?.string() ?: ""
-                ApiResult.Error(response.code(), if (errorBody.isNotBlank()) errorBody else "Failed to cancel order (${response.code()})")
+                val cleanError = com.vectis.erp.core.design.cleanUserFacingMessage(errorBody)
+                ApiResult.Error(response.code(), if (cleanError.isNotBlank()) cleanError else "Failed to cancel order (${response.code()})")
+            }
+        } catch (e: Exception) {
+            ApiResult.NetworkError(e)
+        }
+    }
+
+    override suspend fun updateOrder(id: String, request: UpdateOrderRequest): ApiResult<OrderMutationResponse> = withContext(Dispatchers.IO) {
+        try {
+            val api = networkClient.createService<OrderApiService>()
+            val response = api.updateOrder(id, request)
+            if (response.isSuccessful && response.body() != null) {
+                ApiResult.Success(response.body()!!)
+            } else {
+                val errorBody = response.errorBody()?.string() ?: ""
+                val cleanError = com.vectis.erp.core.design.cleanUserFacingMessage(errorBody)
+                ApiResult.Error(response.code(), if (cleanError.isNotBlank()) cleanError else "Failed to update order (${response.code()})")
             }
         } catch (e: Exception) {
             ApiResult.NetworkError(e)
@@ -93,8 +112,9 @@ class OrderRepositoryImpl(
                 ApiResult.Success(response.body()!!)
             } else {
                 val errorBody = response.errorBody()?.string() ?: ""
+                val cleanError = com.vectis.erp.core.design.cleanUserFacingMessage(errorBody)
                 val msg = if (response.code() == 403) "Permission denied: Only Admins can delete orders." else "Failed to delete order (${response.code()})"
-                ApiResult.Error(response.code(), if (errorBody.isNotBlank()) errorBody else msg)
+                ApiResult.Error(response.code(), if (cleanError.isNotBlank()) cleanError else msg)
             }
         } catch (e: Exception) {
             ApiResult.NetworkError(e)

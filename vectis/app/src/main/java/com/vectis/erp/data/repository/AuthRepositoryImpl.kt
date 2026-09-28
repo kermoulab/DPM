@@ -30,7 +30,11 @@ class AuthRepositoryImpl(
                     secureStorage.setAuthToken(body.token)
                     secureStorage.setUserId(body.user.id)
                     secureStorage.setUserRole(body.user.role)
-                    secureStorage.setUserName(body.user.name)
+                    val resolvedName = if (body.user.name.isNotBlank()) body.user.name else body.user.username
+                    secureStorage.setUserName(resolvedName)
+                    body.user.preferredCurrency?.let { curr ->
+                        if (curr.isNotBlank()) secureStorage.setPreferredCurrency(curr.uppercase())
+                    }
                     ApiResult.Success(body.user)
                 } else {
                     ApiResult.Error(response.code(), body?.error ?: "Invalid credentials.")
@@ -55,9 +59,19 @@ class AuthRepositoryImpl(
             val api = networkClient.createService<AuthApiService>()
             val response = api.getMe()
             if (response.isSuccessful && response.body()?.user != null) {
-                val user = response.body()!!.user!!
+                val body = response.body()!!
+                val user = body.user!!
+                body.token?.let { freshToken ->
+                    if (freshToken.isNotBlank()) {
+                        secureStorage.setAuthToken(freshToken)
+                    }
+                }
                 secureStorage.setUserRole(user.role)
-                secureStorage.setUserName(user.name)
+                val resolvedName = if (user.name.isNotBlank()) user.name else user.username
+                secureStorage.setUserName(resolvedName)
+                user.preferredCurrency?.let { curr ->
+                    if (curr.isNotBlank()) secureStorage.setPreferredCurrency(curr.uppercase())
+                }
                 ApiResult.Success(user)
             } else {
                 ApiResult.Error(response.code(), "Unable to fetch user profile.")

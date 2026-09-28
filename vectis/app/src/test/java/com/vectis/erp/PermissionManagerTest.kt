@@ -66,4 +66,19 @@ class PermissionManagerTest {
         assertFalse(AppPermission.ORDERS_CREATE.isAuthorized(viewerRole))
         assertFalse(AppPermission.CUSTOMERS_CREATE.isAuthorized(viewerRole))
     }
+
+    @Test
+    fun testUserRoleBadgeColors() {
+        val (adminColor, adminLabel) = com.vectis.erp.core.design.getUserRoleBadgeConfig("admin")
+        org.junit.Assert.assertEquals(androidx.compose.ui.graphics.Color(0xFF16A34A), adminColor)
+        org.junit.Assert.assertEquals("Admin", adminLabel)
+
+        val (ownerColor, ownerLabel) = com.vectis.erp.core.design.getUserRoleBadgeConfig("owner")
+        org.junit.Assert.assertEquals(androidx.compose.ui.graphics.Color(0xFF16A34A), ownerColor)
+        org.junit.Assert.assertEquals("Owner", ownerLabel)
+
+        val (agentColor, agentLabel) = com.vectis.erp.core.design.getUserRoleBadgeConfig("agent")
+        org.junit.Assert.assertEquals(androidx.compose.ui.graphics.Color(0xFFEA580C), agentColor)
+        org.junit.Assert.assertEquals("Agent", agentLabel)
+    }
 }

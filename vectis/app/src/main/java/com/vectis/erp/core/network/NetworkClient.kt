@@ -29,15 +29,51 @@ class NetworkClient(private val secureStorage: SecureStorage) {
 
     val okHttpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
-            .connectTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(20, TimeUnit.SECONDS)
-            .writeTimeout(20, TimeUnit.SECONDS)
+            .dispatcher(okhttp3.Dispatcher().apply {
+                maxRequests = 64
+                maxRequestsPerHost = 20
+            })
+            .connectionPool(okhttp3.ConnectionPool(10, 5, TimeUnit.MINUTES))
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
+            .retryOnConnectionFailure(true)
+            .followRedirects(true)
+            .followSslRedirects(true)
             .addInterceptor(DeviceInterceptor(secureStorage) {
                 _deviceRevokedEvents.tryEmit(Unit)
             })
             .addInterceptor(AuthInterceptor(secureStorage) {
                 _unauthorizedEvents.tryEmit(Unit)
             })
+            .addNetworkInterceptor { chain ->
+                val req = chain.request()
+                val token = secureStorage.getAuthToken()
+                val deviceId = secureStorage.getDeviceId()
+                val deviceToken = secureStorage.getDeviceToken()
+
+                val newBuilder = req.newBuilder()
+                if (!token.isNullOrBlank() && req.header("Authorization") == null) {
+                    newBuilder.header("Authorization", "Bearer ${token.trim().trim('"', '\'')}")
+                }
+                if (!deviceId.isNullOrBlank() && req.header("X-Device-Id") == null) {
+                    newBuilder.header("X-Device-Id", deviceId)
+                }
+                if (!deviceToken.isNullOrBlank() && req.header("X-Device-Token") == null) {
+                    newBuilder.header("X-Device-Token", deviceToken)
+                }
+                chain.proceed(newBuilder.build())
+            }
+            .authenticator { _, response ->
+                val token = secureStorage.getAuthToken()
+                if (!token.isNullOrBlank() && response.request.header("Authorization") == null) {
+                    response.request.newBuilder()
+                        .header("Authorization", "Bearer ${token.trim().trim('"', '\'')}")
+                        .build()
+                } else {
+                    null
+                }
+            }
             .addInterceptor(SensitiveDataFilterLoggingInterceptor())
             .build()
     }

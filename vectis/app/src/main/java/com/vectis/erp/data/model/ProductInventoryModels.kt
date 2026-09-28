@@ -71,12 +71,18 @@ data class ServiceAccountDto(
     @SerializedName("login") val login: String,
     @SerializedName("masked_credential") val maskedCredential: String? = "••••••••",
     @SerializedName("capacity") val capacity: Int = 1,
-    @SerializedName("active_profiles_count") val activeProfilesCount: Int = 0,
-    @SerializedName("available_profiles_count") val availableProfilesCount: Int = 0,
+    @SerializedName("assigned_profiles") val assignedProfiles: Int? = null,
+    @SerializedName("active_profiles_count") val activeProfilesCount: Int? = null,
+    @SerializedName("available_profiles") val availableProfiles: Int? = null,
+    @SerializedName("available_profiles_count") val availableProfilesCount: Int? = null,
+    @SerializedName("profile_count") val profileCount: Int? = null,
     @SerializedName("status") val status: String = "active",
     @SerializedName("expiry_date") val expiryDate: String? = null,
     @SerializedName("notes") val notes: String? = null
-)
+) {
+    val usedSlots: Int
+        get() = assignedProfiles ?: activeProfilesCount ?: 0
+}
 
 data class ServiceAccountsResponse(
     @SerializedName("accounts") val accounts: List<ServiceAccountDto> = emptyList()
@@ -90,8 +96,15 @@ data class ServiceProfileDto(
     @SerializedName("status") val status: String = "available",
     @SerializedName("assigned_customer_id") val assignedCustomerId: String? = null,
     @SerializedName("assigned_customer_name") val assignedCustomerName: String? = null,
+    @SerializedName("customer_name") val customerName: String? = null,
     @SerializedName("assigned_order_id") val assignedOrderId: String? = null
-)
+) {
+    val displayCustomerName: String?
+        get() = assignedCustomerName?.ifBlank { null } ?: customerName?.ifBlank { null }
+
+    val isOccupied: Boolean
+        get() = status.lowercase() != "available"
+}
 
 data class ServiceProfilesResponse(
     @SerializedName("profiles") val profiles: List<ServiceProfileDto> = emptyList()
@@ -166,6 +179,13 @@ data class UpdateProductRequest(
     @SerializedName("stock_limit") val stockLimit: Int? = null
 )
 
+data class UpdateCategoryRequest(
+    @SerializedName("name") val name: String? = null,
+    @SerializedName("icon") val icon: String? = null,
+    @SerializedName("description") val description: String? = null,
+    @SerializedName("status") val status: String? = null
+)
+
 data class CreatePlanRequest(
     @SerializedName("product_id") val productId: String,
     @SerializedName("name") val name: String,
@@ -177,9 +197,20 @@ data class CreatePlanRequest(
     @SerializedName("stock_limit") val stockLimit: Int? = null
 )
 
+data class UpdatePlanRequest(
+    @SerializedName("name") val name: String? = null,
+    @SerializedName("duration") val duration: Int? = null,
+    @SerializedName("duration_unit") val durationUnit: String? = null,
+    @SerializedName("price") val price: Double? = null,
+    @SerializedName("cost") val cost: Double? = null,
+    @SerializedName("currency") val currency: String? = null,
+    @SerializedName("status") val status: String? = null,
+    @SerializedName("stock_limit") val stockLimit: Int? = null
+)
+
 data class PlanResponse(
     @SerializedName("success") val success: Boolean = true,
-    @SerializedName("id") val id: String,
+    @SerializedName("id") val id: String? = null,
     @SerializedName("plan") val plan: PlanDto? = null
 )
 

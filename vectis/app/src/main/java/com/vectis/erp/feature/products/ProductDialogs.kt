@@ -261,15 +261,17 @@ fun ProductFormDialog(
                         Text("Cancel", color = Slate500)
                     }
                     Spacer(modifier = Modifier.width(8.dp))
-                    Button(
+                    VectisPillButton(
+                        text = if (initialProduct == null) "Create Product" else "Save Changes",
+                        icon = if (initialProduct == null) Icons.Default.Add else Icons.Default.Check,
                         onClick = {
                             if (name.isBlank()) {
                                 validationError = "Product name is required"
-                                return@Button
+                                return@VectisPillButton
                             }
                             if (selectedCategoryId.isBlank()) {
                                 validationError = "Please select a category"
-                                return@Button
+                                return@VectisPillButton
                             }
 
                             val caps = mutableListOf<String>()
@@ -306,11 +308,8 @@ fun ProductFormDialog(
                                     )
                                 )
                             }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
-                    ) {
-                        Text(if (initialProduct == null) "Create Product" else "Save Changes")
-                    }
+                        }
+                    )
                 }
             }
         }
@@ -442,21 +441,23 @@ fun PlanFormDialog(
                         Text("Cancel", color = Slate500)
                     }
                     Spacer(modifier = Modifier.width(8.dp))
-                    Button(
+                    VectisPillButton(
+                        text = "Add Plan",
+                        icon = Icons.Default.Add,
                         onClick = {
                             if (name.isBlank()) {
                                 validationError = "Plan name is required"
-                                return@Button
+                                return@VectisPillButton
                             }
                             val dur = durationText.toIntOrNull()
                             if (dur == null || dur <= 0) {
                                 validationError = "Valid duration required"
-                                return@Button
+                                return@VectisPillButton
                             }
                             val pr = priceText.toDoubleOrNull()
                             if (pr == null || pr < 0) {
                                 validationError = "Valid retail price required"
-                                return@Button
+                                return@VectisPillButton
                             }
                             val cs = costText.toDoubleOrNull() ?: 0.0
 
@@ -471,11 +472,8 @@ fun PlanFormDialog(
                                     currency = currency
                                 )
                             )
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
-                    ) {
-                        Text("Add Plan")
-                    }
+                        }
+                    )
                 }
             }
         }
@@ -486,11 +484,18 @@ fun PlanFormDialog(
 fun CategoryManagerDialog(
     categories: List<CategoryDto>,
     onDismiss: () -> Unit,
-    onCreateCategory: (CreateCategoryRequest) -> Unit
+    onCreateCategory: (CreateCategoryRequest) -> Unit,
+    onUpdateCategory: (String, UpdateCategoryRequest) -> Unit = { _, _ -> },
+    onDeleteCategory: (CategoryDto) -> Unit = {}
 ) {
     var newCatName by remember { mutableStateOf("") }
     var newCatDesc by remember { mutableStateOf("") }
     var validationError by remember { mutableStateOf<String?>(null) }
+
+    var editingCategoryId by remember { mutableStateOf<String?>(null) }
+    var editCatName by remember { mutableStateOf("") }
+    var editCatDesc by remember { mutableStateOf("") }
+    var categoryToDelete by remember { mutableStateOf<CategoryDto?>(null) }
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -510,7 +515,10 @@ fun CategoryManagerDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Product Categories", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Slate900)
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Manage Categories", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Slate900)
+                        Text("Create, edit, or delete catalog categories", fontSize = 12.sp, color = Slate500)
+                    }
                     IconButton(onClick = onDismiss) {
                         Icon(Icons.Default.Close, contentDescription = "Close", tint = Slate500)
                     }
@@ -525,20 +533,88 @@ fun CategoryManagerDialog(
                     Surface(
                         color = Slate50,
                         shape = RoundedCornerShape(8.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Slate200),
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 4.dp)
                     ) {
-                        Row(
-                            modifier = Modifier.padding(10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.Folder, contentDescription = null, tint = PrimaryBlue, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(cat.name, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Slate800)
-                                if (!cat.description.isNullOrBlank()) {
-                                    Text(cat.description, fontSize = 11.sp, color = Slate500)
+                        if (editingCategoryId == cat.id) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text("Edit Category", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Slate900)
+                                Spacer(modifier = Modifier.height(6.dp))
+                                OutlinedTextField(
+                                    value = editCatName,
+                                    onValueChange = { editCatName = it },
+                                    label = { Text("Name") },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                OutlinedTextField(
+                                    value = editCatDesc,
+                                    onValueChange = { editCatDesc = it },
+                                    label = { Text("Description") },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.End,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    TextButton(onClick = { editingCategoryId = null }) {
+                                        Text("Cancel", color = Slate600)
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    VectisPillButton(
+                                        text = "Save",
+                                        icon = Icons.Default.Check,
+                                        onClick = {
+                                            if (editCatName.isNotBlank()) {
+                                                onUpdateCategory(
+                                                    cat.id,
+                                                    UpdateCategoryRequest(
+                                                        name = editCatName.trim(),
+                                                        description = editCatDesc.trim().ifEmpty { null }
+                                                    )
+                                                )
+                                                editingCategoryId = null
+                                            }
+                                        }
+                                    )
+                                }
+                            }
+                        } else {
+                            Row(
+                                modifier = Modifier.padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.Folder, contentDescription = null, tint = PrimaryBlue, modifier = Modifier.size(20.dp))
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(cat.name, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Slate800)
+                                    if (!cat.description.isNullOrBlank()) {
+                                        Text(cat.description, fontSize = 11.sp, color = Slate500)
+                                    }
+                                }
+                                Row {
+                                    IconButton(
+                                        onClick = {
+                                            editingCategoryId = cat.id
+                                            editCatName = cat.name
+                                            editCatDesc = cat.description ?: ""
+                                        },
+                                        modifier = Modifier.size(30.dp)
+                                    ) {
+                                        Icon(Icons.Default.Edit, contentDescription = "Edit Category", tint = PrimaryBlue, modifier = Modifier.size(16.dp))
+                                    }
+                                    IconButton(
+                                        onClick = { categoryToDelete = cat },
+                                        modifier = Modifier.size(30.dp)
+                                    ) {
+                                        Icon(Icons.Default.Delete, contentDescription = "Delete Category", tint = StatusDanger, modifier = Modifier.size(16.dp))
+                                    }
                                 }
                             }
                         }
@@ -577,11 +653,13 @@ fun CategoryManagerDialog(
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
-                Button(
+                VectisPillButton(
+                    text = "Create Category",
+                    icon = Icons.Default.Add,
                     onClick = {
                         if (newCatName.isBlank()) {
                             validationError = "Category name is required"
-                            return@Button
+                            return@VectisPillButton
                         }
                         onCreateCategory(
                             CreateCategoryRequest(
@@ -592,15 +670,297 @@ fun CategoryManagerDialog(
                         newCatName = ""
                         newCatDesc = ""
                     },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = null)
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Create Category")
-                }
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         }
+    }
+
+    categoryToDelete?.let { cat ->
+        ConfirmDeleteDialog(
+            title = "Delete Category",
+            message = "Are you sure you want to delete category \"${cat.name}\"? Products currently assigned to this category will not be deleted.",
+            onDismiss = { categoryToDelete = null },
+            onConfirm = {
+                val target = cat
+                categoryToDelete = null
+                onDeleteCategory(target)
+            }
+        )
+    }
+}
+
+@Composable
+fun ManagePlansDialog(
+    product: ProductDto,
+    plans: List<PlanDto>,
+    formatCurrency: (Double) -> String,
+    onDismiss: () -> Unit,
+    onAddPlan: () -> Unit,
+    onUpdatePlan: (String, UpdatePlanRequest) -> Unit,
+    onDeletePlan: (PlanDto) -> Unit
+) {
+    var editingPlanId by remember { mutableStateOf<String?>(null) }
+    var editName by remember { mutableStateOf("") }
+    var editDuration by remember { mutableStateOf("") }
+    var editDurationUnit by remember { mutableStateOf("months") }
+    var editPrice by remember { mutableStateOf("") }
+    var editCost by remember { mutableStateOf("") }
+    var planToDelete by remember { mutableStateOf<PlanDto?>(null) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 16.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(20.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Manage Plans",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Slate900
+                        )
+                        Text(
+                            text = product.name,
+                            fontSize = 13.sp,
+                            color = Slate500,
+                            maxLines = 1
+                        )
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = Slate500)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Manage duration, retail pricing, and supplier costs.",
+                    fontSize = 12.sp,
+                    color = Slate600
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+
+                if (plans.isEmpty()) {
+                    Text(
+                        text = "No plans configured for this product yet.",
+                        fontSize = 13.sp,
+                        color = Slate400,
+                        modifier = Modifier.padding(vertical = 16.dp)
+                    )
+                } else {
+                    plans.forEach { plan ->
+                        Surface(
+                            color = Slate50,
+                            shape = RoundedCornerShape(10.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Slate200),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                        ) {
+                            if (editingPlanId == plan.id) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Text("Edit Plan", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Slate900)
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    OutlinedTextField(
+                                        value = editName,
+                                        onValueChange = { editName = it },
+                                        label = { Text("Plan Name") },
+                                        singleLine = true,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        OutlinedTextField(
+                                            value = editDuration,
+                                            onValueChange = { editDuration = it.filter { c -> c.isDigit() } },
+                                            label = { Text("Duration") },
+                                            singleLine = true,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        OutlinedTextField(
+                                            value = editDurationUnit,
+                                            onValueChange = { editDurationUnit = it },
+                                            label = { Text("Unit") },
+                                            singleLine = true,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        OutlinedTextField(
+                                            value = editPrice,
+                                            onValueChange = { editPrice = it },
+                                            label = { Text("Retail Price") },
+                                            singleLine = true,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        OutlinedTextField(
+                                            value = editCost,
+                                            onValueChange = { editCost = it },
+                                            label = { Text("Supplier Cost") },
+                                            singleLine = true,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.End,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        TextButton(onClick = { editingPlanId = null }) {
+                                            Text("Cancel", color = Slate600)
+                                        }
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        VectisPillButton(
+                                            text = "Save Changes",
+                                            icon = Icons.Default.Check,
+                                            onClick = {
+                                                val pPrice = editPrice.toDoubleOrNull() ?: plan.price
+                                                val pCost = editCost.toDoubleOrNull() ?: plan.cost
+                                                val pDur = editDuration.toIntOrNull() ?: plan.duration
+                                                onUpdatePlan(
+                                                    plan.id,
+                                                    UpdatePlanRequest(
+                                                        name = editName.trim().ifEmpty { plan.name },
+                                                        duration = pDur,
+                                                        durationUnit = editDurationUnit.trim().ifEmpty { plan.durationUnit },
+                                                        price = pPrice,
+                                                        cost = pCost
+                                                    )
+                                                )
+                                                editingPlanId = null
+                                            }
+                                        )
+                                    }
+                                }
+                            } else {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = plan.name,
+                                                fontSize = 14.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Slate900
+                                            )
+                                            Text(
+                                                text = "Duration: ${plan.duration} ${plan.durationUnit}",
+                                                fontSize = 12.sp,
+                                                color = Slate500
+                                            )
+                                        }
+                                        Row {
+                                            IconButton(
+                                                onClick = {
+                                                    editingPlanId = plan.id
+                                                    editName = plan.name
+                                                    editDuration = plan.duration.toString()
+                                                    editDurationUnit = plan.durationUnit
+                                                    editPrice = plan.price.toString()
+                                                    editCost = plan.cost.toString()
+                                                },
+                                                modifier = Modifier.size(32.dp)
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.Edit,
+                                                    contentDescription = "Edit Plan",
+                                                    tint = PrimaryBlue,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                            IconButton(
+                                                onClick = { planToDelete = plan },
+                                                modifier = Modifier.size(32.dp)
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.Delete,
+                                                    contentDescription = "Delete Plan",
+                                                    tint = StatusDanger,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Column {
+                                            Text("Retail Price", fontSize = 10.sp, color = Slate400)
+                                            Text(
+                                                formatCurrency(plan.price),
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = PrimaryBlue
+                                            )
+                                        }
+                                        Column {
+                                            Text("Supplier Cost", fontSize = 10.sp, color = Slate400)
+                                            Text(
+                                                formatCurrency(plan.cost),
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = Slate700
+                                            )
+                                        }
+                                        Column {
+                                            Text("Margin", fontSize = 10.sp, color = Slate400)
+                                            val margin = plan.price - plan.cost
+                                            Text(
+                                                formatCurrency(margin),
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (margin >= 0) StatusSuccess else StatusDanger
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+                VectisPillButton(
+                    text = "Add New Plan",
+                    icon = Icons.Default.Add,
+                    onClick = onAddPlan,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+    }
+
+    planToDelete?.let { plan ->
+        ConfirmDeleteDialog(
+            title = "Delete Plan",
+            message = "Are you sure you want to delete the plan \"${plan.name}\"? Active subscriptions on this plan will not be automatically deleted.",
+            onDismiss = { planToDelete = null },
+            onConfirm = {
+                val target = plan
+                planToDelete = null
+                onDeletePlan(target)
+            }
+        )
     }
 }
 
@@ -613,15 +973,16 @@ fun ConfirmDeleteDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = Color.White,
         title = { Text(title, fontWeight = FontWeight.Bold, color = Slate900) },
         text = { Text(message, color = Slate700, fontSize = 14.sp) },
         confirmButton = {
-            Button(
-                onClick = onConfirm,
-                colors = ButtonDefaults.buttonColors(containerColor = StatusDanger)
-            ) {
-                Text("Delete")
-            }
+            VectisPillButton(
+                text = "Delete",
+                icon = Icons.Default.Delete,
+                containerColor = StatusDanger,
+                onClick = onConfirm
+            )
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {

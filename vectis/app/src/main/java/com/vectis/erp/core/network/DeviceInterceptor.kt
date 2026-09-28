@@ -1,5 +1,6 @@
 package com.vectis.erp.core.network
 
+import android.util.Log
 import com.vectis.erp.core.security.SecureStorage
 import okhttp3.Interceptor
 import okhttp3.Response
@@ -29,9 +30,13 @@ class DeviceInterceptor(
             builder.header("X-Device-Token", deviceToken)
         }
 
-        val response = chain.proceed(builder.build())
+        val request = builder.build()
+        val response = chain.proceed(request)
 
-        if (response.code == 401 && response.header("X-Device-Revoked") == "true") {
+        val isRevoked = response.header("X-Device-Revoked").equals("true", ignoreCase = true)
+        if (response.code == 401 && isRevoked) {
+            Log.w("VECTIS_DEVICE", "Device revoked by server on ${request.url}. Clearing pairing.")
+            secureStorage.setLastSessionError("Device pairing has been revoked by server administrator.")
             secureStorage.clearDevicePairing()
             secureStorage.clearSession()
             onDeviceRevoked()

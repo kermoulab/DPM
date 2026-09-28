@@ -73,14 +73,8 @@ fun GlobalSearchDialog(
                         },
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.fillMaxWidth()
                     )
-
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    TextButton(onClick = onDismiss) {
-                        Text("Close", color = Slate500)
-                    }
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))

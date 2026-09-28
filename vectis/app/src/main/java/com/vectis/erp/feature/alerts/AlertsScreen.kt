@@ -1,5 +1,6 @@
 package com.vectis.erp.feature.alerts
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -12,6 +13,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -38,7 +40,10 @@ import kotlinx.coroutines.launch
 fun AlertsScreen(
     viewModel: AlertsViewModel,
     onOrderClick: (String) -> Unit,
-    onNavigateBack: (() -> Unit)? = null
+    onNavigateBack: (() -> Unit)? = null,
+    preferredCurrency: String = "USD",
+    onOpenSearch: () -> Unit = {},
+    onNavigateToSettings: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
@@ -48,30 +53,18 @@ fun AlertsScreen(
     var showTemplateEditor by remember { mutableStateOf(false) }
     var templateToEdit by remember { mutableStateOf<WhatsAppTemplateDto?>(null) }
     var templateToDelete by remember { mutableStateOf<WhatsAppTemplateDto?>(null) }
+    var phonePromptOrder by remember { mutableStateOf<Pair<AlertOrderDto, String>?>(null) }
 
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        contentWindowInsets = WindowInsets(0.dp, 0.dp, 0.dp, 0.dp),
+        snackbarHost = { VectisSnackbarHost(snackbarHostState) },
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text("Subscription Alerts", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Slate900)
-                        Text("Expiring, Expired & WhatsApp Templates", fontSize = 12.sp, color = Slate500)
-                    }
-                },
-                navigationIcon = {
-                    if (onNavigateBack != null) {
-                        IconButton(onClick = onNavigateBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Slate700)
-                        }
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { viewModel.loadAlerts(isRefresh = true) }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = PrimaryBlue)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+            VectisTopAppBar(
+                onRefresh = { viewModel.loadAlerts(isRefresh = true) },
+                onNavigateToSettings = onNavigateToSettings,
+                onNavigateToAlerts = {},
+                onOpenSearch = onOpenSearch,
+                preferredCurrency = preferredCurrency
             )
         },
         containerColor = Slate50
@@ -79,34 +72,53 @@ fun AlertsScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
+                .padding(top = paddingValues.calculateTopPadding())
         ) {
-            when (val state = uiState) {
-                is AlertsUiState.Loading -> {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = PrimaryBlue)
+            ViewHeader(
+                title = "Subscription Alerts",
+                description = "Expiring, Expired & WhatsApp Templates"
+            )
+            val isRefreshing = (uiState as? AlertsUiState.Success)?.isRefreshing == true
+            VectisPullToRefreshBox(
+                isRefreshing = isRefreshing,
+                onRefresh = { viewModel.loadAlerts(isRefresh = true) },
+                modifier = Modifier.fillMaxSize()
+            ) {
+                when (val state = uiState) {
+                    is AlertsUiState.Loading -> {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(color = PrimaryBlue)
+                        }
                     }
-                }
-                is AlertsUiState.Error -> {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
-                            Icon(Icons.Default.Warning, contentDescription = null, tint = StatusDanger, modifier = Modifier.size(48.dp))
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text(text = state.message, color = Slate700, fontSize = 14.sp)
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Button(onClick = { viewModel.loadAlerts() }) {
-                                Text("Retry")
+                    is AlertsUiState.Error -> {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .verticalScroll(rememberScrollState()),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
+                                Icon(Icons.Default.Warning, contentDescription = null, tint = StatusDanger, modifier = Modifier.size(48.dp))
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text(text = state.message, color = Slate700, fontSize = 14.sp)
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Button(
+                                    onClick = { viewModel.loadAlerts() },
+                                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue, contentColor = Color.White)
+                                ) {
+                                    Text("Retry", color = Color.White)
+                                }
                             }
                         }
                     }
-                }
-                is AlertsUiState.Success -> {
-                    // Language bar for WhatsApp templates
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Color.White)
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                    is AlertsUiState.Success -> {
+                        Column(modifier = Modifier.fillMaxSize()) {
+                            // Language bar for WhatsApp templates
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color.White)
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -161,6 +173,14 @@ fun AlertsScreen(
                         }
                     }
 
+                    // Renewal Feedback Banner
+                    if (state.renewalFeedback != null) {
+                        RenewalFeedbackCard(
+                            feedback = state.renewalFeedback,
+                            onDismiss = { viewModel.dismissRenewalFeedback() }
+                        )
+                    }
+
                     // Content
                     when (state.activeFilter) {
                         AlertsFilter.EXPIRING -> {
@@ -169,7 +189,7 @@ fun AlertsScreen(
                             } else {
                                 LazyColumn(
                                     modifier = Modifier.fillMaxSize(),
-                                    contentPadding = PaddingValues(16.dp),
+                                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 80.dp),
                                     verticalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
                                     items(state.expiringOrders, key = { it.id }) { order ->
@@ -177,11 +197,24 @@ fun AlertsScreen(
                                             order = order,
                                             viewModel = viewModel,
                                             isExpired = false,
+                                            isRenewing = state.renewingOrderId == order.id,
+                                            isContacted = state.contactedOrderIds.contains(order.id) || isAlertContactedFromServer(order),
                                             onClick = { onOrderClick(order.id) },
-                                            onWhatsAppClick = {
-                                                viewModel.sendWhatsAppAlert(context, order, "order_expiring") { err ->
+                                            onRenewClick = {
+                                                viewModel.renewOrder(order) { err ->
                                                     coroutineScope.launch {
-                                                        snackbarHostState.showSnackbar(err)
+                                                        snackbarHostState.showSnackbar("Renewal failed: $err")
+                                                    }
+                                                }
+                                            },
+                                            onWhatsAppClick = {
+                                                if (order.customerWhatsapp.isNullOrBlank()) {
+                                                    phonePromptOrder = order to "order_expiring"
+                                                } else {
+                                                    viewModel.sendWhatsAppAlert(context, order, "order_expiring") { err ->
+                                                        coroutineScope.launch {
+                                                            snackbarHostState.showSnackbar(err)
+                                                        }
                                                     }
                                                 }
                                             }
@@ -196,7 +229,7 @@ fun AlertsScreen(
                             } else {
                                 LazyColumn(
                                     modifier = Modifier.fillMaxSize(),
-                                    contentPadding = PaddingValues(16.dp),
+                                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 80.dp),
                                     verticalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
                                     items(state.expiredOrders, key = { it.id }) { order ->
@@ -204,11 +237,24 @@ fun AlertsScreen(
                                             order = order,
                                             viewModel = viewModel,
                                             isExpired = true,
+                                            isRenewing = state.renewingOrderId == order.id,
+                                            isContacted = state.contactedOrderIds.contains(order.id) || isAlertContactedFromServer(order),
                                             onClick = { onOrderClick(order.id) },
-                                            onWhatsAppClick = {
-                                                viewModel.sendWhatsAppAlert(context, order, "order_expired") { err ->
+                                            onRenewClick = {
+                                                viewModel.renewOrder(order) { err ->
                                                     coroutineScope.launch {
-                                                        snackbarHostState.showSnackbar(err)
+                                                        snackbarHostState.showSnackbar("Reactivation failed: $err")
+                                                    }
+                                                }
+                                            },
+                                            onWhatsAppClick = {
+                                                if (order.customerWhatsapp.isNullOrBlank()) {
+                                                    phonePromptOrder = order to "order_expired"
+                                                } else {
+                                                    viewModel.sendWhatsAppAlert(context, order, "order_expired") { err ->
+                                                        coroutineScope.launch {
+                                                            snackbarHostState.showSnackbar(err)
+                                                        }
                                                     }
                                                 }
                                             }
@@ -223,10 +269,6 @@ fun AlertsScreen(
                         AlertsFilter.TEMPLATES -> {
                             TemplatesTabContent(
                                 templates = state.templates,
-                                onAddClick = {
-                                    templateToEdit = null
-                                    showTemplateEditor = true
-                                },
                                 onEditClick = { tmpl ->
                                     templateToEdit = tmpl
                                     showTemplateEditor = true
@@ -244,6 +286,8 @@ fun AlertsScreen(
             }
         }
     }
+}
+}
 
     // Template Editor Dialog
     if (showTemplateEditor) {
@@ -269,15 +313,19 @@ fun AlertsScreen(
         )
     }
 
-    // Confirm Delete Template Dialog
     templateToDelete?.let { tmpl ->
+        val tmplId = tmpl.id
         ConfirmDeleteDialog(
             title = "Delete WhatsApp Template",
-            message = "Are you sure you want to delete template \"${tmpl.name}\"? This action cannot be undone.",
+            message = "Are you sure you want to delete template \"${tmpl.finalName}\"? This action cannot be undone.",
             onDismiss = { templateToDelete = null },
             onConfirm = {
+                if (tmplId == null) {
+                    templateToDelete = null
+                    return@ConfirmDeleteDialog
+                }
                 viewModel.deleteTemplate(
-                    id = tmpl.id,
+                    id = tmplId,
                     onSuccess = {
                         templateToDelete = null
                         coroutineScope.launch {
@@ -294,16 +342,49 @@ fun AlertsScreen(
             }
         )
     }
+
+    // Missing Phone Number Prompt Dialog
+    phonePromptOrder?.let { (order, eventType) ->
+        PhonePromptDialog(
+            order = order,
+            eventType = eventType,
+            onDismiss = { phonePromptOrder = null },
+            onSubmit = { phone, savePhone ->
+                viewModel.sendWhatsAppAlert(
+                    context = context,
+                    order = order,
+                    eventType = eventType,
+                    customPhone = phone,
+                    savePhone = savePhone,
+                    onSuccess = {
+                        phonePromptOrder = null
+                        coroutineScope.launch {
+                            snackbarHostState.showSnackbar("WhatsApp opened for ${order.customerName ?: order.orderNumber}")
+                        }
+                    },
+                    onError = { err ->
+                        coroutineScope.launch {
+                            snackbarHostState.showSnackbar("Failed to prepare WhatsApp: $err")
+                        }
+                    }
+                )
+            }
+        )
+    }
 }
 
 @Composable
 private fun TemplatesTabContent(
     templates: List<WhatsAppTemplateDto>,
-    onAddClick: () -> Unit,
     onEditClick: (WhatsAppTemplateDto) -> Unit,
     onDeleteClick: (WhatsAppTemplateDto) -> Unit,
     onRefreshClick: () -> Unit
 ) {
+    var selectedCategory by remember { mutableStateOf("all") }
+    val filteredTemplates = remember(templates, selectedCategory) {
+        if (selectedCategory == "all") templates else templates.filter { it.finalEventType == selectedCategory }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -320,22 +401,46 @@ private fun TemplatesTabContent(
                 fontWeight = FontWeight.Bold,
                 color = Slate900
             )
+            IconButton(onClick = onRefreshClick, modifier = Modifier.size(32.dp)) {
+                Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = PrimaryBlue, modifier = Modifier.size(18.dp))
+            }
+        }
 
-            Button(
-                onClick = onAddClick,
-                shape = RoundedCornerShape(10.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-            ) {
-                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("New Template", fontSize = 12.sp)
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // Category Filter Chips
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            val categories = listOf(
+                "all" to "All (${templates.size})",
+                "order_created" to "Delivery (${templates.count { it.finalEventType == "order_created" }})",
+                "order_expiring" to "Expiring (${templates.count { it.finalEventType == "order_expiring" }})",
+                "order_expired" to "Expired (${templates.count { it.finalEventType == "order_expired" }})"
+            )
+            categories.forEach { (catId, catLabel) ->
+                val isSelected = selectedCategory == catId
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = if (isSelected) PrimaryBlue else Color.White,
+                    border = BorderStroke(1.dp, if (isSelected) PrimaryBlue else Slate200),
+                    modifier = Modifier.clickable { selectedCategory = catId }
+                ) {
+                    Text(
+                        text = catLabel,
+                        fontSize = 11.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                        color = if (isSelected) Color.White else Slate700,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                    )
+                }
             }
         }
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        if (templates.isEmpty()) {
+        if (filteredTemplates.isEmpty()) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
@@ -345,10 +450,10 @@ private fun TemplatesTabContent(
                     modifier = Modifier.padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text("No custom templates loaded", color = Slate600, fontSize = 14.sp)
+                    Text("No templates found in this category", color = Slate600, fontSize = 14.sp)
                     Spacer(modifier = Modifier.height(10.dp))
                     OutlinedButton(onClick = onRefreshClick) {
-                        Text("Load Templates")
+                        Text("Reload Templates")
                     }
                 }
             }
@@ -357,7 +462,7 @@ private fun TemplatesTabContent(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                items(templates, key = { it.id }) { tmpl ->
+                items(filteredTemplates, key = { it.finalId }) { tmpl ->
                     TemplateCard(
                         template = tmpl,
                         onEdit = { onEditClick(tmpl) },
@@ -375,6 +480,16 @@ private fun TemplateCard(
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
+    val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
+    var copied by remember { mutableStateOf(false) }
+
+    LaunchedEffect(copied) {
+        if (copied) {
+            kotlinx.coroutines.delay(2000)
+            copied = false
+        }
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
@@ -388,7 +503,7 @@ private fun TemplateCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = template.name,
+                    text = template.finalName,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                     color = Slate900,
@@ -396,11 +511,27 @@ private fun TemplateCard(
                 )
 
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    IconButton(
+                        onClick = {
+                            clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(template.finalContent))
+                            copied = true
+                        },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            if (copied) Icons.Default.Check else Icons.Default.Share,
+                            contentDescription = if (copied) "Copied" else "Copy Text",
+                            tint = if (copied) StatusSuccess else Slate600,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                     IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
                         Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Slate600, modifier = Modifier.size(16.dp))
                     }
-                    IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
-                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = StatusDanger, modifier = Modifier.size(16.dp))
+                    if (template.id != null && !template.id.startsWith("tmpl-")) {
+                        IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
+                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = StatusDanger, modifier = Modifier.size(16.dp))
+                        }
                     }
                 }
             }
@@ -408,11 +539,11 @@ private fun TemplateCard(
             Spacer(modifier = Modifier.height(6.dp))
 
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                val (catColor, catLabel) = when (template.eventType) {
-                    "order_created" -> StatusSuccess to "ORDER CREATED"
-                    "order_expiring" -> Color(0xFFD97706) to "EXPIRING REMINDER"
+                val (catColor, catLabel) = when (template.finalEventType) {
+                    "order_created" -> StatusSuccess to "ORDER DELIVERY"
+                    "order_expiring" -> Color(0xFFD97706) to "RENEWAL REMINDER"
                     "order_expired" -> StatusDanger to "EXPIRED"
-                    else -> Slate600 to template.eventType.uppercase()
+                    else -> Slate600 to template.finalEventType.uppercase()
                 }
 
                 Surface(
@@ -433,7 +564,7 @@ private fun TemplateCard(
                     shape = RoundedCornerShape(4.dp)
                 ) {
                     Text(
-                        text = template.language.uppercase(),
+                        text = template.finalLanguage.uppercase(),
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         color = PrimaryBlue,
@@ -445,10 +576,10 @@ private fun TemplateCard(
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = template.content,
+                text = template.finalContent,
                 fontSize = 12.sp,
                 color = Slate700,
-                maxLines = 3,
+                maxLines = 4,
                 overflow = TextOverflow.Ellipsis
             )
         }
@@ -462,10 +593,10 @@ private fun TemplateEditorDialog(
     onDismiss: () -> Unit,
     onSubmit: (UpsertTemplateRequest) -> Unit
 ) {
-    var name by remember { mutableStateOf(template?.name ?: "") }
-    var eventType by remember { mutableStateOf(template?.eventType ?: "order_expiring") }
-    var language by remember { mutableStateOf(template?.language ?: "en") }
-    var content by remember { mutableStateOf(template?.content ?: "") }
+    var name by remember { mutableStateOf(template?.finalName ?: "") }
+    var eventType by remember { mutableStateOf(template?.finalEventType ?: "order_expiring") }
+    var language by remember { mutableStateOf(template?.finalLanguage ?: "en") }
+    var content by remember { mutableStateOf(template?.finalContent ?: "") }
     var errorMsg by remember { mutableStateOf<String?>(null) }
 
     var categoryDropdown by remember { mutableStateOf(false) }
@@ -525,7 +656,7 @@ private fun TemplateEditorDialog(
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryDropdown) },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .menuAnchor(),
+                            .menuAnchor(MenuAnchorType.PrimaryNotEditable),
                         shape = RoundedCornerShape(10.dp)
                     )
                     ExposedDropdownMenu(
@@ -568,7 +699,7 @@ private fun TemplateEditorDialog(
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = languageDropdown) },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .menuAnchor(),
+                            .menuAnchor(MenuAnchorType.PrimaryNotEditable),
                         shape = RoundedCornerShape(10.dp)
                     )
                     ExposedDropdownMenu(
@@ -625,25 +756,174 @@ private fun TemplateEditorDialog(
                         Text("Cancel", color = Slate500)
                     }
                     Spacer(modifier = Modifier.width(8.dp))
-                    Button(
+                    VectisPillButton(
+                        text = if (template != null) "Update Template" else "Save Template",
+                        icon = Icons.Default.Check,
                         onClick = {
                             if (content.isBlank()) {
                                 errorMsg = "Template content cannot be empty"
-                                return@Button
+                                return@VectisPillButton
                             }
                             onSubmit(
                                 UpsertTemplateRequest(
-                                    id = template?.id,
+                                    id = if (template?.id != null && !template.id.startsWith("tmpl-")) template.id else null,
                                     name = name.ifBlank { "${eventType} (${language.uppercase()})" },
                                     eventType = eventType,
                                     language = language,
                                     content = content.trim()
                                 )
                             )
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RenewalFeedbackCard(
+    feedback: RenewalFeedback,
+    onDismiss: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFEFF6FF)),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFBFDBFE))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(PrimaryBlue),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.Refresh, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                }
+                Column {
+                    Text(
+                        text = "Order #${feedback.orderNumber} successfully renewed!",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        color = Color(0xFF1E3A8A)
+                    )
+                    Text(
+                        text = "New duration: ${feedback.startDate} → ${feedback.newEndDate} (+${feedback.duration} ${feedback.durationUnit})",
+                        fontSize = 11.sp,
+                        color = Color(0xFF1D4ED8)
+                    )
+                }
+            }
+            IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
+                Icon(Icons.Default.Close, contentDescription = "Dismiss", tint = Color(0xFF1D4ED8), modifier = Modifier.size(16.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun PhonePromptDialog(
+    order: AlertOrderDto,
+    eventType: String,
+    onDismiss: () -> Unit,
+    onSubmit: (phone: String, savePhone: Boolean) -> Unit
+) {
+    var phoneInput by remember { mutableStateOf("") }
+    var savePhone by remember { mutableStateOf(true) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
+        ) {
+            Column(
+                modifier = Modifier.padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Customer Phone Required",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Slate900
+                    )
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = Slate500)
+                    }
+                }
+
+                Text(
+                    text = "Customer ${order.customerName ?: "for Order #${order.orderNumber}"} does not have a WhatsApp phone number registered. Enter it below to launch WhatsApp.",
+                    fontSize = 13.sp,
+                    color = Slate600
+                )
+
+                OutlinedTextField(
+                    value = phoneInput,
+                    onValueChange = { phoneInput = it },
+                    label = { Text("WhatsApp Phone (e.g. +123456789)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    singleLine = true
+                )
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.clickable { savePhone = !savePhone }
+                ) {
+                    Checkbox(checked = savePhone, onCheckedChange = { savePhone = it })
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Save number to customer profile",
+                        fontSize = 12.sp,
+                        color = Slate700
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("Cancel", color = Slate600)
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            if (phoneInput.isNotBlank()) {
+                                onSubmit(phoneInput.trim(), savePhone)
+                            }
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
+                        enabled = phoneInput.isNotBlank(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366), contentColor = Color.White),
+                        shape = RoundedCornerShape(10.dp)
                     ) {
-                        Text(if (template != null) "Update" else "Save Template")
+                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Send WhatsApp", fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
@@ -656,7 +936,10 @@ private fun AlertOrderCard(
     order: AlertOrderDto,
     viewModel: AlertsViewModel,
     isExpired: Boolean,
+    isRenewing: Boolean,
+    isContacted: Boolean,
     onClick: () -> Unit,
+    onRenewClick: () -> Unit,
     onWhatsAppClick: () -> Unit
 ) {
     Card(
@@ -681,26 +964,58 @@ private fun AlertOrderCard(
                     color = PrimaryBlue
                 )
 
-                val badgeText = if (isExpired) {
-                    val days = order.daysExpired ?: 0
-                    if (days == 0) "Expired today" else "Expired $days d ago"
-                } else {
-                    val days = order.daysRemaining ?: 0
-                    if (days == 0) "Expires today" else "Expires in $days d"
-                }
-
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(if (isExpired) StatusDanger.copy(alpha = 0.1f) else StatusWarning.copy(alpha = 0.12f))
-                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Text(
-                        text = badgeText,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (isExpired) StatusDanger else StatusWarning
-                    )
+                    if (isContacted) {
+                        Surface(
+                            color = Color(0xFFECFDF5),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFA7F3D0)),
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(3.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    tint = Color(0xFF059669),
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Text(
+                                    text = "Contacted",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF047857)
+                                )
+                            }
+                        }
+                    }
+
+                    val badgeText = if (isExpired) {
+                        val days = order.daysExpired ?: 0
+                        if (days == 0) "Expired today" else "Expired $days d ago"
+                    } else {
+                        val days = order.daysRemaining ?: 0
+                        if (days == 0) "Expires today" else "Expires in $days d"
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (isExpired) StatusDanger.copy(alpha = 0.1f) else StatusWarning.copy(alpha = 0.12f))
+                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                    ) {
+                        Text(
+                            text = badgeText,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isExpired) StatusDanger else StatusWarning
+                        )
+                    }
                 }
             }
 
@@ -743,25 +1058,60 @@ private fun AlertOrderCard(
                     color = Slate900
                 )
 
-                Button(
-                    onClick = onWhatsAppClick,
-                    shape = RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366)),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        Icons.Default.Share,
-                        contentDescription = "Send WhatsApp",
-                        tint = Color.White,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = if (isExpired) "Send Expired Alert" else "Send Reminder",
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    Button(
+                        onClick = onRenewClick,
+                        enabled = !isRenewing,
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue, contentColor = Color.White),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        if (isRenewing) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(14.dp),
+                                color = Color.White,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Icon(
+                                Icons.Default.Refresh,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = if (isRenewing) (if (isExpired) "Reactivating..." else "Renewing...") else (if (isExpired) "Reactivate" else "Renew"),
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    Button(
+                        onClick = onWhatsAppClick,
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366), contentColor = Color.White),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Share,
+                            contentDescription = "Send WhatsApp",
+                            tint = Color.White,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = if (isExpired) "Send Alert" else "Reminder",
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
                 }
             }
         }
@@ -778,7 +1128,7 @@ private fun LowStockTabContent(
     } else {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(16.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 80.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             if (accounts.isNotEmpty()) {

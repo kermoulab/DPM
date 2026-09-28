@@ -53,4 +53,15 @@ object CurrencyFormatter {
             "$formattedNumber $symbol"
         }
     }
+
+    fun formatWithConversion(
+        amount: Double?,
+        fromCode: String = "USD",
+        toCode: String = "USD",
+        currencies: List<CurrencyDto> = FALLBACK_CURRENCIES
+    ): String {
+        if (amount == null) return format(0.0, toCode, currencies)
+        val converted = convert(amount, fromCode, toCode, currencies)
+        return format(converted, toCode, currencies)
+    }
 }

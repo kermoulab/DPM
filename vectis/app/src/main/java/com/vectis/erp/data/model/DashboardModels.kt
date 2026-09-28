@@ -12,12 +12,24 @@ data class FinancialStatsDto(
     @SerializedName("revenueGrowth") val revenueGrowth: Double = 0.0
 )
 
+data class CustomerMonthlyDto(
+    @SerializedName("month") val month: String = "",
+    @SerializedName("count") val count: Int = 0
+)
+
 data class CustomerStatsDto(
     @SerializedName("total") val total: Int = 0,
     @SerializedName("active") val active: Int = 0,
     @SerializedName("blocked") val blocked: Int = 0,
+    @SerializedName("inactive") val inactive: Int = 0,
     @SerializedName("newThisMonth") val newThisMonth: Int = 0,
-    @SerializedName("growthRate") val growthRate: Double = 0.0
+    @SerializedName("growthRate") val growthRate: Double = 0.0,
+    @SerializedName("monthly") val monthly: List<CustomerMonthlyDto> = emptyList()
+)
+
+data class DailyOrderDto(
+    @SerializedName("day") val day: String = "",
+    @SerializedName("count") val count: Int = 0
 )
 
 data class OrderStatsDto(
@@ -28,7 +40,8 @@ data class OrderStatsDto(
     @SerializedName("cancelled") val cancelled: Int = 0,
     @SerializedName("activePercent") val activePercent: Double = 0.0,
     @SerializedName("expiringPercent") val expiringPercent: Double = 0.0,
-    @SerializedName("expiredPercent") val expiredPercent: Double = 0.0
+    @SerializedName("expiredPercent") val expiredPercent: Double = 0.0,
+    @SerializedName("dailyOrders") val dailyOrders: List<DailyOrderDto> = emptyList()
 )
 
 data class InventoryStatsDto(
@@ -43,7 +56,8 @@ data class InventoryStatsDto(
     @SerializedName("availableLicenses") val availableLicenses: Int = 0,
     @SerializedName("assignedLicenses") val assignedLicenses: Int = 0,
     @SerializedName("assignedProfilesPercent") val assignedProfilesPercent: Double = 0.0,
-    @SerializedName("unallocatedKeysPercent") val unallocatedKeysPercent: Double = 0.0
+    @SerializedName("unallocatedKeysPercent") val unallocatedKeysPercent: Double = 0.0,
+    @SerializedName("activeSubsPercent") val activeSubsPercent: Double = 0.0
 )
 
 data class TopProductDto(
@@ -73,6 +87,32 @@ data class PurchaseAnalyticDto(
     @SerializedName("purchased") val purchased: Int = 0
 )
 
+data class TopCategoryDto(
+    @SerializedName("id") val id: String = "",
+    @SerializedName("name") val name: String = "",
+    @SerializedName("totalOrders") val totalOrders: Int = 0,
+    @SerializedName("totalRevenue") val totalRevenue: Double = 0.0,
+    @SerializedName("percentage") val percentage: Int = 0,
+    @SerializedName("color") val color: String = "#3b82f6"
+)
+
+data class CategoryMetricDto(
+    @SerializedName("orders") val orders: Int = 0,
+    @SerializedName("revenue") val revenue: Double = 0.0
+)
+
+data class MonthlyTrendDto(
+    @SerializedName("month") val month: String = "",
+    @SerializedName("byCategory") val byCategory: Map<String, CategoryMetricDto> = emptyMap(),
+    @SerializedName("totalOrders") val totalOrders: Int = 0,
+    @SerializedName("totalRevenue") val totalRevenue: Double = 0.0
+)
+
+data class CategoryAnalyticsDto(
+    @SerializedName("topCategories") val topCategories: List<TopCategoryDto> = emptyList(),
+    @SerializedName("monthlyTrendsByYear") val monthlyTrendsByYear: Map<String, List<MonthlyTrendDto>> = emptyMap()
+)
+
 data class DashboardStatsDto(
     @SerializedName("financial") val financial: FinancialStatsDto = FinancialStatsDto(),
     @SerializedName("customers") val customers: CustomerStatsDto = CustomerStatsDto(),
@@ -80,5 +120,6 @@ data class DashboardStatsDto(
     @SerializedName("inventory") val inventory: InventoryStatsDto = InventoryStatsDto(),
     @SerializedName("topProducts") val topProducts: List<TopProductDto> = emptyList(),
     @SerializedName("recentOrders") val recentOrders: List<RecentOrderDto> = emptyList(),
-    @SerializedName("purchaseAnalytics") val purchaseAnalytics: List<PurchaseAnalyticDto> = emptyList()
+    @SerializedName("purchaseAnalytics") val purchaseAnalytics: List<PurchaseAnalyticDto> = emptyList(),
+    @SerializedName("categoryAnalytics") val categoryAnalytics: CategoryAnalyticsDto? = null
 )

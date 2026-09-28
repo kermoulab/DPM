@@ -49,7 +49,7 @@ fun CustomerDetailScreen(
     }
 
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = { VectisSnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("Customer Profile", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Slate900) },
@@ -157,6 +157,7 @@ fun CustomerDetailScreen(
                     if (showDeleteConfirmDialog) {
                         AlertDialog(
                             onDismissRequest = { showDeleteConfirmDialog = false },
+                            containerColor = Color.White,
                             title = { Text("Delete Customer") },
                             text = {
                                 Text("Are you sure you want to permanently delete \"${state.customer.name}\"? Customers with existing orders cannot be deleted.")
@@ -488,7 +489,7 @@ private fun CustomerOrderRow(
             )
             Spacer(modifier = Modifier.height(2.dp))
 
-            val (statusBg, statusFg) = when (order.status.lowercase()) {
+            val (statusBg, statusFg) = when (order.effectiveStatus) {
                 "active" -> StatusSuccess.copy(alpha = 0.1f) to StatusSuccess
                 "expiring" -> StatusWarning.copy(alpha = 0.1f) to StatusWarning
                 "expired" -> StatusDanger.copy(alpha = 0.1f) to StatusDanger
@@ -502,7 +503,7 @@ private fun CustomerOrderRow(
                     .padding(horizontal = 6.dp, vertical = 2.dp)
             ) {
                 Text(
-                    text = order.status.replaceFirstChar { it.uppercase() },
+                    text = order.effectiveStatus.replaceFirstChar { it.uppercase() },
                     fontSize = 10.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = statusFg

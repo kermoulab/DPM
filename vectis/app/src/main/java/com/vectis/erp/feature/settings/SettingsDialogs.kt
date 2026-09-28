@@ -72,7 +72,7 @@ fun ChangePasswordDialog(
                 OutlinedTextField(
                     value = newPassword,
                     onValueChange = { newPassword = it; errorMsg = null },
-                    label = { Text("New Password (Min 8 chars)") },
+                    label = { Text("New Password (min 8 chars, A-Z, 0-9, symbol)") },
                     singleLine = true,
                     visualTransformation = if (showNewPw) VisualTransformation.None else PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -116,26 +116,26 @@ fun ChangePasswordDialog(
                         Text("Cancel", color = Slate500)
                     }
                     Spacer(modifier = Modifier.width(8.dp))
-                    Button(
+                    VectisPillButton(
+                        text = "Update Password",
+                        icon = Icons.Default.Check,
                         onClick = {
                             if (currentPassword.isBlank()) {
                                 errorMsg = "Current password is required"
-                                return@Button
+                                return@VectisPillButton
                             }
-                            if (newPassword.length < 8) {
-                                errorMsg = "New password must be at least 8 characters"
-                                return@Button
+                            val pwError = com.vectis.erp.core.security.PasswordValidator.validate(newPassword)
+                            if (pwError != null) {
+                                errorMsg = pwError
+                                return@VectisPillButton
                             }
                             if (newPassword != confirmPassword) {
                                 errorMsg = "Passwords do not match"
-                                return@Button
+                                return@VectisPillButton
                             }
                             onSubmit(currentPassword, newPassword)
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
-                    ) {
-                        Text("Update Password")
-                    }
+                        }
+                    )
                 }
             }
         }
@@ -206,7 +206,7 @@ fun AddUserDialog(
                 OutlinedTextField(
                     value = password,
                     onValueChange = { password = it; errorMsg = null },
-                    label = { Text("Password (Min 8 chars) *") },
+                    label = { Text("Password (min 8 chars, A-Z, 0-9, symbol) *") },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -261,15 +261,18 @@ fun AddUserDialog(
                         Text("Cancel", color = Slate500)
                     }
                     Spacer(modifier = Modifier.width(8.dp))
-                    Button(
+                    VectisPillButton(
+                        text = "Create User",
+                        icon = Icons.Default.Add,
                         onClick = {
                             if (name.isBlank() || username.isBlank() || email.isBlank() || password.isBlank()) {
                                 errorMsg = "All fields are required"
-                                return@Button
+                                return@VectisPillButton
                             }
-                            if (password.length < 8) {
-                                errorMsg = "Password must be at least 8 characters"
-                                return@Button
+                            val pwError = com.vectis.erp.core.security.PasswordValidator.validate(password)
+                            if (pwError != null) {
+                                errorMsg = pwError
+                                return@VectisPillButton
                             }
                             onSubmit(
                                 CreateUserRequest(
@@ -280,11 +283,8 @@ fun AddUserDialog(
                                     role = role
                                 )
                             )
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
-                    ) {
-                        Text("Create Member")
-                    }
+                        }
+                    )
                 }
             }
         }

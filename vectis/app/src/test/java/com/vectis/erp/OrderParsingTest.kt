@@ -150,4 +150,95 @@ class OrderParsingTest {
         assertTrue(json.contains("\"product_id\":\"prod-1\""))
         assertTrue(json.contains("\"custom_price\":220.0"))
     }
+
+    @Test
+    fun testUpdateOrderRequestSerialization() {
+        val req = UpdateOrderRequest(
+            customerId = "cust-42",
+            productId = "prod-99",
+            planId = "plan-3",
+            status = "active",
+            paymentStatus = "paid",
+            paymentMethod = "bank_transfer",
+            price = 300.0,
+            cost = null,
+            startDate = "2026-03-01",
+            endDate = "2026-06-01",
+            notes = "Updated via Android companion"
+        )
+        val json = gson.toJson(req)
+
+        assertTrue(json.contains("\"customer_id\":\"cust-42\""))
+        assertTrue(json.contains("\"product_id\":\"prod-99\""))
+        assertTrue(json.contains("\"plan_id\":\"plan-3\""))
+        assertTrue(json.contains("\"status\":\"active\""))
+        assertTrue(json.contains("\"payment_status\":\"paid\""))
+        assertTrue(json.contains("\"price\":300.0"))
+        assertFalse(json.contains("\"cost\""))
+        assertTrue(json.contains("\"notes\":\"Updated via Android companion\""))
+    }
+
+    @Test
+    fun testOrderPasswordParsing() {
+        val jsonStandard = """
+            {
+                "id": "ord-1",
+                "capabilities": ["service_account"],
+                "fulfillment_data": {
+                    "login": "user@example.com",
+                    "password": "SecretPassword123!",
+                    "profile_name": "Profile 1",
+                    "pin": "1234"
+                }
+            }
+        """.trimIndent()
+        val order1 = gson.fromJson(jsonStandard, OrderDto::class.java)
+        assertEquals("user@example.com", order1.accountLogin)
+        assertEquals("SecretPassword123!", order1.accountPassword)
+        assertEquals("Profile 1", order1.profileName)
+        assertEquals("1234", order1.profilePin)
+
+        val jsonLegacyAccountPassword = """
+            {
+                "id": "ord-2",
+                "capabilities": ["service_account"],
+                "fulfillment_data": {
+                    "account_login": "user2@example.com",
+                    "account_password": "LegacyPassword456",
+                    "profile_name": "Profile 2"
+                }
+            }
+        """.trimIndent()
+        val order2 = gson.fromJson(jsonLegacyAccountPassword, OrderDto::class.java)
+        assertEquals("user2@example.com", order2.accountLogin)
+        assertEquals("LegacyPassword456", order2.accountPassword)
+        assertEquals("Profile 2", order2.profileName)
+    }
+
+    @Test
+    fun testOrderEffectiveStatusWithPastEndDate() {
+        val oldOrder = OrderDto(
+            id = "ord-past",
+            status = "active",
+            startDate = "2023-01-01",
+            endDate = "2023-02-01"
+        )
+        assertEquals("expired", oldOrder.effectiveStatus)
+
+        val cancelledOrder = OrderDto(
+            id = "ord-cancelled",
+            status = "cancelled",
+            startDate = "2023-01-01",
+            endDate = "2023-02-01"
+        )
+        assertEquals("cancelled", cancelledOrder.effectiveStatus)
+
+        val futureOrder = OrderDto(
+            id = "ord-future",
+            status = "active",
+            startDate = "2028-01-01",
+            endDate = "2028-02-01"
+        )
+        assertEquals("active", futureOrder.effectiveStatus)
+    }
 }

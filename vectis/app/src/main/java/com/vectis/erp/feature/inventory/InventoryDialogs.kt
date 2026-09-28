@@ -228,28 +228,30 @@ fun ServiceAccountFormDialog(
                         Text("Cancel", color = Slate500)
                     }
                     Spacer(modifier = Modifier.width(8.dp))
-                    Button(
+                    VectisPillButton(
+                        text = if (initialAccount == null) "Create Account" else "Save Changes",
+                        icon = if (initialAccount == null) Icons.Default.Add else Icons.Default.Check,
                         onClick = {
                             if (selectedProductId.isBlank()) {
                                 validationError = "Please select a product"
-                                return@Button
+                                return@VectisPillButton
                             }
                             if (provider.isBlank()) {
                                 validationError = "Provider is required"
-                                return@Button
+                                return@VectisPillButton
                             }
                             if (login.isBlank()) {
                                 validationError = "Master login is required"
-                                return@Button
+                                return@VectisPillButton
                             }
                             if (initialAccount == null && password.isBlank()) {
                                 validationError = "Master password is required"
-                                return@Button
+                                return@VectisPillButton
                             }
                             val cap = capacityText.toIntOrNull()
                             if (cap == null || cap <= 0) {
                                 validationError = "Valid capacity required"
-                                return@Button
+                                return@VectisPillButton
                             }
 
                             if (initialAccount == null) {
@@ -280,11 +282,8 @@ fun ServiceAccountFormDialog(
                                     )
                                 )
                             }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
-                    ) {
-                        Text(if (initialAccount == null) "Create Account" else "Save Changes")
-                    }
+                        }
+                    )
                 }
             }
         }
@@ -346,11 +345,13 @@ fun ProfileEditDialog(
                         Text("Cancel", color = Slate500)
                     }
                     Spacer(modifier = Modifier.width(8.dp))
-                    Button(
+                    VectisPillButton(
+                        text = "Save",
+                        icon = Icons.Default.Check,
                         onClick = {
                             if (profileName.isBlank()) {
                                 validationError = "Profile name is required"
-                                return@Button
+                                return@VectisPillButton
                             }
                             onSave(
                                 UpdateServiceProfileRequest(
@@ -358,11 +359,8 @@ fun ProfileEditDialog(
                                     pin = pin.trim().ifEmpty { null }
                                 )
                             )
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
-                    ) {
-                        Text("Save")
-                    }
+                        }
+                    )
                 }
             }
         }
@@ -487,11 +485,13 @@ fun BulkLicenseDialog(
                         Text("Cancel", color = Slate500)
                     }
                     Spacer(modifier = Modifier.width(8.dp))
-                    Button(
+                    VectisPillButton(
+                        text = "Import ${keysText.lines().filter { it.isNotBlank() }.size} Keys",
+                        icon = Icons.Default.Upload,
                         onClick = {
                             if (selectedProductId.isBlank()) {
                                 validationError = "Please select a product"
-                                return@Button
+                                return@VectisPillButton
                             }
                             val rawKeys = keysText.lines()
                                 .map { it.trim() }
@@ -499,7 +499,7 @@ fun BulkLicenseDialog(
 
                             if (rawKeys.isEmpty()) {
                                 validationError = "Please enter at least one license key"
-                                return@Button
+                                return@VectisPillButton
                             }
 
                             onSaveLicenses(
@@ -510,11 +510,8 @@ fun BulkLicenseDialog(
                                     notes = notes.trim().ifEmpty { null }
                                 )
                             )
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = StatusSuccess)
-                    ) {
-                        Text("Import ${keysText.lines().filter { it.isNotBlank() }.size} Keys")
-                    }
+                        }
+                    )
                 }
             }
         }

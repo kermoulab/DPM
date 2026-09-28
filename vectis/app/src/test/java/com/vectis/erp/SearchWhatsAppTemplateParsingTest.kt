@@ -123,16 +123,38 @@ class SearchWhatsAppTemplateParsingTest {
 
         val t1 = response.templates[0]
         assertEquals("tpl-exp-1", t1.id)
-        assertEquals("Standard Expiry Reminder", t1.name)
-        assertEquals("expiring_soon", t1.eventType)
-        assertEquals("fr", t1.language)
-        assertTrue(t1.content.contains("{customer_name}"))
-        assertTrue(t1.content.contains("{days_remaining}"))
+        assertEquals("Standard Expiry Reminder", t1.finalName)
+        assertEquals("expiring_soon", t1.finalEventType)
+        assertEquals("fr", t1.finalLanguage)
+        assertTrue(t1.finalContent.contains("{customer_name}"))
+        assertTrue(t1.finalContent.contains("{days_remaining}"))
 
         val t2 = response.templates[1]
         assertEquals("tpl-over-1", t2.id)
-        assertEquals("expired", t2.eventType)
-        assertEquals("ar", t2.language)
+        assertEquals("expired", t2.finalEventType)
+        assertEquals("ar", t2.finalLanguage)
+    }
+
+    @Test
+    fun testBuiltInWhatsAppTemplates() {
+        assertEquals(12, BuiltInWhatsAppTemplates.ALL.size)
+        val mergedEmpty = BuiltInWhatsAppTemplates.mergeWithServer(emptyList())
+        assertEquals(12, mergedEmpty.size)
+
+        val custom = listOf(
+            WhatsAppTemplateDto(
+                id = "custom-override-1",
+                name = "Custom Delivery",
+                eventType = "order_created",
+                language = "en",
+                content = "Custom text for delivery"
+            )
+        )
+        val merged = BuiltInWhatsAppTemplates.mergeWithServer(custom)
+        assertEquals(12, merged.size)
+        val overridden = merged.first { it.finalEventType == "order_created" && it.finalLanguage == "en" }
+        assertEquals("custom-override-1", overridden.id)
+        assertEquals("Custom text for delivery", overridden.finalContent)
     }
 
     @Test

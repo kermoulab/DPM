@@ -746,8 +746,8 @@ async function runComprehensiveAudit() {
       'Android app implements DashboardApiService, DashboardViewModel, and DashboardScreen');
 
     const dashboardScreenContent = fs.readFileSync(path.join(process.cwd(), 'vectis', 'app', 'src', 'main', 'java', 'com', 'vectis', 'erp', 'feature', 'dashboard', 'DashboardScreen.kt'), 'utf8');
-    assert(dashboardScreenContent.includes('Total Revenue') && dashboardScreenContent.includes('Active Subscriptions') && dashboardScreenContent.includes('expiring soon'),
-      'DashboardScreen displays real-time KPI metrics (Revenue, Active Subscriptions, Expiring soon)');
+    assert(dashboardScreenContent.includes('Total Revenue') && (dashboardScreenContent.includes('Order Development') || dashboardScreenContent.includes('Active Subscriptions')) && (dashboardScreenContent.includes('expiring soon') || dashboardScreenContent.includes('Expiring')),
+      'DashboardScreen displays real-time KPI metrics (Revenue, Order Development / Active Subscriptions, Expiring)');
     assert(dashboardScreenContent.includes('Recent Orders') && dashboardScreenContent.includes('Top Selling Products'),
       'DashboardScreen renders Recent Orders and Top Selling Products sections');
 

@@ -44,6 +44,17 @@ interface ProductInventoryApiService {
         @Body req: CreateCategoryRequest
     ): Response<CategoryResponse>
 
+    @PUT("api/categories/{id}")
+    suspend fun updateCategory(
+        @Path("id") id: String,
+        @Body req: UpdateCategoryRequest
+    ): Response<SimpleActionResponse>
+
+    @DELETE("api/categories/{id}")
+    suspend fun deleteCategory(
+        @Path("id") id: String
+    ): Response<SimpleActionResponse>
+
     // Plans
     @GET("api/plans")
     suspend fun getPlans(
@@ -53,6 +64,12 @@ interface ProductInventoryApiService {
     @POST("api/plans")
     suspend fun createPlan(
         @Body req: CreatePlanRequest
+    ): Response<PlanResponse>
+
+    @PUT("api/plans/{id}")
+    suspend fun updatePlan(
+        @Path("id") id: String,
+        @Body req: UpdatePlanRequest
     ): Response<PlanResponse>
 
     @DELETE("api/plans/{id}")

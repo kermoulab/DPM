@@ -18,9 +18,12 @@ interface ProductInventoryRepository {
     suspend fun deleteProduct(id: String): ApiResult<SimpleActionResponse>
     suspend fun getCategories(): ApiResult<CategoriesResponse>
     suspend fun createCategory(req: CreateCategoryRequest): ApiResult<CategoryResponse>
+    suspend fun updateCategory(id: String, req: UpdateCategoryRequest): ApiResult<SimpleActionResponse>
+    suspend fun deleteCategory(id: String): ApiResult<SimpleActionResponse>
 
     // Plan CRUD
     suspend fun createPlan(req: CreatePlanRequest): ApiResult<PlanResponse>
+    suspend fun updatePlan(id: String, req: UpdatePlanRequest): ApiResult<PlanResponse>
     suspend fun deletePlan(id: String): ApiResult<SimpleActionResponse>
 
     // Inventory - Service Account & Profile CRUD

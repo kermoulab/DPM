@@ -34,7 +34,8 @@ class AlertRepositoryImpl(
                 ApiResult.Success(response.body()!!)
             } else {
                 val errorBody = response.errorBody()?.string() ?: ""
-                ApiResult.Error(response.code(), if (errorBody.isNotBlank()) errorBody else "Failed to compose WhatsApp notification (${response.code()})")
+                val cleanError = com.vectis.erp.core.design.cleanUserFacingMessage(errorBody)
+                ApiResult.Error(response.code(), if (cleanError.isNotBlank()) cleanError else "Failed to compose WhatsApp notification (${response.code()})")
             }
         } catch (e: Exception) {
             ApiResult.NetworkError(e)
@@ -63,7 +64,8 @@ class AlertRepositoryImpl(
                 ApiResult.Success(Unit)
             } else {
                 val errorBody = response.errorBody()?.string() ?: ""
-                ApiResult.Error(response.code(), if (errorBody.isNotBlank()) errorBody else "Failed to save template (${response.code()})")
+                val cleanError = com.vectis.erp.core.design.cleanUserFacingMessage(errorBody)
+                ApiResult.Error(response.code(), if (cleanError.isNotBlank()) cleanError else "Failed to save template (${response.code()})")
             }
         } catch (e: Exception) {
             ApiResult.NetworkError(e)
@@ -78,7 +80,8 @@ class AlertRepositoryImpl(
                 ApiResult.Success(Unit)
             } else {
                 val errorBody = response.errorBody()?.string() ?: ""
-                ApiResult.Error(response.code(), if (errorBody.isNotBlank()) errorBody else "Failed to delete template (${response.code()})")
+                val cleanError = com.vectis.erp.core.design.cleanUserFacingMessage(errorBody)
+                ApiResult.Error(response.code(), if (cleanError.isNotBlank()) cleanError else "Failed to delete template (${response.code()})")
             }
         } catch (e: Exception) {
             ApiResult.NetworkError(e)

@@ -19,6 +19,17 @@ class LoginViewModel(
     private val _uiState = MutableStateFlow<AuthUiState>(AuthUiState.Idle)
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
 
+    init {
+        secureStorage.getLastSessionError()?.let { errorMsg ->
+            if (errorMsg.isNotBlank()) {
+                _uiState.value = AuthUiState.Error(errorMsg)
+                secureStorage.clearLastSessionError()
+            }
+        }
+    }
+
+    fun getServerUrl(): String = secureStorage.getServerUrl()
+
     var username: String = ""
         private set
 

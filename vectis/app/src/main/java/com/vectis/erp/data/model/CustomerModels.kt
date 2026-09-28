@@ -28,7 +28,18 @@ data class CustomerOrderDto(
     @SerializedName("start_date") val startDate: String? = null,
     @SerializedName("end_date") val endDate: String? = null,
     @SerializedName("created_at") val createdAt: String? = null
-)
+) {
+    val effectiveStatus: String
+        get() {
+            val st = status.lowercase().trim()
+            if (st in listOf("cancelled", "canceled", "completed", "refunded", "pending")) return st
+            val end = endDate?.take(10) ?: return st
+            val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).apply {
+                timeZone = java.util.TimeZone.getTimeZone("UTC")
+            }.format(java.util.Date())
+            return if (end < today) "expired" else st
+        }
+}
 
 data class CustomerDetailResponse(
     @SerializedName("customer") val customer: CustomerDto,

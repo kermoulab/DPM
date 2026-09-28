@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -16,7 +18,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -24,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.vectis.erp.core.design.*
 import com.vectis.erp.data.model.OrderDto
+import kotlinx.coroutines.launch
 
 @Suppress("DEPRECATION")
 @OptIn(ExperimentalMaterial3Api::class)
@@ -31,32 +33,35 @@ import com.vectis.erp.data.model.OrderDto
 fun OrderListScreen(
     viewModel: OrderViewModel,
     onOrderClick: (String) -> Unit,
-    onCreateOrderClick: () -> Unit
+    onCreateOrderClick: () -> Unit,
+    preferredCurrency: String = "USD",
+    onOpenSearch: () -> Unit = {},
+    onNavigateToAlerts: () -> Unit = {},
+    onNavigateToSettings: () -> Unit = {},
+    alertCount: Int = 0
 ) {
     val uiState by viewModel.listUiState.collectAsState()
-    val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0.dp, 0.dp, 0.dp, 0.dp),
+        snackbarHost = { VectisSnackbarHost(snackbarHostState) },
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text("Orders", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Slate900)
-                        Text("Subscriptions & Product Sales", fontSize = 12.sp, color = Slate500)
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { viewModel.loadOrders(isRefresh = true) }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = PrimaryBlue)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+            VectisTopAppBar(
+                onRefresh = { viewModel.loadOrders(isRefresh = true) },
+                onNavigateToSettings = onNavigateToSettings,
+                onNavigateToAlerts = onNavigateToAlerts,
+                onOpenSearch = onOpenSearch,
+                alertCount = alertCount,
+                preferredCurrency = preferredCurrency
             )
         },
         floatingActionButton = {
             if (viewModel.permissionManager.canCreateOrder()) {
                 FloatingActionButton(
                     onClick = onCreateOrderClick,
+                    modifier = Modifier.padding(bottom = 72.dp),
                     containerColor = PrimaryBlue,
                     contentColor = Color.White,
                     shape = CircleShape
@@ -72,37 +77,9 @@ fun OrderListScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Search Input
-            var searchText by remember { mutableStateOf("") }
-            OutlinedTextField(
-                value = searchText,
-                onValueChange = {
-                    searchText = it
-                    viewModel.onSearchQueryChanged(it)
-                },
-                placeholder = { Text("Search by order #, customer, or product...", fontSize = 14.sp, color = Slate400) },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Slate400) },
-                trailingIcon = {
-                    if (searchText.isNotEmpty()) {
-                        IconButton(onClick = {
-                            searchText = ""
-                            viewModel.onSearchQueryChanged("")
-                        }) {
-                            Icon(Icons.Default.Close, contentDescription = "Clear", tint = Slate400)
-                        }
-                    }
-                },
-                singleLine = true,
-                shape = RoundedCornerShape(16.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = Color.White,
-                    unfocusedContainerColor = Color.White,
-                    focusedBorderColor = PrimaryBlue,
-                    unfocusedBorderColor = Slate200
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            ViewHeader(
+                title = "Orders",
+                description = "Subscriptions & Product Sales"
             )
 
             // Status Filter Chips
@@ -175,54 +152,71 @@ fun OrderListScreen(
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            when (val state = uiState) {
-                is OrderListUiState.Loading -> {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = PrimaryBlue)
-                    }
-                }
-                is OrderListUiState.Error -> {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
-                            Icon(Icons.Default.Warning, contentDescription = null, tint = StatusDanger, modifier = Modifier.size(48.dp))
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text(text = state.message, color = Slate700, fontSize = 14.sp)
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Button(onClick = { viewModel.loadOrders() }) {
-                                Text("Retry")
-                            }
-                        }
-                    }
-                }
-                is OrderListUiState.Success -> {
-                    if (state.orders.isEmpty()) {
+            val isRefreshing = (uiState as? OrderListUiState.Success)?.isRefreshing == true
+            VectisPullToRefreshBox(
+                isRefreshing = isRefreshing,
+                onRefresh = { viewModel.loadOrders(isRefresh = true) },
+                modifier = Modifier.fillMaxSize()
+            ) {
+                when (val state = uiState) {
+                    is OrderListUiState.Loading -> {
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(color = PrimaryBlue)
+                        }
+                    }
+                    is OrderListUiState.Error -> {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .verticalScroll(rememberScrollState()),
+                            contentAlignment = Alignment.Center
+                        ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
-                                Icon(Icons.Default.ReceiptLong, contentDescription = null, tint = Slate300, modifier = Modifier.size(56.dp))
+                                Icon(Icons.Default.Warning, contentDescription = null, tint = StatusDanger, modifier = Modifier.size(48.dp))
                                 Spacer(modifier = Modifier.height(12.dp))
-                                Text(
-                                    text = if (searchText.isNotBlank()) "No orders match \"$searchText\"" else "No orders registered yet.",
-                                    color = Slate500,
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
+                                Text(text = state.message, color = Slate700, fontSize = 14.sp)
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Button(
+                                    onClick = { viewModel.loadOrders() },
+                                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue, contentColor = Color.White)
+                                ) {
+                                    Text("Retry", color = Color.White)
+                                }
                             }
                         }
-                    } else {
-                        LazyColumn(
-                            modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 80.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            items(state.orders, key = { it.id }) { order ->
-                                OrderCard(
-                                    order = order,
-                                    viewModel = viewModel,
-                                    onClick = { onOrderClick(order.id) },
-                                    onWhatsAppClick = {
-                                        viewModel.sendWhatsAppReceipt(context, order)
-                                    }
-                                )
+                    }
+                    is OrderListUiState.Success -> {
+                        if (state.orders.isEmpty()) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .verticalScroll(rememberScrollState()),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
+                                    Icon(Icons.Default.ReceiptLong, contentDescription = null, tint = Slate300, modifier = Modifier.size(56.dp))
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Text(
+                                        text = "No orders registered yet.",
+                                        color = Slate500,
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+                        } else {
+                            LazyColumn(
+                                modifier = Modifier.fillMaxSize(),
+                                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 80.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                items(state.orders, key = { it.id }) { order ->
+                                    OrderCard(
+                                        order = order,
+                                        viewModel = viewModel,
+                                        onClick = { onOrderClick(order.id) }
+                                    )
+                                }
                             }
                         }
                     }
@@ -236,8 +230,7 @@ fun OrderListScreen(
 private fun OrderCard(
     order: OrderDto,
     viewModel: OrderViewModel,
-    onClick: () -> Unit,
-    onWhatsAppClick: () -> Unit
+    onClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -262,7 +255,7 @@ private fun OrderCard(
                     color = PrimaryBlue
                 )
 
-                val (statusBg, statusFg) = when (order.status.lowercase()) {
+                val (statusBg, statusFg) = when (order.effectiveStatus) {
                     "active" -> StatusSuccess.copy(alpha = 0.1f) to StatusSuccess
                     "expiring" -> StatusWarning.copy(alpha = 0.1f) to StatusWarning
                     "expired" -> StatusDanger.copy(alpha = 0.1f) to StatusDanger
@@ -277,7 +270,7 @@ private fun OrderCard(
                         .padding(horizontal = 8.dp, vertical = 3.dp)
                 ) {
                     Text(
-                        text = order.status.replaceFirstChar { it.uppercase() },
+                        text = order.effectiveStatus.replaceFirstChar { it.uppercase() },
                         fontSize = 11.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = statusFg
@@ -324,33 +317,12 @@ private fun OrderCard(
             HorizontalDivider(color = Slate100)
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Row 4: Validity & WhatsApp receipt trigger
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = if (!order.endDate.isNullOrBlank()) "Valid: ${order.startDate ?: ""} → ${order.endDate}" else "One-time Purchase",
-                    fontSize = 11.sp,
-                    color = Slate500
-                )
-
-                if (!order.customerWhatsapp.isNullOrBlank()) {
-                    IconButton(
-                        onClick = onWhatsAppClick,
-                        modifier = Modifier.size(28.dp)
-                    ) {
-                        @Suppress("DEPRECATION")
-                        Icon(
-                            imageVector = Icons.Default.Chat,
-                            contentDescription = "WhatsApp Receipt",
-                            tint = Color(0xFF128C7E),
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                }
-            }
+            // Row 4: Validity
+            Text(
+                text = if (!order.endDate.isNullOrBlank()) "Valid: ${order.startDate ?: ""} → ${order.endDate}" else "One-time Purchase",
+                fontSize = 11.sp,
+                color = Slate500
+            )
         }
     }
 }

@@ -27,6 +27,22 @@ class SettingsRepositoryImpl(
         }
     }
 
+    override suspend fun updateProfile(req: UpdateProfileRequest): ApiResult<UpdateProfileResponse> = withContext(Dispatchers.IO) {
+        try {
+            val api = networkClient.createService<SettingsApiService>()
+            val response = api.updateProfile(req)
+            if (response.isSuccessful && response.body() != null) {
+                ApiResult.Success(response.body()!!)
+            } else {
+                val errorBody = response.errorBody()?.string() ?: ""
+                val cleanErr = com.vectis.erp.core.design.cleanUserFacingMessage(errorBody)
+                ApiResult.Error(response.code(), if (cleanErr.isNotBlank()) cleanErr else "Failed to update profile (${response.code()})")
+            }
+        } catch (e: Exception) {
+            ApiResult.NetworkError(e)
+        }
+    }
+
     override suspend fun getCurrencies(): ApiResult<List<CurrencyDto>> = withContext(Dispatchers.IO) {
         try {
             val api = networkClient.createService<com.vectis.erp.data.api.CurrencyApiService>()
@@ -146,7 +162,9 @@ class SettingsRepositoryImpl(
             if (response.isSuccessful && response.body() != null) {
                 ApiResult.Success(response.body()!!)
             } else {
-                ApiResult.Error(response.code(), "Failed to create user (${response.code()})")
+                val errorBody = response.errorBody()?.string() ?: ""
+                val cleanErr = com.vectis.erp.core.design.cleanUserFacingMessage(errorBody)
+                ApiResult.Error(response.code(), if (cleanErr.isNotBlank()) cleanErr else "Failed to create user (${response.code()})")
             }
         } catch (e: Exception) {
             ApiResult.NetworkError(e)
@@ -160,7 +178,9 @@ class SettingsRepositoryImpl(
             if (response.isSuccessful && response.body() != null) {
                 ApiResult.Success(response.body()!!)
             } else {
-                ApiResult.Error(response.code(), "Failed to delete user (${response.code()})")
+                val errorBody = response.errorBody()?.string() ?: ""
+                val cleanErr = com.vectis.erp.core.design.cleanUserFacingMessage(errorBody)
+                ApiResult.Error(response.code(), if (cleanErr.isNotBlank()) cleanErr else "Failed to delete user (${response.code()})")
             }
         } catch (e: Exception) {
             ApiResult.NetworkError(e)

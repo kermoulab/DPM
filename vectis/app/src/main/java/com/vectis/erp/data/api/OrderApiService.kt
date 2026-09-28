@@ -36,6 +36,12 @@ interface OrderApiService {
         @Body request: CancelOrderRequest
     ): Response<OrderMutationResponse>
 
+    @PUT("api/orders/{id}")
+    suspend fun updateOrder(
+        @Path("id") id: String,
+        @Body request: UpdateOrderRequest
+    ): Response<OrderMutationResponse>
+
     @DELETE("api/orders/{id}")
     suspend fun deleteOrder(
         @Path("id") id: String

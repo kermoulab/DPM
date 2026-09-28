@@ -9,6 +9,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -20,6 +21,7 @@ import com.vectis.erp.core.design.Slate50
 import com.vectis.erp.core.design.Slate500
 import com.vectis.erp.core.design.Slate900
 import com.vectis.erp.core.design.StatusDanger
+import com.vectis.erp.core.design.VectisPillButton
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -154,7 +156,8 @@ fun EnterCodeScreen(
 
                 Spacer(modifier = Modifier.height(32.dp))
 
-                Button(
+                VectisPillButton(
+                    text = "Connect & Authorize",
                     onClick = {
                         viewModel.submitPairingCode(onSuccess = onPairingSuccess)
                     },
@@ -162,19 +165,8 @@ fun EnterCodeScreen(
                         .fillMaxWidth()
                         .height(52.dp),
                     enabled = codeInput.length >= 6 && uiState !is PairingUiState.Loading,
-                    shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
-                ) {
-                    if (uiState is PairingUiState.Loading) {
-                        CircularProgressIndicator(
-                            color = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(22.dp),
-                            strokeWidth = 2.5.dp
-                        )
-                    } else {
-                        Text("Connect & Authorize", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                    }
-                }
+                    isLoading = uiState is PairingUiState.Loading
+                )
             }
         }
     }

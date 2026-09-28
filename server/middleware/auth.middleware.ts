@@ -31,7 +31,7 @@ export function isTokenRevoked(token: string): boolean {
   return revokedTokens.has(token);
 }
 
-export function createSessionToken(user: AuthUser, expiresInHours = 24): string {
+export function createSessionToken(user: AuthUser, expiresInHours = 24 * 30): string {
   const payload = {
     sub: user.id,
     username: user.username,
@@ -50,7 +50,7 @@ export function createSessionToken(user: AuthUser, expiresInHours = 24): string 
   return `${header}.${body}.${signature}`;
 }
 
-export function verifySessionToken(token: string): AuthUser | null {
+export function verifySessionToken(token: string): (AuthUser & { exp?: number }) | null {
   try {
     const parts = token.split('.');
     if (parts.length !== 3) return null;
@@ -74,7 +74,8 @@ export function verifySessionToken(token: string): AuthUser | null {
     }
 
     const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'));
-    if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
+    // 60-second grace window for client-server clock drift
+    if (payload.exp && payload.exp < Math.floor(Date.now() / 1000) - 60) {
       return null;
     }
     return {
@@ -83,7 +84,8 @@ export function verifySessionToken(token: string): AuthUser | null {
       email: payload.email,
       name: payload.name,
       role: payload.role,
-      preferred_currency: payload.preferred_currency || 'USD'
+      preferred_currency: payload.preferred_currency || 'USD',
+      exp: payload.exp
     };
   } catch {
     return null;
@@ -131,6 +133,15 @@ export async function requireAuth(req: AuthenticatedRequest, res: Response, next
       role: dbUser.role,
       preferred_currency: dbUser.preferred_currency || 'USD'
     };
+
+    // Sliding session refresh: if token has less than 15 days remaining, issue refreshed 30-day token
+    const nowSec = Math.floor(Date.now() / 1000);
+    if (tokenUser.exp && (tokenUser.exp - nowSec < 15 * 86400)) {
+      const refreshedToken = createSessionToken(req.user, 24 * 30);
+      res.setHeader('X-New-Token', refreshedToken);
+      res.setHeader('Access-Control-Expose-Headers', 'X-New-Token, X-Device-Revoked');
+    }
+
     next();
   } catch (err: any) {
     res.status(500).json({ error: 'Failed to verify session status.' });

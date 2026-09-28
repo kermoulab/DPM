@@ -77,15 +77,15 @@ export class OrdersRepository {
              o.start_date::text as start_date,
              o.end_date::text as end_date,
              c.name as customer_name, c.email as customer_email, c.whatsapp as customer_whatsapp,
-             p.name as product_name,
-             pl.name as plan_name,
+             p.name as product_name, p.capabilities as capabilities,
+             pl.name as plan_name, pl.duration as duration, pl.duration_unit as duration_unit,
              lk.license_key as license_key,
              sa.login as account_login,
              sp.profile_name as profile_name, sp.pin as profile_pin
       FROM orders o
-      JOIN customers c ON c.id = o.customer_id
-      JOIN products p ON p.id = o.product_id
-      JOIN plans pl ON pl.id = o.plan_id
+      LEFT JOIN customers c ON c.id = o.customer_id
+      LEFT JOIN products p ON p.id = o.product_id
+      LEFT JOIN plans pl ON pl.id = o.plan_id
       LEFT JOIN license_keys lk ON lk.id = o.assigned_license_key_id
       LEFT JOIN service_accounts sa ON sa.id = o.assigned_service_account_id
       LEFT JOIN service_profiles sp ON sp.id = o.assigned_profile_id
@@ -124,15 +124,15 @@ export class OrdersRepository {
               o.start_date::text as start_date,
               o.end_date::text as end_date,
               c.name as customer_name, c.email as customer_email, c.whatsapp as customer_whatsapp,
-              p.name as product_name,
-              pl.name as plan_name,
+              p.name as product_name, p.capabilities as capabilities,
+              pl.name as plan_name, pl.duration as duration, pl.duration_unit as duration_unit,
               lk.license_key as license_key,
               sa.login as account_login,
               sp.profile_name as profile_name, sp.pin as profile_pin
        FROM orders o
-       JOIN customers c ON c.id = o.customer_id
-       JOIN products p ON p.id = o.product_id
-       JOIN plans pl ON pl.id = o.plan_id
+       LEFT JOIN customers c ON c.id = o.customer_id
+       LEFT JOIN products p ON p.id = o.product_id
+       LEFT JOIN plans pl ON pl.id = o.plan_id
        LEFT JOIN license_keys lk ON lk.id = o.assigned_license_key_id
        LEFT JOIN service_accounts sa ON sa.id = o.assigned_service_account_id
        LEFT JOIN service_profiles sp ON sp.id = o.assigned_profile_id
@@ -176,25 +176,43 @@ export class OrdersRepository {
   }
 
   async update(id: string, updates: Partial<OrderRow>): Promise<OrderRow | null> {
-    let newStatus = updates.status ?? null;
-    if (updates.end_date) {
-      const cleanEnd = String(updates.end_date).split('T')[0];
+    const current = await this.findById(id);
+    let cleanStartDate = updates.start_date ? String(updates.start_date).split('T')[0] : (current?.start_date ? String(current.start_date).split('T')[0] : null);
+    let cleanEndDate = updates.end_date ? String(updates.end_date).split('T')[0] : null;
+
+    if (updates.start_date && !updates.end_date && current) {
+      const planRes = await query<{ duration: number; duration_unit: string }>('SELECT duration, duration_unit FROM plans WHERE id = $1', [updates.plan_id || current.plan_id]);
+      if (planRes.rows.length > 0) {
+        const { duration, duration_unit } = planRes.rows[0];
+        const start = new Date(cleanStartDate!);
+        if (duration_unit === 'days') start.setUTCDate(start.getUTCDate() + duration);
+        else if (duration_unit === 'weeks') start.setUTCDate(start.getUTCDate() + duration * 7);
+        else if (duration_unit === 'years') start.setUTCFullYear(start.getUTCFullYear() + duration);
+        else start.setUTCMonth(start.getUTCMonth() + duration);
+        cleanEndDate = start.toISOString().split('T')[0];
+      }
+    }
+
+    if (!cleanEndDate && current?.end_date) {
+      cleanEndDate = String(current.end_date).split('T')[0];
+    }
+
+    let newStatus = updates.status ?? current?.status ?? null;
+    if (cleanEndDate) {
       const today = new Date().toISOString().split('T')[0];
       const sevenDaysAhead = new Date();
       sevenDaysAhead.setUTCDate(sevenDaysAhead.getUTCDate() + 7);
       const limit = sevenDaysAhead.toISOString().split('T')[0];
 
-      if (cleanEnd < today) {
+      if (cleanEndDate < today) {
         newStatus = 'expired';
-      } else if (cleanEnd <= limit) {
+      } else if (cleanEndDate <= limit && newStatus !== 'cancelled') {
         newStatus = 'expiring';
-      } else {
+      } else if (newStatus === 'expired' && cleanEndDate >= today) {
         newStatus = 'active';
       }
     }
 
-    const cleanStartDate = updates.start_date ? String(updates.start_date).split('T')[0] : null;
-    const cleanEndDate = updates.end_date ? String(updates.end_date).split('T')[0] : null;
     const notesJson = (updates as any).notes !== undefined
       ? JSON.stringify({ notes: (updates as any).notes })
       : (updates.fulfillment_data ? JSON.stringify(updates.fulfillment_data) : null);

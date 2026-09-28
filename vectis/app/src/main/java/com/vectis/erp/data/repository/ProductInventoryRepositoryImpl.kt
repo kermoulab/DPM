@@ -180,6 +180,36 @@ class ProductInventoryRepositoryImpl(
         }
     }
 
+    override suspend fun updateCategory(id: String, req: UpdateCategoryRequest): ApiResult<SimpleActionResponse> = withContext(Dispatchers.IO) {
+        try {
+            val api = networkClient.createService<ProductInventoryApiService>()
+            val response = api.updateCategory(id, req)
+            if (response.isSuccessful && response.body() != null) {
+                ApiResult.Success(response.body()!!)
+            } else {
+                val errorBody = response.errorBody()?.string() ?: ""
+                ApiResult.Error(response.code(), if (errorBody.isNotBlank()) errorBody else "Failed to update category (${response.code()})")
+            }
+        } catch (e: Exception) {
+            ApiResult.NetworkError(e)
+        }
+    }
+
+    override suspend fun deleteCategory(id: String): ApiResult<SimpleActionResponse> = withContext(Dispatchers.IO) {
+        try {
+            val api = networkClient.createService<ProductInventoryApiService>()
+            val response = api.deleteCategory(id)
+            if (response.isSuccessful && response.body() != null) {
+                ApiResult.Success(response.body()!!)
+            } else {
+                val errorBody = response.errorBody()?.string() ?: ""
+                ApiResult.Error(response.code(), if (errorBody.isNotBlank()) errorBody else "Failed to delete category (${response.code()})")
+            }
+        } catch (e: Exception) {
+            ApiResult.NetworkError(e)
+        }
+    }
+
     override suspend fun createPlan(req: CreatePlanRequest): ApiResult<PlanResponse> = withContext(Dispatchers.IO) {
         try {
             val api = networkClient.createService<ProductInventoryApiService>()
@@ -187,7 +217,23 @@ class ProductInventoryRepositoryImpl(
             if (response.isSuccessful && response.body() != null) {
                 ApiResult.Success(response.body()!!)
             } else {
-                ApiResult.Error(response.code(), "Failed to create plan (${response.code()})")
+                val errorBody = response.errorBody()?.string() ?: ""
+                ApiResult.Error(response.code(), if (errorBody.isNotBlank()) errorBody else "Failed to create plan (${response.code()})")
+            }
+        } catch (e: Exception) {
+            ApiResult.NetworkError(e)
+        }
+    }
+
+    override suspend fun updatePlan(id: String, req: UpdatePlanRequest): ApiResult<PlanResponse> = withContext(Dispatchers.IO) {
+        try {
+            val api = networkClient.createService<ProductInventoryApiService>()
+            val response = api.updatePlan(id, req)
+            if (response.isSuccessful && response.body() != null) {
+                ApiResult.Success(response.body()!!)
+            } else {
+                val errorBody = response.errorBody()?.string() ?: ""
+                ApiResult.Error(response.code(), if (errorBody.isNotBlank()) errorBody else "Failed to update plan (${response.code()})")
             }
         } catch (e: Exception) {
             ApiResult.NetworkError(e)
@@ -201,7 +247,8 @@ class ProductInventoryRepositoryImpl(
             if (response.isSuccessful && response.body() != null) {
                 ApiResult.Success(response.body()!!)
             } else {
-                ApiResult.Error(response.code(), "Failed to delete plan (${response.code()})")
+                val errorBody = response.errorBody()?.string() ?: ""
+                ApiResult.Error(response.code(), if (errorBody.isNotBlank()) errorBody else "Failed to delete plan (${response.code()})")
             }
         } catch (e: Exception) {
             ApiResult.NetworkError(e)

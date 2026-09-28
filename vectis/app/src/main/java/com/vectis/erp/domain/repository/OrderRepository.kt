@@ -9,5 +9,6 @@ interface OrderRepository {
     suspend fun createOrder(request: CreateOrderRequest): ApiResult<OrderMutationResponse>
     suspend fun renewOrder(id: String, request: RenewOrderRequest): ApiResult<OrderMutationResponse>
     suspend fun cancelOrder(id: String, request: CancelOrderRequest): ApiResult<OrderMutationResponse>
+    suspend fun updateOrder(id: String, request: UpdateOrderRequest): ApiResult<OrderMutationResponse>
     suspend fun deleteOrder(id: String): ApiResult<OrderMutationResponse>
 }

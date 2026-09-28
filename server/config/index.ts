@@ -21,6 +21,7 @@ import path from 'path';
 import os from 'os';
 import fs from 'fs';
 import crypto from 'crypto';
+import { ensureEnvSecret } from '../utils/install-env.js';
 
 /**
  * Universal multi-path environment loader:
@@ -99,25 +100,23 @@ function loadConfig(): AppConfig {
     console.warn('[Config] WARNING: DATABASE_URL does not start with "postgresql://" or "postgres://". Connection may fail.');
   }
 
-  // JWT_SECRET — generate secure random secret in production if missing/weak
+  // JWT_SECRET — generate secure random secret and persist it across restarts
   const rawJwtSecret = (process.env.JWT_SECRET || '').trim();
   let jwtSecret = rawJwtSecret;
   if (!jwtSecret || jwtSecret.length < 32) {
     if (isProduction) {
-      console.warn('[Security] CRITICAL: JWT_SECRET missing or weak in production. Generating secure ephemeral 256-bit key.');
-      jwtSecret = crypto.randomBytes(32).toString('hex');
+      jwtSecret = ensureEnvSecret('JWT_SECRET', 32);
     } else {
       jwtSecret = DEV_FALLBACK_JWT_SECRET;
     }
   }
 
-  // ENCRYPTION_KEY — generate secure random key in production if missing/weak
+  // ENCRYPTION_KEY — generate secure random key and persist it across restarts
   const rawEncKey = (process.env.ENCRYPTION_KEY || '').trim();
   let encKeyString = rawEncKey;
   if (!encKeyString || encKeyString.length < 32) {
     if (isProduction) {
-      console.warn('[Security] CRITICAL: ENCRYPTION_KEY missing or weak in production. Generating secure ephemeral 256-bit key.');
-      encKeyString = crypto.randomBytes(32).toString('hex');
+      encKeyString = ensureEnvSecret('ENCRYPTION_KEY', 32);
     } else {
       encKeyString = DEV_FALLBACK_ENCRYPTION_KEY;
     }

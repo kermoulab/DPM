@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Pin
 import androidx.compose.material.icons.filled.QrCodeScanner
@@ -18,11 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.vectis.erp.core.design.PrimaryBlue
-import com.vectis.erp.core.design.Slate400
-import com.vectis.erp.core.design.Slate50
-import com.vectis.erp.core.design.Slate500
-import com.vectis.erp.core.design.Slate800
+import com.vectis.erp.core.design.*
 import com.vectis.erp.core.design.Slate900
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -102,18 +99,14 @@ fun PairingScreen(
                 Spacer(modifier = Modifier.height(40.dp))
 
                 // Scan QR Code Button
-                Button(
+                VectisPillButton(
+                    text = "Scan QR Code",
+                    icon = Icons.Default.QrCodeScanner,
                     onClick = onNavigateToScanQr,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(52.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
-                ) {
-                    Icon(Icons.Default.QrCodeScanner, contentDescription = null, modifier = Modifier.size(20.dp))
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text(text = "Scan QR Code", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                }
+                        .height(52.dp)
+                )
 
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -164,6 +157,7 @@ fun PairingScreen(
     if (showServerUrlDialog) {
         AlertDialog(
             onDismissRequest = { showServerUrlDialog = false },
+            containerColor = Color.White,
             title = { Text("ERP Server URL", fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -182,14 +176,14 @@ fun PairingScreen(
                 }
             },
             confirmButton = {
-                Button(
+                VectisPillButton(
+                    text = "Save",
+                    icon = Icons.Default.Check,
                     onClick = {
                         viewModel.updateServerUrl(tempUrl)
                         showServerUrlDialog = false
                     }
-                ) {
-                    Text("Save")
-                }
+                )
             },
             dismissButton = {
                 TextButton(onClick = { showServerUrlDialog = false }) {

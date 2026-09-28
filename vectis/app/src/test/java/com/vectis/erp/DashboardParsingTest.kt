@@ -29,15 +29,27 @@ class DashboardParsingTest {
                 "total": 342,
                 "active": 310,
                 "blocked": 4,
+                "inactive": 28,
                 "newThisMonth": 28,
-                "growthRate": 8.9
+                "growthRate": 8.9,
+                "monthly": [
+                  { "month": "Jan", "count": 25 },
+                  { "month": "Feb", "count": 42 }
+                ]
               },
               "orders": {
                 "total": 520,
                 "active": 410,
                 "expiring": 18,
                 "expired": 82,
-                "cancelled": 10
+                "cancelled": 10,
+                "activePercent": 79.0,
+                "expiringPercent": 3.0,
+                "expiredPercent": 16.0,
+                "dailyOrders": [
+                  { "day": "Mon", "count": 12 },
+                  { "day": "Tue", "count": 19 }
+                ]
               },
               "inventory": {
                 "stockStatus": 84,
@@ -45,7 +57,25 @@ class DashboardParsingTest {
                 "productsOrdered": 91,
                 "totalProfiles": 180,
                 "availableProfiles": 38,
-                "assignedProfiles": 142
+                "assignedProfiles": 142,
+                "activeSubsPercent": 79.0
+              },
+              "categoryAnalytics": {
+                "topCategories": [
+                  { "id": "cat_1", "name": "Streaming", "totalOrders": 120, "totalRevenue": 1500.0, "percentage": 60, "color": "#3b82f6" }
+                ],
+                "monthlyTrendsByYear": {
+                  "2026": [
+                    {
+                      "month": "Jan",
+                      "totalOrders": 30,
+                      "totalRevenue": 400.0,
+                      "byCategory": {
+                        "cat_1": { "orders": 30, "revenue": 400.0 }
+                      }
+                    }
+                  ]
+                }
               },
               "recentOrders": [
                 {
@@ -76,6 +106,17 @@ class DashboardParsingTest {
         assertEquals(15420.50, stats.financial.totalRevenue, 0.01)
         assertEquals(410, stats.orders.active)
         assertEquals(18, stats.orders.expiring)
+        assertEquals(2, stats.orders.dailyOrders.size)
+        assertEquals("Mon", stats.orders.dailyOrders[0].day)
+        assertEquals(12, stats.orders.dailyOrders[0].count)
+        assertEquals(28, stats.customers.inactive)
+        assertEquals(2, stats.customers.monthly.size)
+        assertEquals("Feb", stats.customers.monthly[1].month)
+        assertEquals(42, stats.customers.monthly[1].count)
+        assertEquals(79.0, stats.inventory.activeSubsPercent, 0.01)
+        assertNotNull(stats.categoryAnalytics)
+        assertEquals(1, stats.categoryAnalytics!!.topCategories.size)
+        assertEquals("Streaming", stats.categoryAnalytics!!.topCategories[0].name)
         assertEquals(38, stats.inventory.availableProfiles)
         assertEquals(1, stats.recentOrders.size)
         assertEquals("Netflix 4K UHD", stats.recentOrders[0].productName)

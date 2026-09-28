@@ -2,7 +2,9 @@ package com.vectis.erp.feature.auth
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -16,6 +18,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -30,6 +33,7 @@ import com.vectis.erp.core.design.Slate500
 import com.vectis.erp.core.design.Slate900
 import com.vectis.erp.core.design.StatusDanger
 import com.vectis.erp.core.design.StatusSuccess
+import com.vectis.erp.core.design.VectisPillButton
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -58,6 +62,7 @@ fun LoginScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .verticalScroll(androidx.compose.foundation.rememberScrollState())
                     .padding(vertical = 24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -103,6 +108,12 @@ fun LoginScreen(
                             )
                         }
                     }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "Server: ${viewModel.getServerUrl()}",
+                        fontSize = 12.sp,
+                        color = Slate500
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(36.dp))
@@ -168,36 +179,33 @@ fun LoginScreen(
 
                 if (uiState is AuthUiState.Error) {
                     Spacer(modifier = Modifier.height(14.dp))
-                    Text(
-                        text = (uiState as AuthUiState.Error).message,
-                        color = StatusDanger,
-                        fontSize = 13.sp,
-                        textAlign = TextAlign.Center
-                    )
+                    Surface(
+                        color = StatusDanger.copy(alpha = 0.08f),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = (uiState as AuthUiState.Error).message,
+                            color = StatusDanger,
+                            fontSize = 13.sp,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(10.dp)
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(28.dp))
 
                 // Login Button
-                Button(
+                VectisPillButton(
+                    text = "Sign In",
                     onClick = { viewModel.login(onLoginSuccess) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp),
-                    enabled = usernameInput.isNotBlank() && passwordInput.isNotBlank() && uiState !is AuthUiState.Loading,
-                    shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
-                ) {
-                    if (uiState is AuthUiState.Loading) {
-                        CircularProgressIndicator(
-                            color = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(22.dp),
-                            strokeWidth = 2.5.dp
-                        )
-                    } else {
-                        Text("Sign In", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                    }
-                }
+                    enabled = usernameInput.isNotBlank() && passwordInput.isNotBlank(),
+                    isLoading = uiState is AuthUiState.Loading
+                )
 
                 Spacer(modifier = Modifier.height(24.dp))
 
@@ -216,6 +224,7 @@ fun LoginScreen(
     if (showUnpairDialog) {
         AlertDialog(
             onDismissRequest = { showUnpairDialog = false },
+            containerColor = Color.White,
             title = { Text("Unlink this device?", fontWeight = FontWeight.Bold) },
             text = {
                 Text(

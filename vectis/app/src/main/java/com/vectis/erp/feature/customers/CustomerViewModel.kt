@@ -23,7 +23,8 @@ import java.util.Locale
 class CustomerViewModel(
     private val repository: CustomerRepository,
     private val secureStorage: SecureStorage,
-    val permissionManager: PermissionManager
+    val permissionManager: PermissionManager,
+    private val authRepository: com.vectis.erp.domain.repository.AuthRepository? = null
 ) : ViewModel() {
 
     private val _listUiState = MutableStateFlow<CustomerListUiState>(CustomerListUiState.Loading)
@@ -32,12 +33,28 @@ class CustomerViewModel(
     private val _detailUiState = MutableStateFlow<CustomerDetailUiState>(CustomerDetailUiState.Loading)
     val detailUiState: StateFlow<CustomerDetailUiState> = _detailUiState.asStateFlow()
 
+    val preferredCurrency: StateFlow<String> = secureStorage.preferredCurrencyFlow
+
     private var currentSearchQuery: String = ""
     private var currentStatusFilter: String? = null
     private var searchJob: Job? = null
 
     init {
-        loadCustomers()
+        if (secureStorage.isAuthenticated()) {
+            loadCustomers()
+        }
+        viewModelScope.launch {
+            secureStorage.preferredCurrencyFlow.collect {
+                val current = _listUiState.value
+                if (current is CustomerListUiState.Success) {
+                    _listUiState.value = CustomerListUiState.Success(current.customers)
+                }
+                val currentDetail = _detailUiState.value
+                if (currentDetail is CustomerDetailUiState.Success) {
+                    _detailUiState.value = CustomerDetailUiState.Success(currentDetail.customer, currentDetail.orders)
+                }
+            }
+        }
     }
 
     fun loadCustomers(isRefresh: Boolean = false) {
@@ -224,40 +241,29 @@ class CustomerViewModel(
         try {
             context.startActivity(intent)
         } catch (e: Exception) {
-            val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            }
-            context.startActivity(browserIntent)
+            try {
+                val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                context.startActivity(browserIntent)
+            } catch (_: Exception) {}
         }
     }
 
     fun formatCurrency(amount: Double): String {
-        val currency = secureStorage.getPreferredCurrency()
-        val format = NumberFormat.getNumberInstance(Locale.US).apply {
-            minimumFractionDigits = 2
-            maximumFractionDigits = 2
-        }
-        val symbol = when (currency.uppercase()) {
-            "MAD" -> " MAD"
-            "EUR" -> "€"
-            "USD" -> "$"
-            else -> " $currency"
-        }
-        return if (currency.uppercase() == "MAD") {
-            "${format.format(amount)}$symbol"
-        } else {
-            "$symbol${format.format(amount)}"
-        }
+        val target = secureStorage.getPreferredCurrency()
+        return com.vectis.erp.core.currency.CurrencyFormatter.formatWithConversion(amount, fromCode = "USD", toCode = target)
     }
 
     class Factory(
         private val repository: CustomerRepository,
         private val secureStorage: SecureStorage,
-        private val permissionManager: PermissionManager
+        private val permissionManager: PermissionManager,
+        private val authRepository: com.vectis.erp.domain.repository.AuthRepository? = null
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return CustomerViewModel(repository, secureStorage, permissionManager) as T
+            return CustomerViewModel(repository, secureStorage, permissionManager, authRepository) as T
         }
     }
 }

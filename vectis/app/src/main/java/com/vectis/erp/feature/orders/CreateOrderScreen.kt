@@ -1,6 +1,7 @@
 package com.vectis.erp.feature.orders
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -32,6 +33,8 @@ fun CreateOrderScreen(
     val wizardState by viewModel.wizardState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
+
+    var showQuickAddCustomerDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.initCreateOrderWizard()
@@ -78,7 +81,22 @@ fun CreateOrderScreen(
                     elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                 ) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text("1. Select Customer *", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Slate900)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("1. Select Customer *", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Slate900)
+                            Text(
+                                text = "+ Quick Add",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = PrimaryBlue,
+                                modifier = Modifier
+                                    .clickable { showQuickAddCustomerDialog = true }
+                                    .padding(vertical = 4.dp, horizontal = 4.dp)
+                            )
+                        }
 
                         var customerExpanded by remember { mutableStateOf(false) }
                         ExposedDropdownMenuBox(
@@ -291,7 +309,8 @@ fun CreateOrderScreen(
                 }
 
                 // Submit Button
-                Button(
+                VectisPillButton(
+                    text = "Create Order & Allocate Inventory",
                     onClick = {
                         viewModel.submitCreateOrder(
                             onSuccess = { newOrderId ->
@@ -307,20 +326,102 @@ fun CreateOrderScreen(
                             }
                         )
                     },
-                    enabled = !wizardState.isSubmitting && wizardState.selectedCustomer != null && wizardState.selectedProduct != null && wizardState.selectedPlan != null,
-                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
-                    shape = RoundedCornerShape(12.dp),
+                    enabled = wizardState.selectedCustomer != null && wizardState.selectedProduct != null && wizardState.selectedPlan != null,
+                    isLoading = wizardState.isSubmitting,
+                    icon = Icons.Default.Add,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(50.dp)
-                ) {
-                    if (wizardState.isSubmitting) {
-                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                    } else {
-                        Text("Create Order & Allocate Inventory", fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
+                        .height(48.dp)
+                )
             }
         }
     }
+
+    if (showQuickAddCustomerDialog) {
+        QuickAddCustomerDialog(
+            onDismiss = { showQuickAddCustomerDialog = false },
+            onConfirm = { name, email, wa ->
+                viewModel.quickAddCustomer(
+                    name = name,
+                    email = email,
+                    whatsapp = wa,
+                    onSuccess = { created ->
+                        showQuickAddCustomerDialog = false
+                        coroutineScope.launch {
+                            snackbarHostState.showSnackbar("Customer \"${created.name}\" created and selected!")
+                        }
+                    },
+                    onError = { err ->
+                        coroutineScope.launch {
+                            snackbarHostState.showSnackbar(err)
+                        }
+                    }
+                )
+            }
+        )
+    }
+}
+
+@Composable
+private fun QuickAddCustomerDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (name: String, email: String, whatsapp: String) -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
+    var whatsapp by remember { mutableStateOf("") }
+    var isSubmitting by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color.White,
+        title = { Text("Quick Add Customer", fontWeight = FontWeight.Bold, fontSize = 17.sp) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Customer Name *") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = { email = it },
+                    label = { Text("Email (optional)") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = whatsapp,
+                    onValueChange = { whatsapp = it },
+                    label = { Text("WhatsApp Phone (optional)") },
+                    placeholder = { Text("+1234567890") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            VectisPillButton(
+                text = "Add & Select",
+                icon = Icons.Default.PersonAdd,
+                isLoading = isSubmitting,
+                enabled = name.isNotBlank(),
+                onClick = {
+                    if (name.isNotBlank()) {
+                        isSubmitting = true
+                        onConfirm(name, email, whatsapp)
+                    }
+                }
+            )
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = Slate600)
+            }
+        }
+    )
 }

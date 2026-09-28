@@ -11,13 +11,15 @@ export const ordersRouter = Router();
 ordersRouter.get('/', requireAuth, async (req, res, next) => {
   try {
     const { status, customer_id, product_id, search } = req.query;
-    const orders = await ordersRepo.findAll({
-      status: status as string,
-      customer_id: customer_id as string,
-      product_id: product_id as string,
-      search: search as string
-    });
-    const counts = await ordersRepo.getStatusCounts();
+    const [orders, counts] = await Promise.all([
+      ordersRepo.findAll({
+        status: status as string,
+        customer_id: customer_id as string,
+        product_id: product_id as string,
+        search: search as string
+      }),
+      ordersRepo.getStatusCounts()
+    ]);
     res.json({ orders, counts });
   } catch (err) {
     next(err);

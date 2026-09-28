@@ -25,15 +25,20 @@ private val LightColorScheme = lightColorScheme(
     onSurface = Slate900,
     surfaceVariant = Slate100,
     onSurfaceVariant = Slate600,
+    surfaceContainer = Color.White,
+    surfaceContainerHigh = Color.White,
+    surfaceContainerHighest = Color.White,
+    surfaceContainerLow = Color.White,
+    surfaceContainerLowest = Color.White,
     outline = Slate200,
     error = StatusDanger,
     onError = Color.White
 )
 
 private val DarkColorScheme = darkColorScheme(
-    primary = PrimaryBlueLight,
-    onPrimary = Slate900,
-    primaryContainer = PrimaryBlue,
+    primary = PrimaryBlue,
+    onPrimary = Color.White,
+    primaryContainer = PrimaryBlueDark,
     onPrimaryContainer = Color.White,
     secondary = Slate300,
     onSecondary = Slate900,

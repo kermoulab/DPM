@@ -238,7 +238,7 @@ export class OrderService {
         [
           orderId, orderNumber, payload.customer_id, product.id, plan.id,
           initialStatus, startDate, endDate, price, cost, plan.currency || 'USD',
-          payload.payment_status || 'paid', payload.payment_method || 'cash',
+          (payload.payment_status || 'paid').toLowerCase(), (payload.payment_method || 'cash').toLowerCase(),
           product.fulfillment_type, assignedAccountId, assignedProfileId,
           assignedLicenseKeyId, JSON.stringify(fulfillmentData), payload.userId || null
         ]

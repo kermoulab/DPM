@@ -9,6 +9,7 @@ import com.vectis.erp.core.network.ApiResult
 import com.vectis.erp.core.security.SecureStorage
 import com.vectis.erp.data.model.*
 import com.vectis.erp.domain.repository.SettingsRepository
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -24,7 +25,9 @@ class SettingsViewModel(
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
 
     init {
-        loadSettings()
+        if (secureStorage.isAuthenticated()) {
+            loadSettings()
+        }
     }
 
     fun selectTab(tab: SettingsTab) {
@@ -48,10 +51,15 @@ class SettingsViewModel(
                 _uiState.value = current.copy(isRefreshing = true)
             }
 
-            val meResult = repository.getMe()
-            val healthResult = repository.getHealth()
-            val sysResult = repository.getSettings()
-            val currenciesResult = repository.getCurrencies()
+            val meDef = async { repository.getMe() }
+            val healthDef = async { repository.getHealth() }
+            val sysDef = async { repository.getSettings() }
+            val currenciesDef = async { repository.getCurrencies() }
+
+            val meResult = meDef.await()
+            val healthResult = healthDef.await()
+            val sysResult = sysDef.await()
+            val currenciesResult = currenciesDef.await()
 
             val availableCurrencies = when (currenciesResult) {
                 is ApiResult.Success -> currenciesResult.data
@@ -122,6 +130,32 @@ class SettingsViewModel(
         val cleanUrl = newUrl.trimEnd('/')
         secureStorage.setServerUrl(cleanUrl)
         loadSettings(isRefresh = true)
+    }
+
+    fun updateProfile(
+        req: UpdateProfileRequest,
+        onSuccess: (String) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        viewModelScope.launch {
+            when (val res = repository.updateProfile(req)) {
+                is ApiResult.Success -> {
+                    res.data.user?.let { user ->
+                        res.data.token?.let { secureStorage.setAuthToken(it) }
+                        secureStorage.setUserId(user.id)
+                        secureStorage.setUserName(user.name.ifBlank { user.username })
+                        secureStorage.setUserRole(user.role)
+                        user.preferredCurrency?.let { curr ->
+                            secureStorage.setPreferredCurrency(curr)
+                        }
+                    }
+                    loadSettings(isRefresh = true)
+                    onSuccess(res.data.message ?: "Profile updated successfully")
+                }
+                is ApiResult.Error -> onError(res.message)
+                is ApiResult.NetworkError -> onError(res.exception.localizedMessage ?: "Network connection failed")
+            }
+        }
     }
 
     fun changePassword(current: String, newPw: String, onSuccess: () -> Unit, onError: (String) -> Unit) {

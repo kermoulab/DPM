@@ -9,6 +9,11 @@ interface SettingsApiService {
     @GET("api/auth/me")
     suspend fun getMe(): Response<MeResponse>
 
+    @PUT("api/auth/profile")
+    suspend fun updateProfile(
+        @Body request: UpdateProfileRequest
+    ): Response<UpdateProfileResponse>
+
     @PUT("api/auth/currency")
     suspend fun updateCurrency(
         @Body request: UpdateCurrencyRequest

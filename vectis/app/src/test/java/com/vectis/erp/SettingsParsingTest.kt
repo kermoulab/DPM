@@ -146,6 +146,144 @@ class SettingsParsingTest {
     }
 
     @Test
+    fun testAuditLogsWithBackendColumnNamesAndTargetExtraction() {
+        val json = """
+            {
+                "logs": [
+                    {
+                        "id": "log-order",
+                        "user_id": "usr-1",
+                        "username": "admin",
+                        "action": "CREATE_ORDER",
+                        "entity": "order",
+                        "entity_id": "ord-1111",
+                        "details": {"order_number": "ORD-2026-009"},
+                        "ip": "10.0.0.5",
+                        "created_at": "2026-09-26T10:00:00.000Z"
+                    },
+                    {
+                        "id": "log-product",
+                        "username": "admin",
+                        "action": "CREATE_PRODUCT",
+                        "entity": "product",
+                        "entity_id": "prod-2222",
+                        "details": {"name": "Netflix 4K UHD"},
+                        "created_at": "2026-09-26T10:01:00.000Z"
+                    },
+                    {
+                        "id": "log-plan",
+                        "username": "admin",
+                        "action": "CREATE_PLAN",
+                        "entity": "plan",
+                        "entity_id": "plan-3333",
+                        "details": {"name": "1 Month UHD"},
+                        "created_at": "2026-09-26T10:02:00.000Z"
+                    },
+                    {
+                        "id": "log-customer",
+                        "username": "admin",
+                        "action": "CREATE_CUSTOMER",
+                        "entity": "customer",
+                        "entity_id": "cust-4444",
+                        "details": {"name": "Acme Corp"},
+                        "created_at": "2026-09-26T10:03:00.000Z"
+                    },
+                    {
+                        "id": "log-service-acc",
+                        "username": "admin",
+                        "action": "CREATE_SERVICE_ACCOUNT",
+                        "entity": "service_account",
+                        "entity_id": "sa-5555",
+                        "details": {"provider": "Netflix", "login": "netflix@corp.com"},
+                        "created_at": "2026-09-26T10:04:00.000Z"
+                    },
+                    {
+                        "id": "log-login",
+                        "username": "admin",
+                        "action": "LOGIN_SUCCESS",
+                        "entity": "user",
+                        "entity_id": "usr-1",
+                        "details": {},
+                        "created_at": "2026-09-26T10:05:00.000Z"
+                    },
+                    {
+                        "id": "log-logout",
+                        "username": "admin",
+                        "action": "LOGOUT",
+                        "entity": "user",
+                        "entity_id": "usr-1",
+                        "details": {},
+                        "created_at": "2026-09-26T10:06:00.000Z"
+                    },
+                    {
+                        "id": "log-device",
+                        "username": "System",
+                        "action": "DEVICE_PAIRED_MOBILE",
+                        "entity": "device",
+                        "entity_id": "dev-7777",
+                        "details": {"device_name": "Pixel 7"},
+                        "created_at": "2026-09-26T10:07:00.000Z"
+                    },
+                    {
+                        "id": "log-revoke",
+                        "username": "admin",
+                        "action": "REVOKE_DEVICE",
+                        "entity": "device",
+                        "entity_id": "dev-7777",
+                        "details": {},
+                        "created_at": "2026-09-26T10:08:00.000Z"
+                    },
+                    {
+                        "id": "log-user",
+                        "username": "admin",
+                        "action": "CREATE_USER",
+                        "entity": "user",
+                        "entity_id": "usr-9",
+                        "details": {"username": "agent1"},
+                        "created_at": "2026-09-26T10:09:00.000Z"
+                    },
+                    {
+                        "id": "log-profile",
+                        "username": "admin",
+                        "action": "UPDATE_PROFILE",
+                        "entity": "user",
+                        "entity_id": "usr-1",
+                        "details": {},
+                        "created_at": "2026-09-26T10:10:00.000Z"
+                    }
+                ],
+                "page": 1,
+                "limit": 30,
+                "total": 11,
+                "totalPages": 1
+            }
+        """.trimIndent()
+
+        val res = gson.fromJson(json, AuditLogsResponse::class.java)
+        assertNotNull(res)
+        assertEquals(11, res.logs.size)
+
+        // Verify username and ip deserialization
+        val orderLog = res.logs[0]
+        assertEquals("admin", orderLog.userName)
+        assertEquals("10.0.0.5", orderLog.ipAddress)
+        assertEquals("ORD-2026-009", extractAuditTargetName(orderLog))
+
+        assertEquals("Netflix 4K UHD", extractAuditTargetName(res.logs[1]))
+        assertEquals("1 Month UHD", extractAuditTargetName(res.logs[2]))
+        assertEquals("Acme Corp", extractAuditTargetName(res.logs[3]))
+        assertEquals("Netflix (netflix@corp.com)", extractAuditTargetName(res.logs[4]))
+
+        // User / Auth / Device events must return null (show nothing below username)
+        assertNull(extractAuditTargetName(res.logs[5])) // LOGIN_SUCCESS
+        assertNull(extractAuditTargetName(res.logs[6])) // LOGOUT
+        assertNull(extractAuditTargetName(res.logs[7])) // DEVICE_PAIRED_MOBILE
+        assertNull(extractAuditTargetName(res.logs[8])) // REVOKE_DEVICE
+        assertNull(extractAuditTargetName(res.logs[9])) // CREATE_USER
+        assertNull(extractAuditTargetName(res.logs[10])) // UPDATE_PROFILE
+    }
+
+    @Test
     fun testHealthResponseParsing() {
         val json = """
             {

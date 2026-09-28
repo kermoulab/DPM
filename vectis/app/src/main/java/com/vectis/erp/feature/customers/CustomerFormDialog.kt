@@ -123,28 +123,19 @@ fun CustomerFormDialog(
                         Text("Cancel", color = Slate500)
                     }
                     Spacer(modifier = Modifier.width(8.dp))
-                    Button(
+                    VectisPillButton(
+                        text = if (customerToEdit == null) "Add Customer" else "Save Changes",
+                        icon = if (customerToEdit == null) Icons.Default.PersonAdd else Icons.Default.Check,
+                        isLoading = isSubmitting,
                         onClick = {
                             if (name.isBlank()) {
                                 nameError = "Customer name is required"
-                                return@Button
+                                return@VectisPillButton
                             }
                             isSubmitting = true
                             onSave(name, email, whatsapp, notes, status)
-                        },
-                        enabled = !isSubmitting,
-                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
-                    ) {
-                        if (isSubmitting) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(18.dp),
-                                color = Color.White,
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            Text("Save")
                         }
-                    }
+                    )
                 }
             }
         }

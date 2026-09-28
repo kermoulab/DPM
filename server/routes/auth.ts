@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authService } from '../services/auth.service.js';
-import { requireAuth, revokeToken, type AuthenticatedRequest } from '../middleware/auth.middleware.js';
+import { requireAuth, revokeToken, createSessionToken, type AuthenticatedRequest } from '../middleware/auth.middleware.js';
 import { auditRepo } from '../db/repositories/audit.repository.js';
 import { usersRepo } from '../db/repositories/users.repository.js';
 import { validateBody, v } from '../middleware/validation.middleware.js';
@@ -48,6 +48,9 @@ authRouter.post('/login', validateBody({
 authRouter.get('/me', requireAuth, async (req: AuthenticatedRequest, res, next) => {
   try {
     const user = await authService.getMe(req.user!.id);
+    const refreshedToken = createSessionToken(req.user!, 24 * 30);
+    res.setHeader('X-New-Token', refreshedToken);
+    res.setHeader('Access-Control-Expose-Headers', 'X-New-Token, X-Device-Revoked');
     res.json({
       user: {
         id: user.id,
@@ -60,7 +63,8 @@ authRouter.get('/me', requireAuth, async (req: AuthenticatedRequest, res, next) 
         preferred_currency: user.preferred_currency || 'USD',
         created_at: user.created_at,
         last_login: user.last_login
-      }
+      },
+      token: refreshedToken
     });
   } catch (err) {
     next(err);

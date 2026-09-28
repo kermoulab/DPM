@@ -25,3 +25,7 @@ val StatusWarning = Color(0xFFF59E0B) // Amber
 val StatusDanger = Color(0xFFEF4444)  // Rose/Red
 val StatusInfo = Color(0xFF0284C7)    // Sky
 val StatusPurple = Color(0xFF8B5CF6)  // Violet
+
+// Sky Blue
+val SkyBlue = Color(0xFFE0F2FE)       // Soft sky blue (Tailwind sky-100)
+val SkyBlueAccent = Color(0xFF0EA5E9) // Vivid sky blue (Tailwind sky-500)

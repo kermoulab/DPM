@@ -242,16 +242,8 @@ export const DevicesView: React.FC = () => {
         {loading ? (
           <div className="p-12 text-center text-xs text-slate-400">Loading authorized devices...</div>
         ) : devices.filter((d) => d.status === 'paired').length === 0 ? (
-          <div className="p-12 text-center text-xs text-slate-400 space-y-3">
+          <div className="p-12 text-center text-xs text-slate-400">
             <p>No devices currently linked.</p>
-            <button
-              onClick={handleGenerateCode}
-              disabled={generating}
-              className="px-4 py-2 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-xl font-medium inline-flex items-center gap-1.5 transition cursor-pointer"
-            >
-              <QrCode size={14} />
-              <span>Pair New Android Device</span>
-            </button>
           </div>
         ) : (
           <div className="overflow-x-auto">

@@ -9,11 +9,86 @@ import { requireAuth, requireRole, type AuthenticatedRequest } from '../middlewa
 
 export const whatsappRouter = Router();
 
+// Standard default notification templates across supported event types and languages
+const DEFAULT_WHATSAPP_TEMPLATES: Record<'order_created' | 'order_expiring' | 'order_expired', Record<string, string>> = {
+  order_created: {
+    en: `Thank you {customer_name} for your purchase!\nYour order #{order_number} for {product_name} ({plan_name}) is active until {end_date}.\n\nAccess Details:\n{credentials}\n\nThank you for choosing us! If you have any questions, feel free to reach out.`,
+    fr: `Merci {customer_name} pour votre achat!\nVotre commande #{order_number} pour {product_name} ({plan_name}) est active jusqu'au {end_date}.\n\nDétails d'accès:\n{credentials}\n\nMerci pour votre confiance! N'hésitez pas à nous contacter si besoin.`,
+    ar: `شكراً لك {customer_name} على طلبك!\nطلبك رقم #{order_number} لخدمة {product_name} ({plan_name}) مفعّل حتى تاريخ {end_date}.\n\nبيانات الدخول:\n{credentials}\n\nشكراً لاختيارك لنا! لأي استفسار لا تتردد في التواصل معنا.`,
+    ru: `Спасибо за ваш заказ, {customer_name}!\nВаш заказ #{order_number} на {product_name} ({plan_name}) активен до {end_date}.\n\nДанные для доступа:\n{credentials}\n\nСпасибо, что выбрали нас!`
+  },
+  order_expiring: {
+    en: `Dear {customer_name}, your subscription for {product_name} ({plan_name}) under order #{order_number} will expire on {end_date} (in {days_remaining} days).\n\nPlease contact us to renew your subscription and ensure uninterrupted service!\n\nThank you for choosing us.`,
+    fr: `Bonjour {customer_name}, votre abonnement pour {product_name} ({plan_name}) (commande #{order_number}) arrive à expiration le {end_date} (dans {days_remaining} jours).\n\nContactez-nous dès maintenant pour renouveler votre abonnement et éviter toute interruption de service!\n\nMerci pour votre confiance.`,
+    ar: `مرحباً {customer_name}، نود تذكيرك بأن اشتراكك في {product_name} ({plan_name}) للطلب رقم #{order_number} سينتهي بتاريخ {end_date} (متبقي {days_remaining} أيام).\n\nيرجى التواصل معنا لتجديد اشتراكك واستمرار الخدمة دون أي انقطاع!\n\nشكراً لاختيارك لنا.`,
+    ru: `Здравствуйте, {customer_name}! Срок действия вашей подписки на {product_name} ({plan_name}) по заказу #{order_number} истекает {end_date} (осталось {days_remaining} дн.).\n\nПожалуйста, свяжитесь с нами для продления подписки, чтобы сохранить доступ!`
+  },
+  order_expired: {
+    en: `Hello {customer_name}, your subscription for {product_name} ({plan_name}) under order #{order_number} expired on {end_date}.\n\nYour service is currently suspended. If you would like to reactivate or renew your account, please reply to this message!\n\nWe would love to welcome you back!`,
+    fr: `Bonjour {customer_name}, votre abonnement pour {product_name} ({plan_name}) (commande #{order_number}) a expiré le {end_date}.\n\nVotre service est actuellement suspendu. Souhaitez-vous réactiver ou renouveler votre compte ? Répondez pour le réactiver immédiatement!\n\nAu plaisir de vous retrouver!`,
+    ar: `مرحباً {customer_name}، نحيطك علماً بأن اشتراكك في {product_name} ({plan_name}) للطلب رقم #{order_number} قد انتهى بتاريخ {end_date}.\n\nتم تعليق الخدمة حالياً. هل ترغب في تجديد وإعادة تفعيل حسابك؟ تواصل معنا للرد وإعادة التفعيل فوراً!\n\nيسعدنا تجديد اشتراكك في أي وقت!`,
+    ru: `Здравствуйте, {customer_name}! Срок действия вашей подписки на {product_name} ({plan_name}) по заказу #{order_number} истек ({end_date}).\n\nДоступ приостановлен. Хотите продлить доступ прямо сейчас? Ответьте на это сообщение, чтобы возобновить подписку!`
+  }
+};
+
 // GET /api/whatsapp/templates
 whatsappRouter.get('/templates', requireAuth, async (req, res, next) => {
   try {
-    const templates = await whatsappRepo.findAllTemplates();
-    res.json({ templates });
+    let dbTemplates: any[] = [];
+    try {
+      dbTemplates = await whatsappRepo.findAllTemplates();
+    } catch (e) {
+      console.warn('Failed to query notification_templates, using defaults:', e);
+    }
+
+    const existingKeys = new Set(dbTemplates.map(t => `${t.event_type}_${t.language}`));
+    
+    const friendlyNames: Record<string, Record<string, string>> = {
+      order_created: {
+        en: 'Order Delivery (English)',
+        fr: 'Livraison de Commande (Français)',
+        ar: 'تسليم الطلب (العربية)',
+        ru: 'Доставка заказа (Русский)'
+      },
+      order_expiring: {
+        en: 'Renewal Reminder (English)',
+        fr: 'Rappel Expiration (Français)',
+        ar: 'تذكير بقرب الانتهاء (العربية)',
+        ru: 'Напоминание об истечении (Русский)'
+      },
+      order_expired: {
+        en: 'Expired Follow-up (English)',
+        fr: 'Abonnement Expiré (Français)',
+        ar: 'انتهاء الاشتراك وتجديده (العربية)',
+        ru: 'Истекший доступ (Русский)'
+      }
+    };
+
+    const systemTemplates: any[] = [];
+    for (const [eventType, langs] of Object.entries(DEFAULT_WHATSAPP_TEMPLATES)) {
+      for (const [lang, content] of Object.entries(langs)) {
+        if (!existingKeys.has(`${eventType}_${lang}`)) {
+          const name = friendlyNames[eventType]?.[lang] || `${eventType.replace('_', ' ')} (${lang.toUpperCase()})`;
+          systemTemplates.push({
+            id: `tmpl-${lang}-${eventType}`,
+            name,
+            event_type: eventType,
+            eventType: eventType,
+            language: lang,
+            content,
+            created_at: new Date().toISOString()
+          });
+        }
+      }
+    }
+
+    const normalizedDbTemplates = dbTemplates.map(t => ({
+      ...t,
+      eventType: t.eventType || t.event_type,
+      event_type: t.event_type || t.eventType
+    }));
+
+    res.json({ templates: [...normalizedDbTemplates, ...systemTemplates] });
   } catch (err) {
     next(err);
   }
@@ -219,29 +294,7 @@ whatsappRouter.post('/compose', requireAuth, async (req: AuthenticatedRequest, r
     const daysRemaining = diffDays >= 0 ? String(diffDays) : '0';
     const daysExpired = diffDays < 0 ? String(Math.abs(diffDays)) : '0';
 
-    // Standard message templates for all 3 categories across supported languages
-    const defaultTemplates: Record<'order_created' | 'order_expiring' | 'order_expired', Record<string, string>> = {
-      order_created: {
-        en: `Thank you {customer_name} for your purchase!\nYour order #{order_number} for {product_name} ({plan_name}) is active until {end_date}.\n\nAccess Details:\n{credentials}\n\nThank you for choosing us! If you have any questions, feel free to reach out.`,
-        fr: `Merci {customer_name} pour votre achat!\nVotre commande #{order_number} pour {product_name} ({plan_name}) est active jusqu'au {end_date}.\n\nDétails d'accès:\n{credentials}\n\nMerci pour votre confiance! N'hésitez pas à nous contacter si besoin.`,
-        ar: `شكراً لك {customer_name} على طلبك!\nطلبك رقم #{order_number} لخدمة {product_name} ({plan_name}) مفعّل حتى تاريخ {end_date}.\n\nبيانات الدخول:\n{credentials}\n\nشكراً لاختيارك لنا! لأي استفسار لا تتردد في التواصل معنا.`,
-        ru: `Спасибо за ваш заказ, {customer_name}!\nВаш заказ #{order_number} на {product_name} ({plan_name}) активен до {end_date}.\n\nДанные для доступа:\n{credentials}\n\nСпасибо, что выбрали нас!`
-      },
-      order_expiring: {
-        en: `Dear {customer_name}, your subscription for {product_name} ({plan_name}) under order #{order_number} will expire on {end_date} (in {days_remaining} days).\n\nPlease contact us to renew your subscription and ensure uninterrupted service!\n\nThank you for choosing us.`,
-        fr: `Bonjour {customer_name}, votre abonnement pour {product_name} ({plan_name}) (commande #{order_number}) arrive à expiration le {end_date} (dans {days_remaining} jours).\n\nContactez-nous dès maintenant pour renouveler votre abonnement et éviter toute interruption de service!\n\nMerci pour votre confiance.`,
-        ar: `مرحباً {customer_name}، نود تذكيرك بأن اشتراكك في {product_name} ({plan_name}) للطلب رقم #{order_number} سينتهي بتاريخ {end_date} (متبقي {days_remaining} أيام).\n\nيرجى التواصل معنا لتجديد اشتراكك واستمرار الخدمة دون أي انقطاع!\n\nشكراً لاختيارك لنا.`,
-        ru: `Здравствуйте, {customer_name}! Срок действия вашей подписки на {product_name} ({plan_name}) по заказу #{order_number} истекает {end_date} (осталось {days_remaining} дн.).\n\nПожалуйста, свяжитесь с нами для продления подписки, чтобы сохранить доступ!`
-      },
-      order_expired: {
-        en: `Hello {customer_name}, your subscription for {product_name} ({plan_name}) under order #{order_number} expired on {end_date}.\n\nYour service is currently suspended. If you would like to reactivate or renew your account, please reply to this message!\n\nWe would love to welcome you back!`,
-        fr: `Bonjour {customer_name}, votre abonnement pour {product_name} ({plan_name}) (commande #{order_number}) a expiré le {end_date}.\n\nVotre service est actuellement suspendu. Souhaitez-vous réactiver ou renouveler votre compte ? Répondez pour le réactiver immédiatement!\n\nAu plaisir de vous retrouver!`,
-        ar: `مرحباً {customer_name}، نحيطك علماً بأن اشتراكك في {product_name} ({plan_name}) للطلب رقم #{order_number} قد انتهى بتاريخ {end_date}.\n\nتم تعليق الخدمة حالياً. هل ترغب في تجديد وإعادة تفعيل حسابك؟ تواصل معنا للرد وإعادة التفعيل فوراً!\n\nيسعدنا تجديد اشتراكك في أي وقت!`,
-        ru: `Здравствуйте, {customer_name}! Срок действия вашей подписки на {product_name} ({plan_name}) по заказу #{order_number} истек ({end_date}).\n\nДоступ приостановлен. Хотите продлить доступ прямо сейчас? Ответьте на это сообщение, чтобы возобновить подписку!`
-      }
-    };
-
-    const categoryTemplates = defaultTemplates[category] || defaultTemplates['order_created'];
+    const categoryTemplates = DEFAULT_WHATSAPP_TEMPLATES[category as keyof typeof DEFAULT_WHATSAPP_TEMPLATES] || DEFAULT_WHATSAPP_TEMPLATES['order_created'];
     let messageText = template?.content || categoryTemplates[lang] || categoryTemplates['en'];
 
     // Replace all placeholders (supports both {tag} and {{tag}})
@@ -291,7 +344,11 @@ whatsappRouter.post('/compose', requireAuth, async (req: AuthenticatedRequest, r
       phone: rawPhone,
       cleanPhone,
       message: messageText,
-      waUrl
+      text: messageText,
+      waUrl,
+      whatsapp_url: waUrl,
+      event_type: category,
+      language: lang
     });
   } catch (err) {
     next(err);
