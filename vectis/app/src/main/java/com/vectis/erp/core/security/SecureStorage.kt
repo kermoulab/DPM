@@ -136,6 +136,20 @@ class SecureStorage(private val prefs: SharedPreferences) {
         _preferredCurrencyFlow.value = "USD"
     }
 
+    @Volatile private var memoryPushToken: String? = null
+
+    fun getPushToken(): String? = memoryPushToken ?: try { prefs.getString(KEY_PUSH_TOKEN, null) } catch (_: Exception) { null }?.also { memoryPushToken = it }
+    fun setPushToken(token: String?) {
+        memoryPushToken = token
+        try {
+            if (token != null) {
+                prefs.edit().putString(KEY_PUSH_TOKEN, token).commit()
+            } else {
+                prefs.edit().remove(KEY_PUSH_TOKEN).commit()
+            }
+        } catch (_: Exception) {}
+    }
+
     companion object {
         private const val PREFS_FILENAME = "vectis_secure_keystore_prefs"
         private const val KEY_SERVER_URL = "server_base_url"
@@ -146,6 +160,7 @@ class SecureStorage(private val prefs: SharedPreferences) {
         private const val KEY_USER_ROLE = "authenticated_user_role"
         private const val KEY_USER_NAME = "authenticated_user_name"
         private const val KEY_PREFERRED_CURRENCY = "user_preferred_currency"
+        private const val KEY_PUSH_TOKEN = "push_fcm_token"
 
         // Default local development base URL (points to 10.0.2.2 for Android emulator)
         const val DEFAULT_SERVER_URL = "http://10.0.2.2:3000"

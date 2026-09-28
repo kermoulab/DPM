@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "100000000001",
+    "project_id": "vectis-erp-app",
+    "storage_bucket": "vectis-erp-app.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:100000000001:android:1234567890abcdef123456",
+        "android_client_info": {
+          "package_name": "com.vectis.erp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB-DevelopmentConfigurationPlaceholderKey"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:100000000001:android:debug1234567890abcdef12",
+        "android_client_info": {
+          "package_name": "com.vectis.erp.debug"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB-DevelopmentConfigurationPlaceholderKey"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

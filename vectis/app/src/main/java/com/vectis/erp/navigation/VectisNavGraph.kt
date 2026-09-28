@@ -47,7 +47,8 @@ import kotlinx.coroutines.withContext
 @Composable
 fun VectisNavGraph(
     secureStorage: SecureStorage,
-    navController: NavHostController = rememberNavController()
+    navController: NavHostController = rememberNavController(),
+    deepLinkIntent: android.content.Intent? = null
 ) {
     // Determine initial destination:
     // 1. If device not paired -> Pairing screen
@@ -63,6 +64,46 @@ fun VectisNavGraph(
 
     val context = androidx.compose.ui.platform.LocalContext.current
     val app = context.applicationContext as com.vectis.erp.VectisApplication
+
+    // Push Notification Deep Link Navigation Handler
+    LaunchedEffect(deepLinkIntent) {
+        val intent = deepLinkIntent ?: return@LaunchedEffect
+        if (!secureStorage.isAuthenticated()) return@LaunchedEffect
+
+        val orderId = intent.getStringExtra("deep_link_order_id")
+            ?: if (intent.getStringExtra("deep_link_entity_type") == "order") intent.getStringExtra("deep_link_entity_id") else null
+        val entityType = intent.getStringExtra("deep_link_entity_type")
+        val type = intent.getStringExtra("deep_link_type")
+
+        when {
+            !orderId.isNullOrBlank() -> {
+                navController.navigate(Screen.OrderDetail.createRoute(orderId))
+            }
+            entityType == "service_account" -> {
+                navController.navigate(Screen.Inventory.route)
+            }
+            type == "PASSWORD_CHANGED" || type == "LOGIN_FAILED" -> {
+                navController.navigate(Screen.Settings.route)
+            }
+        }
+    }
+
+    // Register FCM Push Token on login / launch
+    LaunchedEffect(Unit) {
+        try {
+            com.google.firebase.messaging.FirebaseMessaging.getInstance().token
+                .addOnSuccessListener { token ->
+                    if (!token.isNullOrBlank()) {
+                        secureStorage.setPushToken(token)
+                        if (secureStorage.isAuthenticated()) {
+                            CoroutineScope(Dispatchers.IO).launch {
+                                app.notificationRepository.registerPushToken(token, secureStorage.getDeviceId())
+                            }
+                        }
+                    }
+                }
+        } catch (_: Exception) {}
+    }
     val authRepo = remember { com.vectis.erp.data.repository.AuthRepositoryImpl(app.networkClient, secureStorage) }
     val alertRepo = remember { com.vectis.erp.data.repository.AlertRepositoryImpl(app.networkClient) }
 

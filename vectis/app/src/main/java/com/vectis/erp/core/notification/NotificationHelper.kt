@@ -13,7 +13,7 @@ object NotificationHelper {
 
     const val CHANNEL_ID_ALERTS = "vectis_subscription_alerts"
     private const val CHANNEL_NAME = "Subscription Alerts"
-    private const val CHANNEL_DESC = "Notifications for expiring and expired customer subscriptions"
+    private const val CHANNEL_DESC = "Notifications for expiring and expired customer subscriptions, accounts, and security events"
 
     fun initNotificationChannels(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -23,6 +23,7 @@ object NotificationHelper {
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
                 description = CHANNEL_DESC
+                enableVibration(true)
             }
             val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             manager.createNotificationChannel(channel)
@@ -30,21 +31,29 @@ object NotificationHelper {
     }
 
     /**
-     * Shows a subscription alert notification.
-     * Complies with prompt security rules: NO passwords or secret credentials inside notification text.
+     * Shows a structured push / alert notification.
+     * Attaches deep linking parameters to navigate directly to the affected entity screen upon tap.
+     * Complies with security rules: NEVER includes passwords or plaintext credentials.
      */
-    fun showSubscriptionAlert(
+    fun showNotification(
         context: Context,
-        notificationId: Int,
+        notificationId: Int = (System.currentTimeMillis() % 100000).toInt(),
         title: String,
         message: String,
-        orderId: String? = null,
-        customerId: String? = null
+        type: String? = null,
+        entityType: String? = null,
+        entityId: String? = null
     ) {
+        initNotificationChannels(context)
+
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            if (orderId != null) putExtra("deep_link_order_id", orderId)
-            if (customerId != null) putExtra("deep_link_customer_id", customerId)
+            putExtra("deep_link_type", type)
+            putExtra("deep_link_entity_type", entityType)
+            putExtra("deep_link_entity_id", entityId)
+            if (entityType == "order" && entityId != null) {
+                putExtra("deep_link_order_id", entityId)
+            }
         }
 
         val pendingIntent = PendingIntent.getActivity(
@@ -58,12 +67,35 @@ object NotificationHelper {
             .setSmallIcon(android.R.drawable.ic_dialog_alert)
             .setContentTitle(title)
             .setContentText(message)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(message))
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
             .build()
 
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.notify(notificationId, notification)
+    }
+
+    /**
+     * Backward-compatible helper for legacy subscription alert calls.
+     */
+    fun showSubscriptionAlert(
+        context: Context,
+        notificationId: Int,
+        title: String,
+        message: String,
+        orderId: String? = null,
+        customerId: String? = null
+    ) {
+        showNotification(
+            context = context,
+            notificationId = notificationId,
+            title = title,
+            message = message,
+            type = "ORDER_EXPIRING",
+            entityType = "order",
+            entityId = orderId
+        )
     }
 }

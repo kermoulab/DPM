@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vectis ERP — Android Project Audit</title>
+<style>
+  :root{
+    --bg:#0f172a; --panel:#1e293b; --panel2:#243244; --line:#334155;
+    --fg:#e2e8f0; --muted:#94a3b8; --accent:#2563eb;
+    --critical:#dc2626; --high:#ea580c; --medium:#ca8a04; --low:#0284c7; --info:#64748b;
+    --ok:#16a34a;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+       font:15px/1.65 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  header{background:linear-gradient(135deg,#1e3a8a,#0f172a);padding:40px 24px;border-bottom:1px solid var(--line)}
+  header h1{margin:0 0 6px;font-size:30px;letter-spacing:-.4px}
+  header .sub{color:var(--muted);font-size:14px}
+  .ro{display:inline-block;margin-top:14px;padding:5px 12px;border-radius:999px;
+      background:rgba(22,163,74,.15);border:1px solid var(--ok);color:#4ade80;font-size:12px;font-weight:600;letter-spacing:.4px}
+  nav{position:sticky;top:0;z-index:10;background:rgba(15,23,42,.95);backdrop-filter:blur(8px);
+      border-bottom:1px solid var(--line);padding:10px 24px;display:flex;flex-wrap:wrap;gap:6px}
+  nav a{color:var(--muted);text-decoration:none;font-size:13px;padding:5px 10px;border-radius:6px}
+  nav a:hover{background:var(--panel2);color:var(--fg)}
+  main{max-width:1180px;margin:0 auto;padding:28px 24px 80px}
+  section{margin-bottom:44px;scroll-margin-top:64px}
+  h2{font-size:21px;margin:0 0 16px;padding-bottom:9px;border-bottom:1px solid var(--line)}
+  h3{font-size:16px;margin:26px 0 10px;color:#cbd5e1}
+  p{margin:10px 0}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:18px 0}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px}
+  .card .n{font-size:26px;font-weight:700;line-height:1.2}
+  .card .l{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.5px;margin-top:3px}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13.5px;background:var(--panel);
+        border-radius:10px;overflow:hidden}
+  th{background:var(--panel2);text-align:left;padding:10px 12px;font-weight:600;font-size:12px;
+     text-transform:uppercase;letter-spacing:.4px;color:var(--muted);border-bottom:1px solid var(--line)}
+  td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  tbody tr:hover{background:rgba(37,99,235,.06)}
+  code{background:#0b1220;padding:2px 6px;border-radius:4px;font-size:12.5px;
+       font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#93c5fd}
+  pre{background:#0b1220;border:1px solid var(--line);border-radius:10px;padding:14px 16px;overflow-x:auto}
+  pre code{background:none;padding:0;color:#cbd5e1;font-size:12.5px;line-height:1.6}
+  .pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:600;
+        white-space:nowrap;letter-spacing:.3px}
+  .s-critical{background:rgba(220,38,38,.18);color:#fca5a5}
+  .s-high{background:rgba(234,88,12,.18);color:#fdba74}
+  .s-medium{background:rgba(202,138,4,.18);color:#fde047}
+  .s-low{background:rgba(2,132,199,.18);color:#7dd3fc}
+  .s-info{background:rgba(100,116,139,.2);color:#cbd5e1}
+  .s-ok{background:rgba(22,163,74,.18);color:#86efac}
+  details{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:0;margin:8px 0}
+  summary{cursor:pointer;padding:11px 16px;font-weight:600;font-size:13.5px;user-select:none;color:#cbd5e1}
+  summary:hover{color:#fff}
+  details[open] summary{border-bottom:1px solid var(--line)}
+  .dbody{padding:14px 18px}
+  .finding{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--accent);
+           border-radius:8px;padding:16px 18px;margin:12px 0}
+  .finding.critical{border-left-color:var(--critical)}
+  .finding.high{border-left-color:var(--high)}
+  .finding.medium{border-left-color:var(--medium)}
+  .finding.low{border-left-color:var(--low)}
+  .finding h4{margin:0 0 10px;font-size:15.5px}
+  .finding dl{margin:0;display:grid;grid-template-columns:150px 1fr;gap:6px 14px;font-size:13.5px}
+  .finding dt{color:var(--muted);font-weight:600}
+  .finding dd{margin:0}
+  .flow{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px 22px;
+        font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;line-height:1.9;overflow-x:auto}
+  .flow b{color:#93c5fd;font-weight:600}
+  .arrow{color:var(--muted)}
+  .note{background:rgba(37,99,235,.08);border:1px solid rgba(37,99,235,.4);border-radius:8px;
+        padding:12px 16px;font-size:13.5px;margin:14px 0}
+  footer{border-top:1px solid var(--line);padding:22px 24px;text-align:center;color:var(--muted);font-size:12.5px}
+  a{color:#60a5fa}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Vectis ERP — Android Project Audit</h1>
+  <div class="sub">Target <code>C:\Users\kermou\Documents\vectis</code> &nbsp;·&nbsp; Package <code>com.vectis.erp</code> &nbsp;·&nbsp; 27 Sep 2026</div>
+  <div class="ro">READ-ONLY AUDIT — NO PROJECT FILES MODIFIED</div>
+</header>
+
+<nav>
+  <a href="#summary">Summary</a><a href="#structure">Structure</a><a href="#arch">Architecture</a>
+  <a href="#files">Files</a><a href="#dupes">Duplicates</a><a href="#gradle">Gradle</a>
+  <a href="#manifest">Manifest</a><a href="#resources">Resources</a><a href="#nav">Navigation</a>
+  <a href="#auth">Auth</a><a href="#api">API/DB</a><a href="#security">Security</a>
+  <a href="#plan">Cleanup Plan</a>
+</nav>
+
+<main>
+
+<section id="summary">
+  <h2>1. Executive Summary</h2>
+  <p>A Kotlin/Jetpack Compose Android ERP client built on a clean MVVM + Repository architecture with
+     a single <code>:app</code> module. The project is internally consistent: one HTTP client, one
+     session owner, one navigation graph, and no local business database. The findings are
+     predominantly dead abstractions and hardening gaps rather than structural problems.</p>
+
+  <div class="cards">
+    <div class="card"><div class="n">108</div><div class="l">Source files scanned</div></div>
+    <div class="card"><div class="n">4</div><div class="l">Unused / duplicate files</div></div>
+    <div class="card"><div class="n">1</div><div class="l">Duplicate concern</div></div>
+    <div class="card"><div class="n">3</div><div class="l">Architecture findings</div></div>
+    <div class="card"><div class="n">4</div><div class="l">Dependency findings</div></div>
+    <div class="card"><div class="n">5</div><div class="l">Security concerns</div></div>
+    <div class="card"><div class="n">4</div><div class="l">Resource findings</div></div>
+  </div>
+
+  <table>
+    <thead><tr><th>Property</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td>Architecture</td><td>MVVM + Repository, feature-based packages, single module</td></tr>
+      <tr><td>UI toolkit</td><td>Jetpack Compose 100% — no XML layouts exist</td></tr>
+      <tr><td>Language / build</td><td>Kotlin 2.2.10 · AGP 9.1.1 · Gradle 9.3.1 · JDK 17</td></tr>
+      <tr><td>SDK levels</td><td>compileSdk 35 · targetSdk 35 · minSdk 26</td></tr>
+      <tr><td>Networking</td><td>Retrofit 2.12 + OkHttp 4.12 + Gson, single <code>NetworkClient</code></td></tr>
+      <tr><td>Local persistence</td><td><code>EncryptedSharedPreferences</code> only — no local business DB</td></tr>
+      <tr><td>Dependency injection</td><td>None — manual construction inside the nav composable</td></tr>
+      <tr><td>Build result</td><td><span class="pill s-ok">BUILD SUCCESSFUL</span> + 16 unit test classes pass</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="structure">
+  <h2>2. Project Structure</h2>
+<pre><code>vectis/
+├── app/
+│   ├── build.gradle.kts
+│   ├── proguard-rules.pro
+│   └── src/
+│       ├── main/
+│       │   ├── AndroidManifest.xml
+│       │   ├── java/com/vectis/erp/
+│       │   │   ├── VectisApplication.kt          Application entry
+│       │   │   ├── MainActivity.kt              single activity
+│       │   │   ├── core/
+│       │   │   │   ├── authorization/            PermissionManager, UserRole
+│       │   │   │   ├── currency/                 CurrencyFormatter
+│       │   │   │   ├── design/                    Color, Type, Theme, VectisButtons,
+│       │   │   │   │                              VectisTopAppBar, VectisSnackbarHost,
+│       │   │   │   │                              PullToRefresh, CurrencyPickerModal
+│       │   │   │   ├── network/                   NetworkClient, ApiResult,
+│       │   │   │   │                              AuthInterceptor, DeviceInterceptor,
+│       │   │   │   │                              SensitiveDataFilterLoggingInterceptor
+│       │   │   │   ├── notification/              NotificationHelper   [UNUSED]
+│       │   │   │   └── security/                  SecureStorage, PasswordValidator
+│       │   │   ├── data/
+│       │   │   │   ├── api/                       10 Retrofit service interfaces
+│       │   │   │   ├── model/                     10 DTO / model files
+│       │   │   │   └── repository/                11 *RepositoryImpl  [1 UNUSED]
+│       │   │   ├── domain/repository/             10 interfaces (1 impl unused)
+│       │   │   ├── feature/                       alerts · auth · customers · dashboard
+│       │   │   │                                  inventory · orders · pairing · products
+│       │   │   │                                  search · settings
+│       │   │   └── navigation/                    Screen, VectisNavGraph
+│       │   └── res/values/                        colors.xml, strings.xml, themes.xml
+│       └── test/java/com/vectis/erp/               16 unit test classes
+├── build.gradle.kts · settings.gradle.kts · gradle.properties
+├── gradle/libs.versions.toml
+├── local.properties · gradlew · gradlew.bat
+├── app-debug.apk                                [generated artifact in root]
+├── PROJECT_AUDIT.md
+└── reports/</code></pre>
+</section>
+
+<section id="arch">
+  <h2>3. Architecture Diagram</h2>
+  <div class="flow">
+<b>Compose Screen / Dialog</b> <span class="arrow">──►</span> feature/*/…Screen.kt<br>
+<span class="arrow">│</span> UiState + callbacks<br>
+<span class="arrow">▼</span><br>
+<b>ViewModel</b> (StateFlow&lt;UiState&gt;) <span class="arrow">──►</span> feature/*/…ViewModel.kt + Factory<br>
+<span class="arrow">│</span> domain repository interface<br>
+<span class="arrow">▼</span><br>
+<b>Repository interface</b> <span class="arrow">──►</span> domain/repository/*.kt<br>
+<span class="arrow">▼</span><br>
+<b>Repository impl</b> <span class="arrow">──►</span> data/repository/*RepositoryImpl.kt<br>
+<span class="arrow">▼</span> networkClient.createService&lt;T&gt;()<br>
+<b>Retrofit service</b> <span class="arrow">──►</span> data/api/*ApiService.kt<br>
+<span class="arrow">▼</span><br>
+<b>NetworkClient (OkHttp)</b><br>
+&nbsp;&nbsp;AuthInterceptor <span class="arrow">→</span> Bearer token · 401 handling · X-New-Token<br>
+&nbsp;&nbsp;DeviceInterceptor <span class="arrow">→</span> X-Device-Id / X-Device-Token · revocation<br>
+&nbsp;&nbsp;SensitiveDataFilterLoggingInterceptor<br>
+<span class="arrow">▼</span><br>
+<b>REST backend</b> — default <code>http://10.0.2.2:3000</code>, user-configurable
+  </div>
+  <div class="note"><b>No local business database.</b> The app deliberately persists only session/device
+  tokens and non-sensitive preferences, documented as "Rule 1" in <code>VectisApplication.kt</code>. There is
+  no Room, SQLite, DataStore, or local mock data anywhere in <code>src/main</code>.</div>
+</section>
+
+<section id="files">
+  <h2>4. File Findings</h2>
+  <table>
+    <thead><tr><th>File</th><th>Category</th><th>Status</th><th>Evidence</th><th>Risk</th><th>Recommendation</th></tr></thead>
+    <tbody>
+      <tr><td><code>core/notification/NotificationHelper.kt</code></td><td>Dead code</td>
+          <td><span class="pill s-high">PROBABLY UNUSED</span></td>
+          <td>Only reference is its own declaration at line 12 — no caller in main or test</td>
+          <td>Low</td><td>Remove, or wire to a real alert trigger</td></tr>
+      <tr><td><code>core/design/VectisButtons.kt</code><br><small>VectisPillButton</small></td><td>Dead code</td>
+          <td><span class="pill s-ok">DEFINITELY UNUSED</span></td>
+          <td>Zero call sites across all Kotlin sources for <code>VectisPillButton</code></td>
+          <td>Low</td><td>Remove, or adopt as the standard button</td></tr>
+      <tr><td><code>domain/repository/CurrencyRepository.kt</code><br><code>data/repository/CurrencyRepositoryImpl.kt</code></td>
+          <td>Duplicate path</td>
+          <td><span class="pill s-high">PROBABLY UNUSED</span></td>
+          <td>Currency is fetched directly via <code>CurrencyApiService</code> from
+              <code>SettingsRepositoryImpl.kt:48</code> and <code>CurrencyPickerModal.kt:53</code></td>
+          <td>Medium</td><td>Collapse the pair, or route both callers through it</td></tr>
+      <tr><td><code>VectisNavGraph.kt:543</code> <code>PlaceholderScreen</code></td><td>Dead code</td>
+          <td><span class="pill s-high">PROBABLY UNUSED</span></td>
+          <td>Single reference is its own definition</td>
+          <td>Low</td><td>Remove</td></tr>
+      <tr><td><code>SecureStorage.clearAll()</code></td><td>Dead code</td>
+          <td><span class="pill s-high">PROBABLY UNUSED</span></td>
+          <td>Declared at <code>SecureStorage.kt:126</code>, never called</td>
+          <td>Low</td><td>Remove or wire to a "reset app" action</td></tr>
+      <tr><td><code>Screen.UniversalSearch</code></td><td>Dead route</td>
+          <td><span class="pill s-high">PROBABLY UNUSED</span></td>
+          <td>Declared at <code>Screen.kt:32</code>, but no <code>composable</code> destination exists —
+              search is a dialog</td>
+          <td>Low</td><td>Remove the route constant</td></tr>
+      <tr><td><code>app-debug.apk</code> (repo root)</td><td>Generated</td>
+          <td><span class="pill s-medium">SUSPICIOUS</span></td>
+          <td>Debug-signed binary APK committed-style at project root</td>
+          <td>Medium</td><td>Remove from VCS; ensure <code>.gitignore</code> covers <code>*.apk</code></td></tr>
+      <tr><td><code>CurrencyPickerModal.kt:53</code></td><td>Boundary violation</td>
+          <td><span class="pill s-medium">ACTIVE</span></td>
+          <td>Performs <code>createService&lt;CurrencyApiService&gt;()</code> inside a composable</td>
+          <td>Medium</td><td>Move the fetch into <code>SettingsViewModel</code></td></tr>
+      <tr><td><code>res/values/strings.xml</code></td><td>Resource</td>
+          <td><span class="pill s-medium">PARTLY UNUSED</span></td>
+          <td>Only <code>app_name</code> and the theme are referenced; UI strings are hardcoded literals</td>
+          <td>Low</td><td>Adopt <code>stringResource()</code> or delete unused entries</td></tr>
+      <tr><td><code>res/values/colors.xml</code></td><td>Resource</td>
+          <td><span class="pill s-medium">PARTLY UNUSED</span></td>
+          <td>Duplicates <code>core/design/Color.kt</code> constants (<code>primary_blue</code> vs <code>PrimaryBlue</code>)</td>
+          <td>Low</td><td>Single source of truth</td></tr>
+      <tr><td>11 <code>*RepositoryImpl.kt</code></td><td>Active</td>
+          <td><span class="pill s-ok">ACTIVE</span></td>
+          <td>All instantiated in <code>VectisNavGraph.kt</code> except <code>CurrencyRepositoryImpl</code></td>
+          <td>—</td><td>—</td></tr>
+      <tr><td>8 <code>*ViewModel.kt</code></td><td>Active</td>
+          <td><span class="pill s-ok">ACTIVE</span></td>
+          <td>All wired via <code>viewModel(factory = …)</code></td>
+          <td>—</td><td>—</td></tr>
+      <tr><td>10 <code>*ApiService.kt</code></td><td>Active</td>
+          <td><span class="pill s-ok">ACTIVE</span></td>
+          <td>All reached through repository implementations</td>
+          <td>—</td><td>—</td></tr>
+      <tr><td>16 unit test classes</td><td>Active</td>
+          <td><span class="pill s-ok">ACTIVE</span></td>
+          <td>Parsing, auth-session, password, permission, logging-filter coverage</td>
+          <td>—</td><td>Good coverage of pure logic</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="dupes">
+  <h2>5. Duplicate Implementations</h2>
+  <table>
+    <thead><tr><th>Area</th><th>Implementation A</th><th>Implementation B</th><th>Evidence</th><th>Recommendation</th></tr></thead>
+    <tbody>
+      <tr><td>Currency fetching</td>
+          <td><code>CurrencyRepository</code> / <code>CurrencyRepositoryImpl</code></td>
+          <td>Direct <code>createService&lt;CurrencyApiService&gt;()</code> in <code>SettingsRepositoryImpl.kt:48</code> and <code>CurrencyPickerModal.kt:53</code></td>
+          <td>The repository pair has no consumers; both live paths bypass it</td>
+          <td>Pick one pattern — the repository is architecturally correct</td></tr>
+      <tr><td>Header injection</td>
+          <td><code>AuthInterceptor.kt:20-23</code> + <code>DeviceInterceptor.kt:26-31</code></td>
+          <td><code>NetworkClient.kt:49-66</code> network interceptor re-injecting the same headers</td>
+          <td>The network interceptor guards with <code>header(...) == null</code>, so it is a redundant second pass</td>
+          <td>Remove the network interceptor block</td></tr>
+      <tr><td>Colors</td><td><code>res/values/colors.xml</code></td><td><code>core/design/Color.kt</code></td>
+          <td>Theme uses XML values; Compose uses <code>Color.kt</code> constants</td>
+          <td>Keep one source of truth</td></tr>
+      <tr><td>Buttons</td><td><code>VectisPillButton</code> (<code>VectisButtons.kt</code>)</td>
+          <td>Inline <code>Button(...)</code> calls throughout screens</td>
+          <td><code>VectisPillButton</code> has zero call sites</td>
+          <td>Adopt or delete</td></tr>
+    </tbody>
+  </table>
+  <div class="note"><b>None of these were removed.</b> Reported for review only.</div>
+</section>
+
+<section id="gradle">
+  <h2>6. Gradle &amp; Dependencies</h2>
+  <table>
+    <thead><tr><th>Finding</th><th>Detail</th><th>Severity</th></tr></thead>
+    <tbody>
+      <tr><td>Alpha dependency in a production path</td>
+          <td><code>androidx.security:security-crypto:1.1.0-alpha06</code> is used by <code>SecureStorage.create()</code></td>
+          <td><span class="pill s-medium">MEDIUM</span></td></tr>
+      <tr><td>Release builds not minified</td>
+          <td><code>isMinifyEnabled = false</code> — R8 inert; <code>proguard-rules.pro</code> configured but unused</td>
+          <td><span class="pill s-medium">MEDIUM</span></td></tr>
+      <tr><td>Hardcoded dependency coordinates</td>
+          <td>Camera/ML Kit declared inline at <code>build.gradle.kts:71-74</code> instead of via the version catalog</td>
+          <td><span class="pill s-low">LOW</span></td></tr>
+      <tr><td>Possibly unused dependency</td>
+          <td><code>okhttp:logging-interceptor</code> — a hand-written <code>SensitiveDataFilterLoggingInterceptor</code> is used instead</td>
+          <td><span class="pill s-low">LOW</span></td></tr>
+      <tr><td>Compose BOM age</td>
+          <td>BOM <code>2024.09.00</code> is materially older than <code>material3 1.3.1</code> / <code>navigationCompose 2.8.9</code></td>
+          <td><span class="pill s-low">LOW</span></td></tr>
+      <tr><td>Silent test defaults</td>
+          <td><code>unitTests.isReturnDefaultValues = true</code> can mask test gaps</td>
+          <td><span class="pill s-info">INFO</span></td></tr>
+    </tbody>
+  </table>
+  <p><b>No version conflicts, duplicate dependencies, or incorrect scopes were found.</b> Kotlin and AGP
+     versions are consistent across the catalog and build files. Nothing was upgraded or changed.</p>
+</section>
+
+<section id="manifest">
+  <h2>7. Manifest &amp; Permissions</h2>
+  <h3>Components</h3>
+  <table>
+    <thead><tr><th>Component</th><th>Exported</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td><code>.MainActivity</code></td><td><code>true</code> (required)</td><td>Only activity; MAIN/LAUNCHER filter</td></tr>
+      <tr><td><code>.VectisApplication</code></td><td>n/a</td><td>Initializes SecureStorage + NetworkClient</td></tr>
+    </tbody>
+  </table>
+  <p>No services, receivers, or providers are declared. <code>NotificationHelper</code> would need no
+     manifest entry, so its absence is not the cause of it being unused.</p>
+
+  <h3>Permissions</h3>
+  <table>
+    <thead><tr><th>Permission</th><th>Used?</th><th>Assessment</th></tr></thead>
+    <tbody>
+      <tr><td><code>INTERNET</code></td><td>Yes</td><td>Required for all API calls</td></tr>
+      <tr><td><code>ACCESS_NETWORK_STATE</code></td><td>Indirectly</td><td>Not referenced in code; standard</td></tr>
+      <tr><td><code>CAMERA</code></td><td>Yes</td><td>QR pairing (<code>ScanQrScreen.kt</code>), with <code>required="false"</code> guard</td></tr>
+      <tr><td><code>POST_NOTIFICATIONS</code></td><td><span class="pill s-medium">NO</span></td>
+          <td>Nothing ever posts a notification — becomes justified only if <code>NotificationHelper</code> is wired up</td></tr>
+    </tbody>
+  </table>
+
+  <div class="finding high">
+    <h4>Cleartext traffic enabled application-wide</h4>
+    <dl>
+      <dt>Evidence</dt><dd><code>AndroidManifest.xml:24</code> — <code>android:usesCleartextTraffic="true"</code></dd>
+      <dt>Also</dt><dd><code>SecureStorage.kt:151</code> — default base URL <code>http://10.0.2.2:3000</code></dd>
+      <dt>Impact</dt><dd>Bearer tokens, device tokens, and login credentials may travel over plaintext HTTP to any server URL a user enters</dd>
+      <dt>Recommendation</dt><dd>Remove the attribute; add a <code>network_security_config.xml</code> permitting cleartext only for <code>10.0.2.2</code>/<code>localhost</code></dd>
+    </dl>
+  </div>
+  <p><b>Good:</b> <code>allowBackup="false"</code>, <code>dataExtractionRules="@null"</code>, and
+     <code>fullBackupContent="false"</code> correctly keep the Keystore-backed token store out of backups.</p>
+</section>
+
+<section id="resources">
+  <h2>8. Resources</h2>
+  <table>
+    <thead><tr><th>Finding</th><th>Evidence</th><th>Severity</th><th>Recommendation</th></tr></thead>
+    <tbody>
+      <tr><td>No launcher icon assets</td><td><code>res/</code> contains only <code>values/</code>; manifest uses <code>@android:drawable/sym_def_app_icon</code></td>
+          <td><span class="pill s-low">LOW</span></td><td>Add a <code>mipmap</code> icon set before release</td></tr>
+      <tr><td><code>strings.xml</code> bypassed</td><td>UI strings hardcoded, e.g. <code>VectisNavGraph.kt:484</code> <code>contentDescription = "Dashboard"</code></td>
+          <td><span class="pill s-low">LOW</span></td><td>Adopt <code>stringResource()</code> or drop unused entries</td></tr>
+      <tr><td>Duplicate color definitions</td><td><code>colors.xml</code> vs <code>core/design/Color.kt</code></td>
+          <td><span class="pill s-low">LOW</span></td><td>Single source of truth</td></tr>
+      <tr><td>Minimal resource surface</td><td>No drawable, navigation, raw, font, menu, or layout resources at all</td>
+          <td><span class="pill s-ok">CLEAN</span></td><td>No legacy drawable/layout piles to clean up</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="nav">
+  <h2>9. Navigation Map</h2>
+<pre><code>[App start] ──not paired──► Pairing ──┬──► ScanQr   ──┐
+            ──no session──► Login   ◄──┴──► EnterCode ──┘
+            ──session─────► Dashboard
+                                │
+     ┌──────────┬──────────┬─────┴──────┬──────────┐
+  Dashboard   Orders   Products    Inventory   Customers     ← bottom bar (5)
+     │           │          │           │           │
+     │           ├─► OrderDetail/{orderId} ◄───────────┤  from Dashboard,
+     │           └─► CreateOrder ──► OrderDetail        │  Customers, Alerts,
+     │                                                   │  Global Search
+     ├─► Products · Inventory · Customers · Alerts · Settings
+     └─► GlobalSearch (DIALOG overlay, not a route)
+              └─► CustomerDetail/{customerId} │ OrderDetail · Products · Inventory
+
+Alerts / Settings   reachable from top bars, not bottom-bar items
+Unauthorized (401)  ──► Login (or Pairing),  popUpTo(0) inclusive
+Device revoked      ──► Pairing,               popUpTo(0) inclusive
+Logout              ──► Login,                 popUpTo(0) inclusive</code></pre>
+  <div class="finding low">
+    <h4>Dead navigation route</h4>
+    <dl>
+      <dt>Evidence</dt><dd><code>Screen.kt:32</code> declares <code>Screen.UniversalSearch</code> with route <code>"search"</code>, but no <code>composable(Screen.UniversalSearch.route)</code> exists in <code>VectisNavGraph.kt</code></dd>
+      <dt>Why</dt><dd>Search is implemented as a dialog (<code>GlobalSearchDialog</code>) toggled by a boolean, so the route constant can never resolve</dd>
+      <dt>Recommendation</dt><dd>Remove the constant</dd>
+    </dl>
+  </div>
+  <p>All other 13 declared <code>Screen</code> objects have a matching <code>composable</code>. No
+     unreachable screens, no duplicate screens. Detail screens intentionally reuse their list
+     ViewModels rather than owning separate ones.</p>
+</section>
+
+<section id="auth">
+  <h2>10. Authentication</h2>
+  <p>Traced end to end: <b>pairing gate → login → Keystore storage → request injection → sliding
+     refresh → 401 handling → revocation → logout.</b> A single auth system exists — no duplicate
+     token manager, no mock auth, no debug bypass, no hardcoded credentials.</p>
+  <ol>
+    <li><b>Pairing gate</b> — <code>VectisNavGraph.kt:56-62</code>: not paired → <code>Pairing</code>;
+        paired but no session → <code>Login</code>; else <code>Dashboard</code>.</li>
+    <li><b>Pairing</b> — via QR scan (CameraX + ML Kit) or manual code; stores device id + device token.</li>
+    <li><b>Login</b> — <code>AuthRepositoryImpl.login()</code> persists token, user id, role, name, and
+        uppercased preferred currency on success (<code>AuthRepositoryImpl.kt:28-37</code>).</li>
+    <li><b>Storage</b> — <code>EncryptedSharedPreferences</code> (AES256_SIV keys / AES256_GCM values)
+        on an AES256_GCM <code>MasterKey</code>, with an in-memory cache.
+        <b>Fallback:</b> degrades to plaintext <code>SharedPreferences</code> on Keystore failure
+        (<code>SecureStorage.kt:170-174</code>).</li>
+    <li><b>Injection</b> — <code>AuthInterceptor</code> adds the Bearer header;
+        <code>DeviceInterceptor</code> adds device headers; an OkHttp <code>authenticator</code> retries
+        once with the token on an unauthenticated 401.</li>
+    <li><b>Sliding refresh</b> — server <code>X-New-Token</code> replaces the stored token
+        (<code>AuthInterceptor.kt:29-32</code>); <code>getMe()</code> runs every 15 minutes.</li>
+    <li><b>401</b> — error body mapped to a user-facing reason, session cleared, navigation reset.</li>
+    <li><b>Revocation</b> — a 401 with <code>X-Device-Revoked: true</code> clears pairing + session
+        and routes to <code>Pairing</code>.</li>
+    <li><b>Logout</b> — server call is best effort, but local credentials are <b>always</b> wiped in a
+        <code>finally</code> block, so a network failure cannot leave a stale local session.</li>
+  </ol>
+  <div class="finding medium">
+    <h4>Token store silently degrades to plaintext</h4>
+    <dl>
+      <dt>Evidence</dt><dd><code>SecureStorage.kt:170-174</code> — any Keystore exception falls back to unencrypted <code>getSharedPreferences</code></dd>
+      <dt>Why it matters</dt><dd>Session JWT, device token, user id, role and name then sit in a readable plaintext XML file, and the failure is swallowed with no log and no user-facing warning</dd>
+      <dt>Recommendation</dt><dd>Log loudly, warn in Settings, and consider refusing to persist the auth token when the Keystore is unavailable</dd>
+    </dl>
+  </div>
+</section>
+
+<section id="api">
+  <h2>11. API / Database</h2>
+  <table>
+    <thead><tr><th>Aspect</th><th>Finding</th></tr></thead>
+    <tbody>
+      <tr><td>Base URL</td><td><code>http://10.0.2.2:3000</code> by default (emulator loopback), user-overridable; Retrofit is rebuilt whenever the normalized URL changes, so no restart is needed</td></tr>
+      <tr><td>Redirect handling</td><td><code>AuthInterceptor.kt:35-43</code> rewrites the stored base URL to the redirect target's scheme/host/port</td></tr>
+      <tr><td>Result type</td><td>All repositories return <code>ApiResult&lt;T&gt;</code> (Success / Error(code,message) / NetworkError) — nothing throws to the UI</td></tr>
+      <tr><td>Caching / persistence</td><td>None for business data, by explicit design ("Rule 1")</td></tr>
+      <tr><td>Error handling</td><td>Surfaced through sealed <code>UiState</code> types; screens re-load when state is not <code>Success</code></td></tr>
+      <tr><td>Polling</td><td>15-second alert badge count loop; 15-minute <code>getMe()</code> session sync</td></tr>
+      <tr><td>Orphan endpoints</td><td>None found — all 10 API services are reached by a repository</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="security">
+  <h2>12. Security Findings</h2>
+  <p>Secrets are redacted per the audit rules.</p>
+
+  <div class="finding high">
+    <h4><span class="pill s-high">HIGH</span> &nbsp;Cleartext HTTP permitted application-wide</h4>
+    <dl>
+      <dt>Evidence</dt><dd><code>AndroidManifest.xml:24</code> <code>usesCleartextTraffic="true"</code>; <code>SecureStorage.kt:151</code> default <code>http://10.0.2.2:3000</code></dd>
+      <dt>Impact</dt><dd>Session JWT, device token, and login credentials can be sent over plaintext HTTP to any server URL a user types. A network attacker can capture and replay them</dd>
+      <dt>Recommendation</dt><dd>Remove the attribute; add a network security config scoping cleartext to emulator/localhost only; enforce <code>https://</code> in the URL field</dd>
+    </dl>
+  </div>
+
+  <div class="finding medium">
+    <h4><span class="pill s-medium">MEDIUM</span> &nbsp;Keystore → plaintext storage fallback, silently</h4>
+    <dl>
+      <dt>Evidence</dt><dd><code>SecureStorage.kt:170-174</code></dd>
+      <dt>Impact</dt><dd>All session and device credentials become readable to anything with app data access, with no signal that security degraded</dd>
+      <dt>Recommendation</dt><dd>Log the failure, surface it in Settings, and avoid persisting the auth token when the Keystore is unavailable</dd>
+    </dl>
+  </div>
+
+  <div class="finding medium">
+    <h4><span class="pill s-medium">MEDIUM</span> &nbsp;401 response bodies written to logcat</h4>
+    <dl>
+      <dt>Evidence</dt><dd><code>AuthInterceptor.kt:49-56</code> — <code>peekBody(2048).string()</code> logged with <code>Log.e</code> alongside method and full URL</dd>
+      <dt>Impact</dt><dd>Server error bodies may carry session and account detail; logcat is readable by other apps on older targets and by anyone with <code>adb</code></dd>
+      <dt>Recommendation</dt><dd>Log status code and the mapped user reason only</dd>
+    </dl>
+  </div>
+
+  <div class="finding low">
+    <h4><span class="pill s-low">LOW</span> &nbsp;Debug APK and build outputs in the project directory</h4>
+    <dl>
+      <dt>Evidence</dt><dd><code>app-debug.apk</code> at the repository root, alongside <code>build/</code>, <code>.gradle/</code>, <code>.idea/</code>, <code>.kotlin/</code></dd>
+      <dt>Impact</dt><dd>Risk of shipping a debug-signed, unminified build</dd>
+      <dt>Recommendation</dt><dd>Verify <code>.gitignore</code> covers <code>*.apk</code>, <code>build/</code>, <code>.idea/</code></dd>
+    </dl>
+  </div>
+
+  <div class="finding low">
+    <h4><span class="pill s-low">LOW</span> &nbsp;No certificate pinning; release not minified</h4>
+    <dl>
+      <dt>Evidence</dt><dd>No <code>network_security_config.xml</code> or <code>CertificatePinner</code>; <code>isMinifyEnabled = false</code></dd>
+      <dt>Recommendation</dt><dd>Defense-in-depth — enable R8 for release; pin only if the threat model warrants it</dd>
+    </dl>
+  </div>
+
+  <h3>Informational</h3>
+  <ul>
+    <li><code>POST_NOTIFICATIONS</code> declared but unused.</li>
+    <li>Default system launcher icon in use.</li>
+    <li>Searched for and <b>not found</b>: committed API keys, hardcoded bearer tokens,
+        <code>BuildConfig.DEBUG</code> branches, <code>TODO</code>/<code>FIXME</code>/<code>HACK</code>
+        markers, disabled certificate validation, or WebView configuration.</li>
+  </ul>
+</section>
+
+<section id="plan">
+  <h2>13. Recommended Cleanup Plan</h2>
+  <div class="note"><b>None of these phases were performed.</b> They are proposals awaiting your approval.</div>
+
+  <details open>
+    <summary>Phase 1 — Safe cleanup (strongest evidence, lowest risk)</summary>
+    <div class="dbody">
+      <table>
+        <thead><tr><th>Item</th><th>Location</th><th>Evidence</th></tr></thead>
+        <tbody>
+          <tr><td><code>VectisPillButton</code></td><td><code>core/design/VectisButtons.kt</code></td><td>Zero call sites (exact-name grep across all Kotlin)</td></tr>
+          <tr><td><code>PlaceholderScreen</code></td><td><code>navigation/VectisNavGraph.kt:542-550</code></td><td>Only its own definition</td></tr>
+          <tr><td><code>Screen.UniversalSearch</code></td><td><code>navigation/Screen.kt:32</code></td><td>No <code>composable</code> destination</td></tr>
+          <tr><td><code>SecureStorage.clearAll()</code></td><td><code>core/security/SecureStorage.kt:126</code></td><td>Declared, never called</td></tr>
+          <tr><td><code>app-debug.apk</code></td><td>repository root</td><td>Generated binary, belongs in <code>.gitignore</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </details>
+
+  <details>
+    <summary>Phase 2 — Duplicate consolidation (requires review)</summary>
+    <div class="dbody">
+      <table>
+        <thead><tr><th>Item</th><th>Files</th><th>Action</th></tr></thead>
+        <tbody>
+          <tr><td>Currency data path</td><td><code>CurrencyRepository.kt</code>, <code>CurrencyRepositoryImpl.kt</code> vs <code>SettingsRepositoryImpl.kt:48</code>, <code>CurrencyPickerModal.kt:53</code></td>
+              <td>Route both live callers through the repository, then remove the direct API calls</td></tr>
+          <tr><td>Header injection</td><td><code>NetworkClient.kt:49-66</code> vs the two application interceptors</td>
+              <td>Remove the redundant network interceptor</td></tr>
+          <tr><td><code>NotificationHelper</code></td><td><code>core/notification/NotificationHelper.kt</code></td>
+              <td>Wire to subscription-expiry alerts (which would justify <code>POST_NOTIFICATIONS</code>) or delete it with that permission</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </details>
+
+  <details>
+    <summary>Phase 3 — Architecture improvements</summary>
+    <div class="dbody">
+      <table>
+        <thead><tr><th>Item</th><th>Files</th><th>Action</th></tr></thead>
+        <tbody>
+          <tr><td>Object graph built in UI</td><td><code>VectisNavGraph.kt:66-115</code></td><td>Extract an <code>AppContainer</code> (or Hilt); move ViewModel construction out of the composable</td></tr>
+          <tr><td>Network I/O in a composable</td><td><code>CurrencyPickerModal.kt:53</code></td><td>Hoist into <code>SettingsViewModel</code></td></tr>
+          <tr><td>Color duplication</td><td><code>res/values/colors.xml</code> vs <code>core/design/Color.kt</code></td><td>Single source of truth</td></tr>
+          <tr><td>Strings bypassed</td><td><code>res/values/strings.xml</code></td><td>Adopt <code>stringResource()</code> or delete unused entries</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </details>
+
+  <details>
+    <summary>Phase 4 — Optional optimization</summary>
+    <div class="dbody">
+      <ul>
+        <li>Migrate off <code>security-crypto:1.1.0-alpha06</code></li>
+        <li>Move Camera/ML Kit inline versions into <code>libs.versions.toml</code></li>
+        <li>Remove <code>okhttp:logging-interceptor</code> if the hand-written filter is kept</li>
+        <li>Enable R8 for release once keep-rules are validated</li>
+        <li>Align the Compose BOM with the newer <code>material3</code> / <code>navigation</code> entries</li>
+        <li>Review whether <code>unitTests.isReturnDefaultValues</code> hides test gaps</li>
+      </ul>
+    </div>
+  </details>
+</section>
+
+<section id="verify">
+  <h2>14. Verification Performed (read-only)</h2>
+  <table>
+    <thead><tr><th>Command</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td><code>gradlew :app:assembleDebug --offline</code></td><td><span class="pill s-ok">BUILD SUCCESSFUL</span></td></tr>
+      <tr><td><code>gradlew :app:testDebugUnitTest --offline</code></td><td><span class="pill s-ok">BUILD SUCCESSFUL</span> — 16 test classes executed</td></tr>
+      <tr><td><code>gradlew :app:dependencies</code></td><td>Not run — no JDK on <code>PATH</code>; used Android Studio's bundled JBR for the two commands above</td></tr>
+    </tbody>
+  </table>
+  <p>The project built and tested successfully <b>as found</b>. No existing build error was discovered, and
+     no issue in this report was fixed or introduced.</p>
+</section>
+
+</main>
+
+<footer>Vectis ERP Android Project Audit · READ-ONLY · 27 September 2026 · No project files were modified</footer>
+
+</body>
+</html>

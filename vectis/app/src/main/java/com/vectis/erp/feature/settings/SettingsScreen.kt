@@ -719,6 +719,81 @@ private fun GeneralSettingsTab(
             )
         }
     }
+
+    Spacer(modifier = Modifier.height(16.dp))
+
+    // 4. Push Notifications Card
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "Push Notifications",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Slate900
+                    )
+                    Text(
+                        text = "Real-time subscription & account expiry alerts",
+                        fontSize = 12.sp,
+                        color = Slate500
+                    )
+                }
+                Surface(
+                    color = StatusSuccess.copy(alpha = 0.12f),
+                    shape = RoundedCornerShape(6.dp)
+                ) {
+                    Text(
+                        text = "ENABLED",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = StatusSuccess,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(10.dp),
+                color = Slate50
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.NotificationsActive,
+                            contentDescription = null,
+                            tint = PrimaryBlue,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Channel: Subscription Alerts (High Priority)",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Slate800
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Thresholds: 7 days, 3 days, 1 day, and on expiration. Duplicate delivery prevention active.",
+                        fontSize = 11.sp,
+                        color = Slate600
+                    )
+                }
+            }
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------

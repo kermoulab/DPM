@@ -83,6 +83,13 @@ class AuthRepositoryImpl(
 
     override suspend fun logout(): ApiResult<Unit> = withContext(Dispatchers.IO) {
         try {
+            val pushToken = secureStorage.getPushToken()
+            if (!pushToken.isNullOrBlank()) {
+                try {
+                    val notifApi = networkClient.createService<com.vectis.erp.data.api.NotificationApiService>()
+                    notifApi.unregisterToken(com.vectis.erp.data.model.UnregisterPushTokenRequest(pushToken))
+                } catch (_: Exception) {}
+            }
             val api = networkClient.createService<AuthApiService>()
             api.logout() // Best-effort server-side token revocation
         } catch (_: Exception) {
