@@ -820,7 +820,7 @@ private fun GeneralSettingsTab(
                     isSyncingPush = true
                     pushSyncMessage = null
                     val app = VectisApplication.instance
-                    viewModel.syncPushToken(app.notificationRepository) { success, msg ->
+                    viewModel.syncPushToken(app, app.notificationRepository) { success, msg ->
                         isSyncingPush = false
                         isPushSuccess = success
                         pushSyncMessage = msg

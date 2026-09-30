@@ -148,6 +148,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [testConnResult, setTestConnResult] = React.useState<{ success: boolean; message: string; projectId?: string } | null>(null);
   const [testPushLoading, setTestPushLoading] = React.useState(false);
   const [testPushResult, setTestPushResult] = React.useState<{ success: boolean; message: string; count?: number } | null>(null);
+  const [notifFileType, setNotifFileType] = React.useState<'service_account' | 'client_config'>('service_account');
   const notifFileInputRef = React.useRef<HTMLInputElement | null>(null);
 
   // Keyboard shortcut for modals
@@ -208,11 +209,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       try {
         const content = event.target?.result as string;
         const parsed = JSON.parse(content);
-        if (!parsed.project_id || !parsed.client_email || !parsed.private_key) {
-          throw new Error('Selected JSON is missing required fields (project_id, client_email, private_key).');
+        if (parsed.project_info && Array.isArray(parsed.client)) {
+          setNotifFileType('client_config');
+          setNotifJsonInput(content);
+          setNotifSuccess(`Loaded Android Client Configuration (google-services.json) for project: ${parsed.project_info.project_id}`);
+        } else if (parsed.project_id && parsed.client_email && parsed.private_key) {
+          setNotifFileType('service_account');
+          setNotifJsonInput(content);
+          setNotifSuccess(`Loaded Firebase Service Account for project: ${parsed.project_id}`);
+        } else {
+          throw new Error('Unrecognized JSON format. Please upload either a Firebase service-account.json or google-services.json file.');
         }
-        setNotifJsonInput(content);
-        setNotifSuccess(`Loaded file for Firebase project: ${parsed.project_id}`);
       } catch (err: any) {
         setNotifError(err.message || 'Invalid JSON file.');
       }
@@ -230,8 +237,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setNotifError(null);
     setNotifSuccess(null);
     try {
-      const res = await api.saveNotificationConfig(notifJsonInput.trim());
-      setNotifSuccess(`Firebase successfully activated for project "${res.projectId}".`);
+      if (notifFileType === 'client_config') {
+        const res = await api.saveClientConfig(notifJsonInput.trim());
+        setNotifSuccess(`Android client configuration saved for project "${res.config?.projectId}".`);
+      } else {
+        const res = await api.saveNotificationConfig(notifJsonInput.trim());
+        setNotifSuccess(`Firebase successfully activated for project "${res.projectId}".`);
+      }
       setNotifJsonInput('');
       setShowNotifPaste(false);
       await loadNotifConfig();
@@ -1124,7 +1136,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
 
             {/* Quick Metrics */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/70">
                 <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Connected Project</p>
                 <p className="text-sm font-bold text-slate-800 mt-1 font-mono truncate">
@@ -1144,7 +1156,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
 
               <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/70">
-                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Registered Android Devices</p>
+                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Android App Sync</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <Smartphone size={16} className={notifConfig?.clientConfigured ? 'text-emerald-600' : 'text-slate-400'} />
+                  <p className="text-sm font-bold text-slate-800">
+                    {notifConfig?.clientConfigured ? 'Auto-Synced' : 'Pending'}
+                  </p>
+                </div>
+                <span className="text-[10px] text-slate-400">
+                  {notifConfig?.clientConfigured ? 'Generic APK connects automatically' : 'Upload google-services.json to sync'}
+                </span>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/70">
+                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Registered Devices</p>
                 <div className="flex items-center gap-2 mt-1">
                   <Smartphone size={16} className="text-blue-600" />
                   <p className="text-sm font-bold text-slate-800">

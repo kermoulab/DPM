@@ -90,4 +90,18 @@ class NotificationRepositoryImpl(
                 ApiResult.NetworkError(e)
             }
         }
+
+    override suspend fun getClientConfig(): ApiResult<com.vectis.erp.data.model.FirebaseClientConfigDto?> =
+        withContext(Dispatchers.IO) {
+            try {
+                val response = api.getClientConfig()
+                if (response.isSuccessful && response.body()?.success == true) {
+                    ApiResult.Success(response.body()?.config)
+                } else {
+                    ApiResult.Error(response.code(), response.errorBody()?.string() ?: "Failed to fetch client config")
+                }
+            } catch (e: Exception) {
+                ApiResult.NetworkError(e)
+            }
+        }
 }

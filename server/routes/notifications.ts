@@ -123,21 +123,63 @@ notificationsRouter.get('/config', requireAuth, requireRole('admin'), async (req
   }
 });
 
+// GET /api/notifications/client-config (All authenticated users / Android app)
+notificationsRouter.get('/client-config', requireAuth, async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const config = await notificationService.getClientConfig();
+    res.json({
+      success: true,
+      configured: !!config,
+      config: config || null
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/notifications/client-config (Admin only - upload or update google-services.json)
+notificationsRouter.post('/client-config', requireAuth, requireRole('admin'), async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const { clientConfigJson } = req.body;
+    if (!clientConfigJson) {
+      res.status(400).json({ success: false, error: 'Client configuration JSON is required.' });
+      return;
+    }
+
+    const config = await notificationService.configureClientConfig(clientConfigJson);
+    res.json({
+      success: true,
+      message: 'Android client configuration saved successfully.',
+      config: {
+        projectId: config.projectId,
+        appId: config.appId,
+        gcmSenderId: config.gcmSenderId
+      }
+    });
+  } catch (err: any) {
+    res.status(400).json({
+      success: false,
+      error: err.message || 'Failed to parse and save client configuration.'
+    });
+  }
+});
+
 // POST /api/notifications/config (Admin only - upload or paste serviceAccount JSON)
 notificationsRouter.post('/config', requireAuth, requireRole('admin'), async (req: AuthenticatedRequest, res, next) => {
   try {
-    const { serviceAccountJson } = req.body;
+    const { serviceAccountJson, clientConfigJson } = req.body;
     if (!serviceAccountJson) {
       res.status(400).json({ success: false, error: 'Firebase service account JSON is required.' });
       return;
     }
 
-    const result = await notificationService.configureFirebase(serviceAccountJson);
+    const result = await notificationService.configureFirebase(serviceAccountJson, clientConfigJson);
     res.json({
       success: true,
       message: 'Firebase configuration saved and activated successfully.',
       projectId: result.projectId,
-      clientEmail: result.clientEmail
+      clientEmail: result.clientEmail,
+      clientConfigured: !!result.clientConfig
     });
   } catch (err: any) {
     res.status(400).json({

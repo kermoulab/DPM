@@ -225,9 +225,15 @@ export const systemApi = {
     return request<{ success: boolean; status: NotificationConfigStatus }>('/api/notifications/config');
   },
   saveNotificationConfig(serviceAccountJson: string) {
-    return request<{ success: boolean; message: string; projectId: string; clientEmail: string }>('/api/notifications/config', {
+    return request<{ success: boolean; message: string; projectId: string; clientEmail: string; clientConfigured?: boolean }>('/api/notifications/config', {
       method: 'POST',
       body: JSON.stringify({ serviceAccountJson })
+    });
+  },
+  saveClientConfig(clientConfigJson: string) {
+    return request<{ success: boolean; message: string; config: any }>('/api/notifications/client-config', {
+      method: 'POST',
+      body: JSON.stringify({ clientConfigJson })
     });
   },
   deleteNotificationConfig() {

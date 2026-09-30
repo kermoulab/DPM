@@ -28,4 +28,7 @@ interface NotificationApiService {
 
     @POST("/api/notifications/read-all")
     suspend fun markAllAsRead(): Response<NotificationActionResponse>
+
+    @GET("/api/notifications/client-config")
+    suspend fun getClientConfig(): Response<FirebaseClientConfigResponse>
 }

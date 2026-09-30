@@ -98,4 +98,38 @@ object NotificationHelper {
             entityId = orderId
         )
     }
+
+    /**
+     * Dynamically configures Firebase on Android at runtime using options provided by the ERP backend.
+     * Ensures the generic APK connects to the specific installation's Firebase project with ZERO
+     * manual file placement or user intervention on the physical phone.
+     */
+    fun configureFirebaseAtRuntime(context: Context, config: com.vectis.erp.data.model.FirebaseClientConfigDto): Boolean {
+        return try {
+            val options = com.google.firebase.FirebaseOptions.Builder()
+                .setApplicationId(config.appId)
+                .setApiKey(config.apiKey)
+                .setProjectId(config.projectId)
+                .setGcmSenderId(config.gcmSenderId)
+                .build()
+
+            val existingApps = com.google.firebase.FirebaseApp.getApps(context)
+            val defaultApp = existingApps.find { it.name == com.google.firebase.FirebaseApp.DEFAULT_APP_NAME }
+
+            if (defaultApp != null) {
+                if (defaultApp.options.applicationId == config.appId &&
+                    defaultApp.options.projectId == config.projectId &&
+                    defaultApp.options.apiKey == config.apiKey) {
+                    return true
+                }
+                defaultApp.delete()
+            }
+
+            com.google.firebase.FirebaseApp.initializeApp(context, options)
+            true
+        } catch (e: Exception) {
+            android.util.Log.e("NotificationHelper", "Dynamic Firebase configuration error: ${e.message}")
+            false
+        }
+    }
 }

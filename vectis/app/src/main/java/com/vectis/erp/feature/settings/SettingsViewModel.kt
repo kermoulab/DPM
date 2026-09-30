@@ -248,11 +248,24 @@ class SettingsViewModel(
     }
 
     fun syncPushToken(
+        context: android.content.Context,
         notificationRepo: com.vectis.erp.domain.repository.NotificationRepository,
         onComplete: (Boolean, String) -> Unit
     ) {
         viewModelScope.launch {
             try {
+                // 1. Query server for active Firebase Client Configuration
+                val configResult = notificationRepo.getClientConfig()
+                if (configResult is ApiResult.Success && configResult.data != null) {
+                    val configured = com.vectis.erp.core.notification.NotificationHelper.configureFirebaseAtRuntime(context, configResult.data)
+                    if (configured) {
+                        try {
+                            com.google.firebase.messaging.FirebaseMessaging.getInstance().deleteToken()
+                        } catch (_: Exception) {}
+                    }
+                }
+
+                // 2. Request token from Firebase
                 com.google.firebase.messaging.FirebaseMessaging.getInstance().token
                     .addOnSuccessListener { token ->
                         if (!token.isNullOrBlank()) {
@@ -260,7 +273,7 @@ class SettingsViewModel(
                             viewModelScope.launch {
                                 val result = notificationRepo.registerPushToken(token, secureStorage.getDeviceId())
                                 if (result is ApiResult.Success) {
-                                    onComplete(true, "Device registered on server successfully!")
+                                    onComplete(true, "Device registered on server with live FCM token!")
                                 } else {
                                     val err = if (result is ApiResult.Error) result.message else "Server connection error"
                                     onComplete(false, "Failed to register on server: $err")

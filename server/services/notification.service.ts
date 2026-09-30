@@ -13,12 +13,20 @@ export interface PushPayload {
   metadata?: Record<string, any>;
 }
 
+export interface FirebaseClientConfig {
+  projectId: string;
+  gcmSenderId: string;
+  appId: string;
+  apiKey: string;
+}
+
 export class NotificationService {
   private fcmInitialized = false;
   private fcmMessaging: any = null;
   private currentProjectId?: string;
   private currentClientEmail?: string;
   private credentialSource: 'database' | 'env' | 'none' = 'none';
+  private currentClientConfig?: FirebaseClientConfig | null;
 
   constructor() {
     this.tryInitFirebase().catch(() => {});
@@ -131,6 +139,9 @@ export class NotificationService {
     this.credentialSource = source;
     console.log(`[NotificationService] Firebase Cloud Messaging initialized (${source}) for project: ${sanitized.project_id}`);
 
+    // Automatically resolve Android client configuration so generic APK requires zero device setup
+    await this.tryResolveClientConfig(app);
+
     return {
       success: true,
       projectId: sanitized.project_id,
@@ -139,15 +150,150 @@ export class NotificationService {
   }
 
   /**
-   * Saves service account JSON to PostgreSQL system_settings and dynamically activates it live.
+   * Parses public, non-sensitive Android client configuration from google-services.json or direct config.
    */
-  async configureFirebase(serviceAccountJson: string): Promise<{ success: boolean; projectId: string; clientEmail: string }> {
+  parseClientConfig(raw: any): FirebaseClientConfig | null {
+    try {
+      if (!raw || typeof raw !== 'object') return null;
+
+      // Format 1: Standard google-services.json
+      if (raw.project_info && Array.isArray(raw.client)) {
+        const projectId = raw.project_info.project_id;
+        const gcmSenderId = raw.project_info.project_number;
+        const targetClient = raw.client.find((c: any) =>
+          c?.client_info?.android_client_info?.package_name === 'com.vectis.erp'
+        ) || raw.client[0];
+        const appId = targetClient?.client_info?.mobilesdk_app_id;
+        const apiKey = targetClient?.api_key?.[0]?.current_key;
+
+        if (projectId && gcmSenderId && appId && apiKey) {
+          return {
+            projectId: String(projectId).trim(),
+            gcmSenderId: String(gcmSenderId).trim(),
+            appId: String(appId).trim(),
+            apiKey: String(apiKey).trim()
+          };
+        }
+      }
+
+      // Format 2: Direct client config object
+      if (raw.projectId && raw.gcmSenderId && raw.appId && raw.apiKey) {
+        return {
+          projectId: String(raw.projectId).trim(),
+          gcmSenderId: String(raw.gcmSenderId).trim(),
+          appId: String(raw.appId).trim(),
+          apiKey: String(raw.apiKey).trim()
+        };
+      }
+    } catch {}
+    return null;
+  }
+
+  /**
+   * Attempts to auto-resolve Android client config:
+   * 1. Checks PostgreSQL system_settings first.
+   * 2. If not stored, queries Firebase Project Management API using the admin SDK.
+   */
+  private async tryResolveClientConfig(app?: any): Promise<void> {
+    try {
+      // 1. Check if already stored in database
+      const savedConfig = await systemSettingsRepo.get('firebase_client_config');
+      if (savedConfig && savedConfig.trim()) {
+        try {
+          this.currentClientConfig = JSON.parse(savedConfig);
+          return;
+        } catch {}
+      }
+
+      // 2. Query Firebase Project Management API if app is available
+      if (app) {
+        try {
+          const { getProjectManagement } = await import('firebase-admin/project-management');
+          const pm = getProjectManagement(app);
+          const androidApps = await pm.listAndroidApps();
+          let targetApp: any = null;
+          for (const a of androidApps) {
+            try {
+              const meta = await a.getMetadata();
+              if (meta.packageName === 'com.vectis.erp') {
+                targetApp = a;
+                break;
+              }
+            } catch {}
+          }
+          if (!targetApp && androidApps.length > 0) {
+            targetApp = androidApps[0];
+          }
+          if (!targetApp) {
+            try {
+              targetApp = await pm.createAndroidApp('com.vectis.erp', 'Vectis ERP');
+            } catch {}
+          }
+          if (targetApp) {
+            const configStr = await targetApp.getConfig();
+            const configJson = JSON.parse(configStr);
+            const parsed = this.parseClientConfig(configJson);
+            if (parsed) {
+              this.currentClientConfig = parsed;
+              await systemSettingsRepo.set('firebase_client_config', JSON.stringify(parsed));
+              console.log(`[NotificationService] Auto-resolved client config for project: ${parsed.projectId}`);
+            }
+          }
+        } catch (pmErr: any) {
+          console.warn('[NotificationService] Project Management auto-fetch note:', pmErr.message);
+        }
+      }
+    } catch {}
+  }
+
+  /**
+   * Explicitly sets client configuration (e.g. when uploaded via Web UI Settings).
+   */
+  async configureClientConfig(jsonStrOrObj: string | object): Promise<FirebaseClientConfig> {
+    const raw = typeof jsonStrOrObj === 'string' ? JSON.parse(jsonStrOrObj) : jsonStrOrObj;
+    const parsed = this.parseClientConfig(raw);
+    if (!parsed) {
+      throw new Error('Invalid client configuration: Could not find valid projectId, gcmSenderId, appId, and apiKey.');
+    }
+    await systemSettingsRepo.set('firebase_client_config', JSON.stringify(parsed));
+    this.currentClientConfig = parsed;
+    return parsed;
+  }
+
+  /**
+   * Returns public client configuration for Android devices. Contains NO private secrets.
+   */
+  async getClientConfig(): Promise<FirebaseClientConfig | null> {
+    if (this.currentClientConfig) {
+      return this.currentClientConfig;
+    }
+    await this.tryResolveClientConfig();
+    return this.currentClientConfig || null;
+  }
+
+  /**
+   * Saves service account JSON to PostgreSQL system_settings and dynamically activates it live.
+   * Optionally accepts clientConfigJson as well.
+   */
+  async configureFirebase(serviceAccountJson: string, clientConfigJson?: string): Promise<{ success: boolean; projectId: string; clientEmail: string; clientConfig?: FirebaseClientConfig | null }> {
     const raw = typeof serviceAccountJson === 'string' ? JSON.parse(serviceAccountJson) : serviceAccountJson;
     const sanitized = this.sanitizeServiceAccount(raw);
 
     const result = await this.initFirebaseWithJson(sanitized, 'database');
     await systemSettingsRepo.set('firebase_service_account_json', JSON.stringify(sanitized));
-    return result;
+
+    if (clientConfigJson && clientConfigJson.trim()) {
+      try {
+        await this.configureClientConfig(clientConfigJson);
+      } catch (err: any) {
+        console.warn('[NotificationService] Client config save warning:', err.message);
+      }
+    }
+
+    return {
+      ...result,
+      clientConfig: this.currentClientConfig
+    };
   }
 
   /**
@@ -166,8 +312,10 @@ export class NotificationService {
     this.currentProjectId = undefined;
     this.currentClientEmail = undefined;
     this.credentialSource = 'none';
+    this.currentClientConfig = null;
 
     await systemSettingsRepo.set('firebase_service_account_json', '');
+    await systemSettingsRepo.set('firebase_client_config', '');
     console.log('[NotificationService] Firebase configuration removed.');
   }
 
@@ -179,6 +327,8 @@ export class NotificationService {
     projectId?: string;
     clientEmail?: string;
     source: 'database' | 'env' | 'none';
+    clientConfigured: boolean;
+    clientConfig?: { projectId: string; appId: string; gcmSenderId: string };
     activeDevicesCount: number;
   }> {
     if (!this.fcmInitialized) {
@@ -193,11 +343,19 @@ export class NotificationService {
       activeDevicesCount = 0;
     }
 
+    const clientConfig = await this.getClientConfig();
+
     return {
       configured: this.fcmInitialized,
       projectId: this.currentProjectId,
       clientEmail: this.currentClientEmail,
       source: this.credentialSource,
+      clientConfigured: !!clientConfig,
+      clientConfig: clientConfig ? {
+        projectId: clientConfig.projectId,
+        appId: clientConfig.appId,
+        gcmSenderId: clientConfig.gcmSenderId
+      } : undefined,
       activeDevicesCount
     };
   }
@@ -326,7 +484,7 @@ export class NotificationService {
 
     if (devTokens.length > 0) {
       failureCount += devTokens.length;
-      errors.push(`${devTokens.length} device(s) registered with dev fallback token. To receive push on your physical phone, download google-services.json from your Firebase console and place it in the Android project.`);
+      errors.push(`${devTokens.length} device(s) have not completed the live FCM handshake yet. Open the Vectis Android app on your phone and tap "Sync / Refresh Device Token" in Settings to establish a real-time connection.`);
     }
 
     return { successCount, failureCount, errors };

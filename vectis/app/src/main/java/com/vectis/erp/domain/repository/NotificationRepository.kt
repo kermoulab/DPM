@@ -10,4 +10,5 @@ interface NotificationRepository {
     suspend fun getNotifications(limit: Int = 50): ApiResult<NotificationsListResponse>
     suspend fun markAsRead(id: String): ApiResult<Unit>
     suspend fun markAllAsRead(): ApiResult<Unit>
+    suspend fun getClientConfig(): ApiResult<com.vectis.erp.data.model.FirebaseClientConfigDto?>
 }

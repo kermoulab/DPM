@@ -37,3 +37,17 @@ data class NotificationActionResponse(
     @SerializedName("success") val success: Boolean,
     @SerializedName("message") val message: String?
 )
+
+data class FirebaseClientConfigResponse(
+    @SerializedName("success") val success: Boolean,
+    @SerializedName("configured") val configured: Boolean,
+    @SerializedName("config") val config: FirebaseClientConfigDto?
+)
+
+data class FirebaseClientConfigDto(
+    @SerializedName("projectId") val projectId: String,
+    @SerializedName("gcmSenderId") val gcmSenderId: String,
+    @SerializedName("appId") val appId: String,
+    @SerializedName("apiKey") val apiKey: String
+)
+

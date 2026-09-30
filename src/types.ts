@@ -17,6 +17,12 @@ export interface NotificationConfigStatus {
   projectId?: string;
   clientEmail?: string;
   source: 'database' | 'env' | 'none';
+  clientConfigured?: boolean;
+  clientConfig?: {
+    projectId: string;
+    appId: string;
+    gcmSenderId: string;
+  };
   activeDevicesCount: number;
 }
 
