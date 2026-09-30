@@ -44,10 +44,12 @@ async function startServer() {
       console.error('[DB] Migration error on startup:', migErr);
     }
 
-    // Auto-purge audit logs older than 30 days on startup and every 24 hours
+    // Auto-purge audit logs and notification history older than 30 days on startup and every 24 hours
     auditRepo.purgeOldLogs(30).catch(err => console.error('[Audit] Startup purge failed:', err));
+    notificationService.purgeOldNotifications(30).catch(err => console.error('[Notification] Startup purge failed:', err));
     setInterval(() => {
       auditRepo.purgeOldLogs(30).catch(err => console.error('[Audit] Scheduled purge failed:', err));
+      notificationService.purgeOldNotifications(30).catch(err => console.error('[Notification] Scheduled purge failed:', err));
     }, 24 * 60 * 60 * 1000).unref();
 
     // Periodic subscription and service account expiration notification checks

@@ -4,6 +4,7 @@ import { query } from '../db/connection/pool.js';
 import { inventoryRepo } from '../db/repositories/inventory.repository.js';
 import { inventoryService } from '../services/inventory.service.js';
 import { auditRepo } from '../db/repositories/audit.repository.js';
+import { notificationService } from '../services/notification.service.js';
 import { requireAuth, requireRole, type AuthenticatedRequest } from '../middleware/auth.middleware.js';
 import { validateBody, v } from '../middleware/validation.middleware.js';
 import { maskSecret, encryptCredential } from '../utils/crypto.js';
@@ -119,7 +120,8 @@ inventoryRouter.delete('/accounts/:id', requireAuth, requireRole('manager'), asy
     }
 
     await inventoryRepo.deleteAccount(id);
-    await auditRepo.log(req.user || null, 'DELETE_SERVICE_ACCOUNT', 'service_account', id, {});
+    await auditRepo.log(req.user || null, 'DELETE_SERVICE_ACCOUNT', 'service_account', id, { provider: account.provider, login: account.login });
+    notificationService.notifyServiceAccountDeleted(account).catch(err => console.error('[Notification] Account delete error:', err));
     res.json({ success: true, message: 'Account deleted.' });
   } catch (err) {
     next(err);

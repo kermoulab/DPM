@@ -79,8 +79,19 @@ fun VectisNavGraph(
             !orderId.isNullOrBlank() -> {
                 navController.navigate(Screen.OrderDetail.createRoute(orderId))
             }
-            entityType == "service_account" -> {
+            entityType == "service_account" || type?.startsWith("SERVICE_ACCOUNT") == true -> {
                 navController.navigate(Screen.Inventory.route)
+            }
+            entityType == "customer" || type?.startsWith("CUSTOMER") == true -> {
+                val customerId = intent.getStringExtra("deep_link_entity_id")
+                if (!customerId.isNullOrBlank()) {
+                    navController.navigate(Screen.CustomerDetail.createRoute(customerId))
+                } else {
+                    navController.navigate(Screen.Customers.route)
+                }
+            }
+            entityType == "plan" || type?.startsWith("PLAN") == true -> {
+                navController.navigate(Screen.Products.route)
             }
             type == "PASSWORD_CHANGED" || type == "LOGIN_FAILED" -> {
                 navController.navigate(Screen.Settings.route)

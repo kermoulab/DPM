@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { query } from '../db/connection/pool.js';
 import { plansRepo } from '../db/repositories/plans.repository.js';
 import { auditRepo } from '../db/repositories/audit.repository.js';
+import { notificationService } from '../services/notification.service.js';
 import { calculateEndDate } from '../services/order.service.js';
 import { requireAuth, requireRole, type AuthenticatedRequest } from '../middleware/auth.middleware.js';
 import { validateBody, v } from '../middleware/validation.middleware.js';
@@ -115,6 +116,7 @@ plansRouter.delete('/:id', requireAuth, requireRole('admin'), async (req: Authen
 
     await plansRepo.delete(id);
     await auditRepo.log(req.user || null, 'DELETE_PLAN', 'plan', id, { name: plan.name });
+    notificationService.notifyPlanDeleted(plan).catch(err => console.error('[Notification] Plan delete error:', err));
     res.json({ success: true, message: `Plan "${plan.name}" deleted.` });
   } catch (err) {
     next(err);

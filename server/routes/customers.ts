@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { customersRepo } from '../db/repositories/customers.repository.js';
 import { ordersRepo } from '../db/repositories/orders.repository.js';
 import { auditRepo } from '../db/repositories/audit.repository.js';
+import { notificationService } from '../services/notification.service.js';
 import { requireAuth, requireRole, type AuthenticatedRequest } from '../middleware/auth.middleware.js';
 import { validateBody, v } from '../middleware/validation.middleware.js';
 
@@ -94,6 +95,7 @@ customersRouter.delete('/:id', requireAuth, requireRole('admin'), async (req: Au
 
     await customersRepo.delete(id);
     await auditRepo.log(req.user || null, 'DELETE_CUSTOMER', 'customer', id, { name: customer.name });
+    notificationService.notifyCustomerDeleted(customer).catch(err => console.error('[Notification] Customer delete error:', err));
     res.json({ success: true, message: 'Customer deleted successfully.' });
   } catch (err) {
     next(err);

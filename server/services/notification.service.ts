@@ -589,6 +589,112 @@ export class NotificationService {
 
     await this.notifyUser(user.id, payload);
   }
+
+  // ===========================================================================
+  // ENTITY DELETION EVENTS
+  // ===========================================================================
+
+  /**
+   * Dispatches push notification when an order is deleted.
+   * Captured BEFORE the underlying order record is permanently removed.
+   */
+  async notifyOrderDeleted(order: { id: string; order_number?: string; customer_name?: string; product_name?: string }): Promise<void> {
+    const payload: PushPayload = {
+      type: 'ORDER_DELETED',
+      title: 'Order Deleted',
+      message: `Order #${order.order_number || order.id.slice(0, 8)} (${order.product_name || 'Product'}) was deleted.`,
+      entityType: 'order',
+      entityId: order.id,
+      metadata: {
+        orderId: order.id,
+        orderNumber: order.order_number,
+        timestamp: new Date().toISOString()
+      }
+    };
+
+    await this.notifyStaffRoles(['owner', 'admin', 'manager'], payload);
+  }
+
+  /**
+   * Dispatches push notification when a service account is deleted.
+   * Captured BEFORE the underlying account record is permanently removed.
+   */
+  async notifyServiceAccountDeleted(account: { id: string; provider?: string; login?: string; product_name?: string }): Promise<void> {
+    const payload: PushPayload = {
+      type: 'SERVICE_ACCOUNT_DELETED',
+      title: 'Service Account Deleted',
+      message: `${account.provider || 'Service'} account (${account.login || 'account'}) was removed from inventory.`,
+      entityType: 'service_account',
+      entityId: account.id,
+      metadata: {
+        accountId: account.id,
+        provider: account.provider,
+        timestamp: new Date().toISOString()
+      }
+    };
+
+    await this.notifyStaffRoles(['owner', 'admin', 'manager'], payload);
+  }
+
+  /**
+   * Dispatches push notification when a plan is deleted.
+   */
+  async notifyPlanDeleted(plan: { id: string; name: string; product_name?: string }): Promise<void> {
+    const payload: PushPayload = {
+      type: 'PLAN_DELETED',
+      title: 'Plan Deleted',
+      message: `Subscription plan "${plan.name}" was removed.`,
+      entityType: 'plan',
+      entityId: plan.id,
+      metadata: {
+        planId: plan.id,
+        planName: plan.name,
+        timestamp: new Date().toISOString()
+      }
+    };
+
+    await this.notifyStaffRoles(['owner', 'admin', 'manager'], payload);
+  }
+
+  /**
+   * Dispatches push notification when a customer is deleted.
+   */
+  async notifyCustomerDeleted(customer: { id: string; name: string }): Promise<void> {
+    const payload: PushPayload = {
+      type: 'CUSTOMER_DELETED',
+      title: 'Customer Deleted',
+      message: `Customer "${customer.name}" was removed from the system.`,
+      entityType: 'customer',
+      entityId: customer.id,
+      metadata: {
+        customerId: customer.id,
+        customerName: customer.name,
+        timestamp: new Date().toISOString()
+      }
+    };
+
+    await this.notifyStaffRoles(['owner', 'admin', 'manager'], payload);
+  }
+
+  /**
+   * Purges notification history older than retentionDays (default: 30 days).
+   */
+  async purgeOldNotifications(retentionDays = 30): Promise<number> {
+    const res = await query<{ count: string }>(
+      `WITH deleted AS (
+         DELETE FROM notifications
+         WHERE created_at < NOW() - INTERVAL '1 day' * $1
+         RETURNING id
+       ) SELECT COUNT(*)::text as count FROM deleted`,
+      [retentionDays]
+    );
+    const count = parseInt(res.rows[0]?.count || '0', 10);
+    if (count > 0) {
+      console.log(`[NotificationService] Purged ${count} notifications older than ${retentionDays} days.`);
+    }
+    return count;
+  }
 }
 
 export const notificationService = new NotificationService();
+

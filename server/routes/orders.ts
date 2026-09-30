@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { ordersRepo } from '../db/repositories/orders.repository.js';
 import { orderService } from '../services/order.service.js';
 import { auditRepo } from '../db/repositories/audit.repository.js';
+import { notificationService } from '../services/notification.service.js';
 import { requireAuth, requireRole, type AuthenticatedRequest } from '../middleware/auth.middleware.js';
 import { validateBody, v } from '../middleware/validation.middleware.js';
 
@@ -118,10 +119,15 @@ ordersRouter.put('/:id', requireAuth, requireRole('manager'), async (req: Authen
 ordersRouter.delete('/:id', requireAuth, requireRole('admin'), async (req: AuthenticatedRequest, res, next) => {
   try {
     const { id } = req.params;
+    const existingOrder = await ordersRepo.findById(id);
     await ordersRepo.delete(id);
-    await auditRepo.log(req.user || null, 'DELETE_ORDER', 'order', id, {});
+    await auditRepo.log(req.user || null, 'DELETE_ORDER', 'order', id, { order_number: existingOrder?.order_number });
+    if (existingOrder) {
+      notificationService.notifyOrderDeleted(existingOrder).catch(err => console.error('[Notification] Order delete error:', err));
+    }
     res.json({ success: true, message: 'Order deleted.' });
   } catch (err) {
     next(err);
   }
 });
+
