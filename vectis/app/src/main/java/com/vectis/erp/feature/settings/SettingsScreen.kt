@@ -1,6 +1,8 @@
 package com.vectis.erp.feature.settings
 
+import android.content.Intent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -723,6 +725,10 @@ private fun GeneralSettingsTab(
 
     Spacer(modifier = Modifier.height(16.dp))
 
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var areNotificationsEnabled by remember {
+        mutableStateOf(androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled())
+    }
     var isSyncingPush by remember { mutableStateOf(false) }
     var pushSyncMessage by remember { mutableStateOf<String?>(null) }
     var isPushSuccess by remember { mutableStateOf(false) }
@@ -809,6 +815,29 @@ private fun GeneralSettingsTab(
                 }
             }
 
+            if (!areNotificationsEnabled) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Surface(
+                    color = StatusWarning.copy(alpha = 0.12f),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth().clickable {
+                        val intent = Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                            putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
+                        }
+                        context.startActivity(intent)
+                    }
+                ) {
+                    Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.NotificationsOff, contentDescription = null, tint = StatusWarning, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Notifications disabled in Android Settings", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Slate900)
+                            Text("Tap here to allow notifications in System Settings", fontSize = 10.sp, color = Slate600)
+                        }
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(12.dp))
 
             // Sync / Register Token Button
@@ -819,6 +848,7 @@ private fun GeneralSettingsTab(
                 onClick = {
                     isSyncingPush = true
                     pushSyncMessage = null
+                    areNotificationsEnabled = androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled()
                     val app = VectisApplication.instance
                     viewModel.syncPushToken(app, app.notificationRepository) { success, msg ->
                         isSyncingPush = false

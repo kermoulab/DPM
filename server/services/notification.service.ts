@@ -337,7 +337,11 @@ export class NotificationService {
 
     let activeDevicesCount = 0;
     try {
-      const countRes = await query<{ count: string }>('SELECT COUNT(*)::text as count FROM push_tokens WHERE is_active = TRUE');
+      const countRes = await query<{ count: string }>(
+        `SELECT COUNT(DISTINCT COALESCE(device_id, token))::text as count
+         FROM push_tokens
+         WHERE is_active = TRUE AND token NOT LIKE 'dev-token-%'`
+      );
       activeDevicesCount = parseInt(countRes.rows[0]?.count || '0', 10);
     } catch {
       activeDevicesCount = 0;
@@ -448,6 +452,9 @@ export class NotificationService {
             body: payload.message
           },
           data: {
+            title: payload.title,
+            message: payload.message,
+            body: payload.message,
             type: payload.type,
             entityType: payload.entityType || '',
             entityId: payload.entityId || '',
@@ -457,7 +464,11 @@ export class NotificationService {
             priority: 'high' as const,
             notification: {
               channelId: 'vectis_subscription_alerts',
-              sound: 'default'
+              sound: 'default',
+              defaultSound: true,
+              defaultVibrateTimings: true,
+              notificationPriority: 'PRIORITY_MAX' as any,
+              visibility: 'PUBLIC' as any
             }
           }
         };

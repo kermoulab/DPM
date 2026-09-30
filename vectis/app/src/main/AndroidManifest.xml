@@ -34,6 +34,14 @@
             </intent-filter>
         </activity>
 
+        <!-- Default notification channel and icon for FCM background dispatch -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="vectis_subscription_alerts" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@android:drawable/ic_dialog_alert" />
+
         <!-- Firebase Cloud Messaging Push Service -->
         <service
             android:name=".core.notification.VectisFirebaseMessagingService"

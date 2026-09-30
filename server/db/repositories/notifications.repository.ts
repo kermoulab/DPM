@@ -57,6 +57,26 @@ export class NotificationsRepository {
       RETURNING *
     `;
 
+    // 1. Deactivate any previous token for the same deviceId
+    if (deviceId) {
+      await query(
+        `UPDATE push_tokens
+         SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP
+         WHERE user_id = $1 AND device_id = $2 AND token != $3`,
+        [userId, deviceId, cleanToken]
+      );
+    }
+
+    // 2. If registering a genuine FCM token, deactivate any old dev fallback tokens for this user
+    if (!cleanToken.startsWith('dev-token-')) {
+      await query(
+        `UPDATE push_tokens
+         SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP
+         WHERE user_id = $1 AND token LIKE 'dev-token-%'`,
+        [userId]
+      );
+    }
+
     const res = await query<PushTokenRow>(sql, [
       id,
       userId,
