@@ -24,6 +24,12 @@ notificationsRouter.post(
         app_version
       );
 
+      // Asynchronously trigger expiration checks so newly registered/synced devices immediately receive any pending alerts
+      setImmediate(() => {
+        notificationService.checkExpiringOrders().catch(err => console.error('[Notifications] Auto-check orders error:', err));
+        notificationService.checkExpiringServiceAccounts().catch(err => console.error('[Notifications] Auto-check accounts error:', err));
+      });
+
       res.json({
         success: true,
         message: 'Push device token registered successfully.',

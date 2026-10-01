@@ -251,6 +251,15 @@ export const systemApi = {
       method: 'POST'
     });
   },
+  runExpirationCheck() {
+    return request<{
+      success: boolean;
+      orders: { processed: number; notificationsSent: number };
+      serviceAccounts: { processed: number; notificationsSent: number };
+    }>('/api/notifications/check-expirations', {
+      method: 'POST'
+    });
+  },
 
   // Search
   search(q: string) {

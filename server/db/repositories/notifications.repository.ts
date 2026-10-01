@@ -143,6 +143,30 @@ export class NotificationsRepository {
   }
 
   /**
+   * Finds an existing notification by user and dedupKey.
+   */
+  async findByDedupKey(userId: string, dedupKey: string): Promise<NotificationRow | null> {
+    const res = await query<NotificationRow>(
+      `SELECT * FROM notifications WHERE user_id = $1 AND dedup_key = $2 LIMIT 1`,
+      [userId, dedupKey]
+    );
+    return res.rows[0] || null;
+  }
+
+  /**
+   * Marks a notification as having been successfully dispatched to push devices.
+   */
+  async markPushDispatched(notificationId: string): Promise<void> {
+    await query(
+      `UPDATE notifications
+       SET metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), '{push_dispatched}', 'true'::jsonb),
+           sent_at = CURRENT_TIMESTAMP
+       WHERE id = $1`,
+      [notificationId]
+    );
+  }
+
+  /**
    * Records a notification in the ledger, with duplicate prevention using dedupKey.
    * Returns null if a notification with the same dedupKey has already been sent to this user.
    */
@@ -157,11 +181,8 @@ export class NotificationsRepository {
     metadata: any = {}
   ): Promise<NotificationRow | null> {
     if (dedupKey) {
-      const existing = await query<NotificationRow>(
-        `SELECT id FROM notifications WHERE user_id = $1 AND dedup_key = $2 LIMIT 1`,
-        [userId, dedupKey]
-      );
-      if (existing.rows.length > 0) {
+      const existing = await this.findByDedupKey(userId, dedupKey);
+      if (existing) {
         return null; // Duplicate prevented!
       }
     }

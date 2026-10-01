@@ -512,18 +512,29 @@ export class NotificationService {
     payload: PushPayload,
     dedupKey?: string
   ): Promise<NotificationRow | null> {
-    const record = await notificationsRepo.createNotification(
-      userId,
-      payload.type,
-      payload.title,
-      payload.message,
-      payload.entityType,
-      payload.entityId,
-      dedupKey,
-      payload.metadata
-    );
+    let existing: NotificationRow | null = null;
+    if (dedupKey) {
+      existing = await notificationsRepo.findByDedupKey(userId, dedupKey);
+      // If already recorded AND push was already successfully dispatched, skip (no duplicate push)
+      if (existing && existing.metadata?.push_dispatched === true) {
+        return null;
+      }
+    }
 
-    // If duplicate was prevented, record is null
+    let record = existing;
+    if (!record) {
+      record = await notificationsRepo.createNotification(
+        userId,
+        payload.type,
+        payload.title,
+        payload.message,
+        payload.entityType,
+        payload.entityId,
+        dedupKey,
+        payload.metadata
+      );
+    }
+
     if (!record) {
       return null;
     }
@@ -531,7 +542,10 @@ export class NotificationService {
     // Send push to all active devices of this user
     const tokens = await notificationsRepo.getActiveTokensForUser(userId);
     if (tokens.length > 0) {
-      await this.sendPushToTokens(tokens, payload);
+      const pushRes = await this.sendPushToTokens(tokens, payload);
+      if (pushRes.successCount > 0) {
+        await notificationsRepo.markPushDispatched(record.id);
+      }
     }
 
     return record;
@@ -570,7 +584,7 @@ export class NotificationService {
   async checkExpiringOrders(): Promise<{ processed: number; notificationsSent: number }> {
     await ordersRepo.reconcileSubscriptionStatuses();
 
-    // 1. Fetch active, expiring, or expired orders within notification horizons
+    // 1. Fetch active, expiring, or expired orders within notification horizons (up to 30 days expired)
     const ordersRes = await query<any>(`
       SELECT o.id, o.order_number, o.status, o.end_date::text as end_date,
              o.created_by_user_id,
@@ -581,7 +595,7 @@ export class NotificationService {
       JOIN products p ON p.id = o.product_id
       JOIN customers c ON c.id = o.customer_id
       WHERE o.status IN ('active', 'expiring', 'expired')
-        AND o.end_date >= (((CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date) - 2)
+        AND o.end_date >= (((CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date) - 30)
         AND o.end_date <= (((CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date) + 7)
     `);
 
@@ -610,7 +624,7 @@ export class NotificationService {
         type = 'ORDER_EXPIRING';
         title = 'Subscription Expiring Tomorrow';
         message = `Order #${order.order_number} (${order.product_name}) for customer ${order.customer_name} expires tomorrow!`;
-      } else if (days <= 0 && order.status === 'expired') {
+      } else if (days <= 0) {
         thresholdKey = 'expired';
         type = 'ORDER_EXPIRED';
         title = 'Subscription Expired';
@@ -633,7 +647,15 @@ export class NotificationService {
         };
 
         const dedupPrefix = `order:${order.id}:${thresholdKey}`;
-        const sent = await this.notifyStaffRoles(staffRoles, payload, dedupPrefix);
+        let sent = await this.notifyStaffRoles(staffRoles, payload, dedupPrefix);
+
+        // Also notify the order creator if assigned and not already covered by staff roles
+        if (order.created_by_user_id) {
+          const creatorDedupKey = `${dedupPrefix}:user-${order.created_by_user_id}`;
+          const creatorResult = await this.notifyUser(order.created_by_user_id, payload, creatorDedupKey);
+          if (creatorResult) sent++;
+        }
+
         sentCount += sent;
       }
     }
@@ -653,7 +675,7 @@ export class NotificationService {
       JOIN products p ON p.id = sa.product_id
       WHERE sa.status IN ('active', 'suspended')
         AND sa.expiry_date IS NOT NULL
-        AND sa.expiry_date >= (((CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date) - 2)
+        AND sa.expiry_date >= (((CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date) - 30)
         AND sa.expiry_date <= (((CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date) + 7)
     `);
 

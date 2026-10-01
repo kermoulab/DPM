@@ -148,6 +148,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [testConnResult, setTestConnResult] = React.useState<{ success: boolean; message: string; projectId?: string } | null>(null);
   const [testPushLoading, setTestPushLoading] = React.useState(false);
   const [testPushResult, setTestPushResult] = React.useState<{ success: boolean; message: string; count?: number } | null>(null);
+  const [runExpLoading, setRunExpLoading] = React.useState(false);
+  const [runExpResult, setRunExpResult] = React.useState<{ success: boolean; message: string } | null>(null);
   const [notifFileType, setNotifFileType] = React.useState<'service_account' | 'client_config'>('service_account');
   const notifFileInputRef = React.useRef<HTMLInputElement | null>(null);
 
@@ -296,6 +298,24 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       setTestPushResult({ success: false, message: err.message || 'Failed to dispatch test notification.' });
     } finally {
       setTestPushLoading(false);
+    }
+  };
+
+  const handleRunExpirationCheck = async () => {
+    setRunExpLoading(true);
+    setRunExpResult(null);
+    try {
+      const res = await api.runExpirationCheck();
+      const orderNotifs = res.orders?.notificationsSent ?? 0;
+      const saNotifs = res.serviceAccounts?.notificationsSent ?? 0;
+      const totalSent = orderNotifs + saNotifs;
+      const msg = `Checked ${res.orders?.processed ?? 0} order(s) and ${res.serviceAccounts?.processed ?? 0} account(s). Dispatched ${totalSent} push notification(s) to active devices.`;
+      setRunExpResult({ success: true, message: msg });
+      setToastMessage(msg);
+    } catch (err: any) {
+      setRunExpResult({ success: false, message: err.message || 'Failed to execute expiration check.' });
+    } finally {
+      setRunExpLoading(false);
     }
   };
 
@@ -1341,6 +1361,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 {testPushLoading ? <Loader2 size={13} className="animate-spin text-white" /> : <Send size={13} />}
                 <span>Send Test Push to My Device</span>
               </button>
+
+              <button
+                type="button"
+                onClick={handleRunExpirationCheck}
+                disabled={runExpLoading || !notifConfig?.configured}
+                className="px-4 py-2 rounded-xl border border-blue-200 bg-blue-50/70 hover:bg-blue-100/70 text-blue-700 text-xs font-semibold flex items-center gap-1.5 transition disabled:opacity-50 shadow-2xs"
+              >
+                {runExpLoading ? <Loader2 size={13} className="animate-spin text-blue-600" /> : <Bell size={13} />}
+                <span>Run Expiration & Alert Check Now</span>
+              </button>
             </div>
 
             {/* Test Connection Result */}
@@ -1360,6 +1390,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               }`}>
                 {testPushResult.success ? <CheckCircle2 size={15} className="text-emerald-600 shrink-0" /> : <AlertCircle size={15} className="text-amber-600 shrink-0" />}
                 <span>{testPushResult.message}</span>
+              </div>
+            )}
+
+            {/* Expiration Check Result */}
+            {runExpResult && (
+              <div className={`p-3.5 rounded-xl border text-xs font-medium flex items-center gap-2.5 animate-in fade-in ${
+                runExpResult.success ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-red-50 border-red-200 text-red-700'
+              }`}>
+                {runExpResult.success ? <CheckCircle2 size={15} className="text-emerald-600 shrink-0" /> : <AlertCircle size={15} className="text-red-600 shrink-0" />}
+                <span>{runExpResult.message}</span>
               </div>
             )}
           </div>
