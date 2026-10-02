@@ -69,6 +69,11 @@ ordersRouter.post('/', requireAuth, requireRole('agent'), validateBody({
     });
 
     await auditRepo.log(req.user || null, 'CREATE_ORDER', 'order', order.id, { order_number: order.order_number });
+    notificationService.notifyOrderCreated(order).catch(err => console.error('[Notification] Order create error:', err));
+    setImmediate(() => {
+      notificationService.checkExpiringOrders().catch(err => console.error('[Notification] Expiration check error:', err));
+    });
+
     res.status(201).json({ success: true, order });
   } catch (err) {
     next(err);
@@ -81,6 +86,13 @@ ordersRouter.post('/:id/renew', requireAuth, requireRole('agent'), async (req: A
     const { id } = req.params;
     const { custom_price, notes } = req.body;
     const result = await orderService.renewOrder(id, custom_price, notes, req.user);
+    if (result && result.order) {
+      notificationService.notifyOrderRenewed(result.order).catch(err => console.error('[Notification] Order renew error:', err));
+    }
+    setImmediate(() => {
+      notificationService.checkExpiringOrders().catch(err => console.error('[Notification] Expiration check error:', err));
+    });
+
     res.json(result);
   } catch (err) {
     next(err);
@@ -92,7 +104,12 @@ ordersRouter.post('/:id/cancel', requireAuth, requireRole('manager'), async (req
   try {
     const { id } = req.params;
     const { reason } = req.body;
+    const existingOrder = await ordersRepo.findById(id);
     await orderService.cancelOrder(id, reason, req.user);
+    if (existingOrder) {
+      notificationService.notifyOrderCancelled(existingOrder).catch(err => console.error('[Notification] Order cancel error:', err));
+    }
+
     res.json({ success: true, message: 'Order cancelled and allocated inventory restored to available.' });
   } catch (err) {
     next(err);
@@ -109,6 +126,10 @@ ordersRouter.put('/:id', requireAuth, requireRole('manager'), async (req: Authen
       return;
     }
     await auditRepo.log(req.user || null, 'UPDATE_ORDER', 'order', id, req.body);
+    setImmediate(() => {
+      notificationService.checkExpiringOrders().catch(err => console.error('[Notification] Expiration check error:', err));
+    });
+
     res.json({ success: true, order: updated, message: 'Order updated.' });
   } catch (err) {
     next(err);

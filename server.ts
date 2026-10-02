@@ -61,8 +61,8 @@ async function startServer() {
         console.error('[NotificationEngine] Expiration check error:', err);
       }
     };
-    setTimeout(runExpirationCheck, 60 * 1000).unref();
-    setInterval(runExpirationCheck, 60 * 60 * 1000).unref();
+    setTimeout(runExpirationCheck, 3 * 1000).unref();
+    setInterval(runExpirationCheck, 2 * 60 * 1000).unref();
   }
 
   // Middleware

@@ -2,12 +2,19 @@ import { Router } from 'express';
 import { query } from '../db/connection/pool.js';
 import { ordersRepo } from '../db/repositories/orders.repository.js';
 import { requireAuth } from '../middleware/auth.middleware.js';
+import { notificationService } from '../services/notification.service.js';
 
 export const alertsRouter = Router();
 
 alertsRouter.get('/', requireAuth, async (req, res, next) => {
   try {
     await ordersRepo.reconcileSubscriptionStatuses();
+
+    // Asynchronously dispatch any pending expiring or expired push alerts
+    setImmediate(() => {
+      notificationService.checkExpiringOrders().catch(err => console.error('[Alerts] Expiration check error:', err));
+      notificationService.checkExpiringServiceAccounts().catch(err => console.error('[Alerts] Service accounts check error:', err));
+    });
 
     // 1. Orders expiring in <= 7 days
     const expiringOrdersRes = await query<any>(

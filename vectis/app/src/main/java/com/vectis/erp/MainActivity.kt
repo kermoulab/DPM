@@ -36,6 +36,9 @@ class MainActivity : ComponentActivity() {
         // Prompt user for notification permission on Android 13+ (API 33+)
         checkAndRequestNotificationPermission()
 
+        // Automatically synchronize push token on launch with zero user interaction
+        app.syncPushTokenAutomatically()
+
         setContent {
             VectisTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
@@ -46,6 +49,11 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        (application as VectisApplication).syncPushTokenAutomatically()
     }
 
     private fun checkAndRequestNotificationPermission() {

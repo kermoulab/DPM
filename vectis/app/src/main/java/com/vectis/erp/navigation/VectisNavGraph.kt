@@ -100,46 +100,7 @@ fun VectisNavGraph(
     }
 
     val syncPushTokenWithServer: () -> Unit = {
-        if (secureStorage.isAuthenticated()) {
-            CoroutineScope(Dispatchers.IO).launch {
-                try {
-                    // 1. Fetch dynamic client config from server
-                    val clientConfigResult = app.notificationRepository.getClientConfig()
-                    if (clientConfigResult is com.vectis.erp.core.network.ApiResult.Success && clientConfigResult.data != null) {
-                        val configured = com.vectis.erp.core.notification.NotificationHelper.configureFirebaseAtRuntime(context, clientConfigResult.data)
-                        if (configured) {
-                            try {
-                                com.google.firebase.messaging.FirebaseMessaging.getInstance().deleteToken()
-                            } catch (_: Exception) {}
-                        }
-                    }
-
-                    // 2. Request genuine FCM token
-                    com.google.firebase.messaging.FirebaseMessaging.getInstance().token
-                        .addOnSuccessListener { token ->
-                            if (!token.isNullOrBlank()) {
-                                secureStorage.setPushToken(token)
-                                CoroutineScope(Dispatchers.IO).launch {
-                                    app.notificationRepository.registerPushToken(token, secureStorage.getDeviceId())
-                                }
-                            }
-                        }
-                        .addOnFailureListener {
-                            val fallback = secureStorage.getPushToken() ?: "dev-token-${secureStorage.getDeviceId() ?: System.currentTimeMillis()}"
-                            secureStorage.setPushToken(fallback)
-                            CoroutineScope(Dispatchers.IO).launch {
-                                app.notificationRepository.registerPushToken(fallback, secureStorage.getDeviceId())
-                            }
-                        }
-                } catch (_: Exception) {
-                    val fallback = secureStorage.getPushToken() ?: "dev-token-${secureStorage.getDeviceId() ?: System.currentTimeMillis()}"
-                    secureStorage.setPushToken(fallback)
-                    CoroutineScope(Dispatchers.IO).launch {
-                        app.notificationRepository.registerPushToken(fallback, secureStorage.getDeviceId())
-                    }
-                }
-            }
-        }
+        app.syncPushTokenAutomatically()
     }
 
     // Register Push Token on launch if already authenticated

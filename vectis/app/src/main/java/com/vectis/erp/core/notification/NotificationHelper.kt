@@ -129,7 +129,7 @@ object NotificationHelper {
                 if (defaultApp.options.applicationId == config.appId &&
                     defaultApp.options.projectId == config.projectId &&
                     defaultApp.options.apiKey == config.apiKey) {
-                    return true
+                    return false
                 }
                 defaultApp.delete()
             }

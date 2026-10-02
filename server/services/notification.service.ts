@@ -555,7 +555,7 @@ export class NotificationService {
    * Dispatches a notification to all active staff members with specified roles.
    */
   async notifyStaffRoles(
-    roles: string[],
+    roles: string[] = ['owner', 'admin', 'manager', 'agent'],
     payload: PushPayload,
     dedupPrefix?: string
   ): Promise<number> {
@@ -600,7 +600,7 @@ export class NotificationService {
     `);
 
     let sentCount = 0;
-    const staffRoles = ['owner', 'admin', 'manager'];
+    const staffRoles = ['owner', 'admin', 'manager', 'agent'];
 
     for (const order of ordersRes.rows) {
       const days = order.days_remaining;
@@ -680,7 +680,7 @@ export class NotificationService {
     `);
 
     let sentCount = 0;
-    const staffRoles = ['owner', 'admin', 'manager'];
+    const staffRoles = ['owner', 'admin', 'manager', 'agent'];
 
     for (const sa of accountsRes.rows) {
       const days = sa.days_remaining;
@@ -782,6 +782,71 @@ export class NotificationService {
   }
 
   // ===========================================================================
+  // REAL-TIME ORDER & ENTITY LIFECYCLE EVENTS
+  // ===========================================================================
+
+  /**
+   * Dispatches instant push notification to all paired devices when a new order is created.
+   */
+  async notifyOrderCreated(order: { id: string; order_number?: string; customer_name?: string; product_name?: string }): Promise<void> {
+    const payload: PushPayload = {
+      type: 'ORDER_CREATED',
+      title: 'New Order Created',
+      message: `Order #${order.order_number || order.id.slice(0, 8)} (${order.product_name || 'Product'}) has been created.`,
+      entityType: 'order',
+      entityId: order.id,
+      metadata: {
+        orderId: order.id,
+        orderNumber: order.order_number,
+        timestamp: new Date().toISOString()
+      }
+    };
+
+    await this.notifyStaffRoles(['owner', 'admin', 'manager', 'agent'], payload);
+  }
+
+  /**
+   * Dispatches instant push notification when an order subscription is renewed.
+   */
+  async notifyOrderRenewed(order: { id: string; order_number?: string; customer_name?: string; product_name?: string; end_date?: string }): Promise<void> {
+    const payload: PushPayload = {
+      type: 'ORDER_RENEWED',
+      title: 'Subscription Renewed',
+      message: `Order #${order.order_number || order.id.slice(0, 8)} (${order.product_name || 'Product'}) was renewed.`,
+      entityType: 'order',
+      entityId: order.id,
+      metadata: {
+        orderId: order.id,
+        orderNumber: order.order_number,
+        endDate: order.end_date,
+        timestamp: new Date().toISOString()
+      }
+    };
+
+    await this.notifyStaffRoles(['owner', 'admin', 'manager', 'agent'], payload);
+  }
+
+  /**
+   * Dispatches instant push notification when an order is cancelled.
+   */
+  async notifyOrderCancelled(order: { id: string; order_number?: string; customer_name?: string; product_name?: string }): Promise<void> {
+    const payload: PushPayload = {
+      type: 'ORDER_CANCELLED',
+      title: 'Order Cancelled',
+      message: `Order #${order.order_number || order.id.slice(0, 8)} (${order.product_name || 'Product'}) was cancelled.`,
+      entityType: 'order',
+      entityId: order.id,
+      metadata: {
+        orderId: order.id,
+        orderNumber: order.order_number,
+        timestamp: new Date().toISOString()
+      }
+    };
+
+    await this.notifyStaffRoles(['owner', 'admin', 'manager', 'agent'], payload);
+  }
+
+  // ===========================================================================
   // ENTITY DELETION EVENTS
   // ===========================================================================
 
@@ -803,7 +868,7 @@ export class NotificationService {
       }
     };
 
-    await this.notifyStaffRoles(['owner', 'admin', 'manager'], payload);
+    await this.notifyStaffRoles(['owner', 'admin', 'manager', 'agent'], payload);
   }
 
   /**
@@ -824,7 +889,7 @@ export class NotificationService {
       }
     };
 
-    await this.notifyStaffRoles(['owner', 'admin', 'manager'], payload);
+    await this.notifyStaffRoles(['owner', 'admin', 'manager', 'agent'], payload);
   }
 
   /**
@@ -844,7 +909,7 @@ export class NotificationService {
       }
     };
 
-    await this.notifyStaffRoles(['owner', 'admin', 'manager'], payload);
+    await this.notifyStaffRoles(['owner', 'admin', 'manager', 'agent'], payload);
   }
 
   /**
