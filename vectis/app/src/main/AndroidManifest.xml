@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:installLocation="auto">
 
     <!-- Network permissions for ERP REST API access -->
@@ -33,6 +34,18 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!--
+            Multi-tenant: disable Firebase auto-initialization.
+            Firebase is initialized at runtime only after fetching the tenant's
+            real client config from their ERP server (GET /api/notifications/client-config).
+            The placeholder google-services.json values are therefore never used.
+        -->
+        <provider
+            android:name="com.google.firebase.provider.FirebaseInitProvider"
+            android:authorities="${applicationId}.firebaseinitprovider"
+            android:exported="false"
+            tools:node="remove" />
 
         <!-- Default notification channel and icon for FCM background dispatch -->
         <meta-data
