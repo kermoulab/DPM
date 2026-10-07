@@ -52,11 +52,12 @@ async function startServer() {
       notificationService.purgeOldNotifications(30).catch(err => console.error('[Notification] Scheduled purge failed:', err));
     }, 24 * 60 * 60 * 1000).unref();
 
-    // Periodic subscription and service account expiration notification checks
+    // Periodic subscription, service account, and license inventory expiration notification checks
     const runExpirationCheck = async () => {
       try {
         await notificationService.checkExpiringOrders();
         await notificationService.checkExpiringServiceAccounts();
+        await notificationService.checkExpiringLicenseKeys();
       } catch (err) {
         console.error('[NotificationEngine] Expiration check error:', err);
       }

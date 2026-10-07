@@ -481,6 +481,12 @@ export class NotificationService {
           if (!resp.success && resp.error) {
             console.error(`[NotificationService] FCM delivery error for token ${realTokens[idx]?.slice(0, 10)}...:`, resp.error.code, resp.error.message);
             errors.push(`${resp.error.code}: ${resp.error.message}`);
+            // Automatically deactivate stale or unregistered tokens
+            if (resp.error.code === 'messaging/registration-token-not-registered' ||
+                resp.error.code === 'messaging/invalid-registration-token') {
+              query(`UPDATE push_tokens SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP WHERE token = $1`, [realTokens[idx]])
+                .catch(() => {});
+            }
           }
         });
       } catch (err: any) {
@@ -488,14 +494,14 @@ export class NotificationService {
         failureCount = realTokens.length;
         errors.push(err.message || 'FCM multicast error');
       }
-    } else if (!this.fcmMessaging && realTokens.length > 0) {
-      // Graceful simulated dispatch when FCM credentials not configured
-      successCount = realTokens.length;
+    } else if (!this.fcmMessaging) {
+      // Do not mark push_dispatched=true when FCM is not configured!
+      errors.push('Firebase Cloud Messaging is not configured on this server.');
     }
 
     if (devTokens.length > 0) {
       failureCount += devTokens.length;
-      errors.push(`${devTokens.length} device(s) have not completed the live FCM handshake yet. Open the Vectis Android app on your phone and tap "Sync / Refresh Device Token" in Settings to establish a real-time connection.`);
+      errors.push(`${devTokens.length} device(s) have not completed the live FCM handshake yet.`);
     }
 
     return { successCount, failureCount, errors };
@@ -503,17 +509,18 @@ export class NotificationService {
 
   /**
    * Dispatches a notification to a specific user:
-   * 1. Records notification in the ledger (preventing duplicates if dedupKey provided)
+   * 1. Records notification in the ledger (preventing duplicates if dedupKey provided and not force)
    * 2. Fetches user's active push tokens across all their devices
-   * 3. Sends push via FCM
+   * 3. Sends push via FCM to all paired devices
    */
   async notifyUser(
     userId: string,
     payload: PushPayload,
-    dedupKey?: string
+    dedupKey?: string,
+    forcePush: boolean = false
   ): Promise<NotificationRow | null> {
     let existing: NotificationRow | null = null;
-    if (dedupKey) {
+    if (dedupKey && !forcePush) {
       existing = await notificationsRepo.findByDedupKey(userId, dedupKey);
       // If already recorded AND push was already successfully dispatched, skip (no duplicate push)
       if (existing && existing.metadata?.push_dispatched === true) {
@@ -587,7 +594,8 @@ export class NotificationService {
   async notifyStaffRoles(
     roles: string[] = ['owner', 'admin', 'manager', 'agent'],
     payload: PushPayload,
-    dedupPrefix?: string
+    dedupPrefix?: string,
+    forcePush: boolean = false
   ): Promise<number> {
     const res = await query<{ id: string }>(
       `SELECT id FROM users WHERE role = ANY($1) AND status = 'active'`,
@@ -597,7 +605,7 @@ export class NotificationService {
     let sent = 0;
     for (const u of res.rows) {
       const dedupKey = dedupPrefix ? `${dedupPrefix}:user-${u.id}` : undefined;
-      const result = await this.notifyUser(u.id, payload, dedupKey);
+      const result = await this.notifyUser(u.id, payload, dedupKey, forcePush);
       if (result) sent++;
     }
     return sent;
@@ -608,25 +616,30 @@ export class NotificationService {
   // ===========================================================================
 
   /**
-   * Evaluates orders approaching expiration or recently expired.
-   * Enforces duplicate prevention across 7-day, 3-day, 1-day, and expired thresholds.
+   * Evaluates orders approaching expiration or expired.
+   * Dispatches push alerts to staff and order creator.
    */
-  async checkExpiringOrders(): Promise<{ processed: number; notificationsSent: number }> {
+  async checkExpiringOrders(force: boolean = false): Promise<{ processed: number; notificationsSent: number }> {
     await ordersRepo.reconcileSubscriptionStatuses();
 
-    // 1. Fetch active, expiring, or expired orders within notification horizons (up to 30 days expired)
+    // Fetch active, expiring, or expired orders within notification horizons
     const ordersRes = await query<any>(`
       SELECT o.id, o.order_number, o.status, o.end_date::text as end_date,
              o.created_by_user_id,
-             p.name as product_name,
-             c.name as customer_name,
+             COALESCE(p.name, 'Product') as product_name,
+             COALESCE(pl.name, 'Plan') as plan_name,
+             COALESCE(c.name, 'Customer') as customer_name,
              (o.end_date - ((CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date))::int as days_remaining
       FROM orders o
-      JOIN products p ON p.id = o.product_id
-      JOIN customers c ON c.id = o.customer_id
-      WHERE o.status IN ('active', 'expiring', 'expired')
-        AND o.end_date >= (((CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date) - 30)
-        AND o.end_date <= (((CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date) + 7)
+      LEFT JOIN products p ON p.id = o.product_id
+      LEFT JOIN plans pl ON pl.id = o.plan_id
+      LEFT JOIN customers c ON c.id = o.customer_id
+      WHERE (
+        o.status = 'expired'
+        OR (o.status IN ('active', 'expiring') AND o.end_date <= (((CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date) + 7))
+        OR o.end_date < ((CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date)
+      )
+      ORDER BY o.end_date ASC
     `);
 
     let sentCount = 0;
@@ -639,26 +652,21 @@ export class NotificationService {
       let message = '';
       let type = '';
 
-      if (days === 7) {
-        thresholdKey = '7d';
-        type = 'ORDER_EXPIRING';
-        title = 'Subscription Expiring Soon (7 Days)';
-        message = `Order #${order.order_number} (${order.product_name}) for customer ${order.customer_name} expires in 7 days.`;
-      } else if (days === 3) {
-        thresholdKey = '3d';
-        type = 'ORDER_EXPIRING';
-        title = 'Subscription Expiring Soon (3 Days)';
-        message = `Order #${order.order_number} (${order.product_name}) for customer ${order.customer_name} expires in 3 days.`;
+      if (days <= 0) {
+        thresholdKey = 'expired';
+        type = 'ORDER_EXPIRED';
+        title = 'Subscription Expired';
+        message = `Order #${order.order_number} (${order.product_name} - ${order.plan_name}) for customer ${order.customer_name} has expired.`;
       } else if (days === 1) {
         thresholdKey = '1d';
         type = 'ORDER_EXPIRING';
         title = 'Subscription Expiring Tomorrow';
-        message = `Order #${order.order_number} (${order.product_name}) for customer ${order.customer_name} expires tomorrow!`;
-      } else if (days <= 0) {
-        thresholdKey = 'expired';
-        type = 'ORDER_EXPIRED';
-        title = 'Subscription Expired';
-        message = `Order #${order.order_number} (${order.product_name}) for customer ${order.customer_name} has expired.`;
+        message = `Order #${order.order_number} (${order.product_name} - ${order.plan_name}) for customer ${order.customer_name} expires tomorrow!`;
+      } else if (days <= 7) {
+        thresholdKey = `${days}d`;
+        type = 'ORDER_EXPIRING';
+        title = `Subscription Expiring in ${days} Days`;
+        message = `Order #${order.order_number} (${order.product_name} - ${order.plan_name}) for customer ${order.customer_name} expires in ${days} days.`;
       }
 
       if (thresholdKey) {
@@ -671,18 +679,18 @@ export class NotificationService {
           metadata: {
             orderNumber: order.order_number,
             productName: order.product_name,
+            planName: order.plan_name,
             endDate: order.end_date,
             daysRemaining: days
           }
         };
 
         const dedupPrefix = `order:${order.id}:${thresholdKey}`;
-        let sent = await this.notifyStaffRoles(staffRoles, payload, dedupPrefix);
+        let sent = await this.notifyStaffRoles(staffRoles, payload, dedupPrefix, force);
 
-        // Also notify the order creator if assigned and not already covered by staff roles
         if (order.created_by_user_id) {
           const creatorDedupKey = `${dedupPrefix}:user-${order.created_by_user_id}`;
-          const creatorResult = await this.notifyUser(order.created_by_user_id, payload, creatorDedupKey);
+          const creatorResult = await this.notifyUser(order.created_by_user_id, payload, creatorDedupKey, force);
           if (creatorResult) sent++;
         }
 
@@ -696,17 +704,20 @@ export class NotificationService {
   /**
    * Evaluates inventory service accounts approaching expiration or expired.
    */
-  async checkExpiringServiceAccounts(): Promise<{ processed: number; notificationsSent: number }> {
+  async checkExpiringServiceAccounts(force: boolean = false): Promise<{ processed: number; notificationsSent: number }> {
     const accountsRes = await query<any>(`
       SELECT sa.id, sa.provider, sa.login, sa.status, sa.expiry_date::text as expiry_date,
-             p.name as product_name,
+             COALESCE(p.name, 'Service Account') as product_name,
              (sa.expiry_date - ((CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date))::int as days_remaining
       FROM service_accounts sa
-      JOIN products p ON p.id = sa.product_id
-      WHERE sa.status IN ('active', 'suspended')
-        AND sa.expiry_date IS NOT NULL
-        AND sa.expiry_date >= (((CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date) - 30)
-        AND sa.expiry_date <= (((CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date) + 7)
+      LEFT JOIN products p ON p.id = sa.product_id
+      WHERE sa.expiry_date IS NOT NULL
+        AND (
+          sa.status = 'expired'
+          OR sa.expiry_date <= (((CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date) + 7)
+          OR sa.expiry_date < ((CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date)
+        )
+      ORDER BY sa.expiry_date ASC
     `);
 
     let sentCount = 0;
@@ -719,26 +730,21 @@ export class NotificationService {
       let message = '';
       let type = '';
 
-      if (days === 7) {
-        thresholdKey = '7d';
-        type = 'SERVICE_ACCOUNT_EXPIRING';
-        title = 'Service Account Expiring in 7 Days';
-        message = `${sa.provider} account (${sa.login}) for ${sa.product_name} expires in 7 days.`;
-      } else if (days === 3) {
-        thresholdKey = '3d';
-        type = 'SERVICE_ACCOUNT_EXPIRING';
-        title = 'Service Account Expiring in 3 Days';
-        message = `${sa.provider} account (${sa.login}) for ${sa.product_name} expires in 3 days.`;
+      if (days <= 0) {
+        thresholdKey = 'expired';
+        type = 'SERVICE_ACCOUNT_EXPIRED';
+        title = 'Service Account Expired';
+        message = `${sa.provider} account (${sa.login}) for ${sa.product_name} has expired.`;
       } else if (days === 1) {
         thresholdKey = '1d';
         type = 'SERVICE_ACCOUNT_EXPIRING';
         title = 'Service Account Expiring Tomorrow';
         message = `${sa.provider} account (${sa.login}) for ${sa.product_name} expires tomorrow!`;
-      } else if (days <= 0) {
-        thresholdKey = 'expired';
-        type = 'SERVICE_ACCOUNT_EXPIRED';
-        title = 'Service Account Expired';
-        message = `${sa.provider} account (${sa.login}) for ${sa.product_name} has expired.`;
+      } else if (days <= 7) {
+        thresholdKey = `${days}d`;
+        type = 'SERVICE_ACCOUNT_EXPIRING';
+        title = `Service Account Expiring in ${days} Days`;
+        message = `${sa.provider} account (${sa.login}) for ${sa.product_name} expires in ${days} days.`;
       }
 
       if (thresholdKey) {
@@ -758,12 +764,81 @@ export class NotificationService {
         };
 
         const dedupPrefix = `sa:${sa.id}:${thresholdKey}`;
-        const sent = await this.notifyStaffRoles(staffRoles, payload, dedupPrefix);
+        const sent = await this.notifyStaffRoles(staffRoles, payload, dedupPrefix, force);
         sentCount += sent;
       }
     }
 
     return { processed: accountsRes.rows.length, notificationsSent: sentCount };
+  }
+
+  /**
+   * Evaluates inventory license keys approaching expiration or expired.
+   */
+  async checkExpiringLicenseKeys(force: boolean = false): Promise<{ processed: number; notificationsSent: number }> {
+    const keysRes = await query<any>(`
+      SELECT lk.id, lk.license_key, lk.status, lk.expiry_date::text as expiry_date,
+             COALESCE(p.name, 'License Key') as product_name,
+             (lk.expiry_date - ((CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date))::int as days_remaining
+      FROM license_keys lk
+      LEFT JOIN products p ON p.id = lk.product_id
+      WHERE lk.expiry_date IS NOT NULL
+        AND (
+          lk.status = 'expired'
+          OR lk.expiry_date <= (((CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date) + 7)
+          OR lk.expiry_date < ((CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date)
+        )
+      ORDER BY lk.expiry_date ASC
+    `);
+
+    let sentCount = 0;
+    const staffRoles = ['owner', 'admin', 'manager', 'agent'];
+
+    for (const lk of keysRes.rows) {
+      const days = lk.days_remaining;
+      let thresholdKey: string | null = null;
+      let title = '';
+      let message = '';
+      let type = '';
+
+      if (days <= 0) {
+        thresholdKey = 'expired';
+        type = 'LICENSE_EXPIRED';
+        title = 'License Key Expired';
+        message = `License key for ${lk.product_name} has expired.`;
+      } else if (days === 1) {
+        thresholdKey = '1d';
+        type = 'LICENSE_EXPIRING';
+        title = 'License Key Expiring Tomorrow';
+        message = `License key for ${lk.product_name} expires tomorrow!`;
+      } else if (days <= 7) {
+        thresholdKey = `${days}d`;
+        type = 'LICENSE_EXPIRING';
+        title = `License Key Expiring in ${days} Days`;
+        message = `License key for ${lk.product_name} expires in ${days} days.`;
+      }
+
+      if (thresholdKey) {
+        const payload: PushPayload = {
+          type,
+          title,
+          message,
+          entityType: 'license_key',
+          entityId: lk.id,
+          metadata: {
+            productName: lk.product_name,
+            expiryDate: lk.expiry_date,
+            daysRemaining: days
+          }
+        };
+
+        const dedupPrefix = `lk:${lk.id}:${thresholdKey}`;
+        const sent = await this.notifyStaffRoles(staffRoles, payload, dedupPrefix, force);
+        sentCount += sent;
+      }
+    }
+
+    return { processed: keysRes.rows.length, notificationsSent: sentCount };
   }
 
   // ===========================================================================

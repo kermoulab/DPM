@@ -24,10 +24,16 @@ notificationsRouter.post(
         app_version
       );
 
-      // On new device registration, immediately retry any un-dispatched notifications for this user
-      setImmediate(() => {
-        notificationService.retryPendingPushesForUser(req.user!.id)
-          .catch(err => console.error('[Notifications] Push retry error:', err));
+      // On device token registration, immediately retry pending pushes AND dispatch active alerts to the new device
+      setImmediate(async () => {
+        try {
+          await notificationService.retryPendingPushesForUser(req.user!.id);
+          await notificationService.checkExpiringOrders(true);
+          await notificationService.checkExpiringServiceAccounts(true);
+          await notificationService.checkExpiringLicenseKeys(true);
+        } catch (err) {
+          console.error('[Notifications] Auto-sync alert dispatch error:', err);
+        }
       });
 
       res.json({
@@ -103,13 +109,16 @@ notificationsRouter.post('/read-all', requireAuth, async (req: AuthenticatedRequ
 // POST /api/notifications/check-expirations (Admin / Manager manual or cron trigger)
 notificationsRouter.post('/check-expirations', requireAuth, requireRole('manager'), async (req: AuthenticatedRequest, res, next) => {
   try {
-    const orderResults = await notificationService.checkExpiringOrders();
-    const saResults = await notificationService.checkExpiringServiceAccounts();
+    const force = req.body?.force !== false && req.query?.force !== 'false';
+    const orderResults = await notificationService.checkExpiringOrders(force);
+    const saResults = await notificationService.checkExpiringServiceAccounts(force);
+    const lkResults = await notificationService.checkExpiringLicenseKeys(force);
 
     res.json({
       success: true,
       orders: orderResults,
-      serviceAccounts: saResults
+      serviceAccounts: saResults,
+      licenseKeys: lkResults
     });
   } catch (err) {
     next(err);

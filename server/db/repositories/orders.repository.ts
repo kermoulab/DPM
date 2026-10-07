@@ -58,7 +58,7 @@ export class OrdersRepository {
           WHEN end_date <= (((CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date) + 7) THEN 'expiring'
           ELSE 'active'
         END
-        WHERE status IN ('active', 'expiring', 'expired')
+        WHERE status IN ('active', 'expiring', 'expired', 'pending')
           AND status != CASE
             WHEN end_date < ((CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date) THEN 'expired'
             WHEN end_date <= (((CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date) + 7) THEN 'expiring'
