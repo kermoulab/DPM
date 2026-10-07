@@ -552,6 +552,36 @@ export class NotificationService {
   }
 
   /**
+   * Retries push delivery for all un-dispatched notifications for a specific user.
+   * Called when a device registers its token so it immediately receives pending alerts.
+   */
+  async retryPendingPushesForUser(userId: string): Promise<number> {
+    const pending = await notificationsRepo.findPendingPushesForUser(userId);
+    if (pending.length === 0) return 0;
+
+    const tokens = await notificationsRepo.getActiveTokensForUser(userId);
+    if (tokens.length === 0) return 0;
+
+    let retried = 0;
+    for (const notif of pending) {
+      const payload: PushPayload = {
+        type: notif.type,
+        title: notif.title,
+        message: notif.message,
+        entityType: notif.entity_type ?? undefined,
+        entityId: notif.entity_id ?? undefined,
+        metadata: notif.metadata ?? {}
+      };
+      const pushRes = await this.sendPushToTokens(tokens, payload);
+      if (pushRes.successCount > 0) {
+        await notificationsRepo.markPushDispatched(notif.id);
+        retried++;
+      }
+    }
+    return retried;
+  }
+
+  /**
    * Dispatches a notification to all active staff members with specified roles.
    */
   async notifyStaffRoles(

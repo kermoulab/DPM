@@ -24,10 +24,10 @@ notificationsRouter.post(
         app_version
       );
 
-      // Asynchronously trigger expiration checks so newly registered/synced devices immediately receive any pending alerts
+      // On new device registration, immediately retry any un-dispatched notifications for this user
       setImmediate(() => {
-        notificationService.checkExpiringOrders().catch(err => console.error('[Notifications] Auto-check orders error:', err));
-        notificationService.checkExpiringServiceAccounts().catch(err => console.error('[Notifications] Auto-check accounts error:', err));
+        notificationService.retryPendingPushesForUser(req.user!.id)
+          .catch(err => console.error('[Notifications] Push retry error:', err));
       });
 
       res.json({

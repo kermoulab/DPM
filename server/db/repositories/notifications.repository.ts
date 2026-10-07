@@ -167,6 +167,23 @@ export class NotificationsRepository {
   }
 
   /**
+   * Returns notifications for a user where push was never successfully dispatched
+   * (created in the last 30 days). Used to retry push when a device comes online.
+   */
+  async findPendingPushesForUser(userId: string): Promise<NotificationRow[]> {
+    const res = await query<NotificationRow>(
+      `SELECT * FROM notifications
+       WHERE user_id = $1
+         AND created_at >= NOW() - INTERVAL '30 days'
+         AND (metadata IS NULL OR (metadata->>'push_dispatched') IS DISTINCT FROM 'true')
+       ORDER BY created_at ASC`,
+      [userId]
+    );
+    return res.rows;
+  }
+
+
+  /**
    * Records a notification in the ledger, with duplicate prevention using dedupKey.
    * Returns null if a notification with the same dedupKey has already been sent to this user.
    */
