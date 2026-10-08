@@ -55,9 +55,11 @@ async function startServer() {
     // Periodic subscription, service account, and license inventory expiration notification checks
     const runExpirationCheck = async () => {
       try {
-        await notificationService.checkExpiringOrders();
-        await notificationService.checkExpiringServiceAccounts();
-        await notificationService.checkExpiringLicenseKeys();
+        await Promise.all([
+          notificationService.checkExpiringOrders(),
+          notificationService.checkExpiringServiceAccounts(),
+          notificationService.checkExpiringLicenseKeys()
+        ]);
       } catch (err) {
         console.error('[NotificationEngine] Expiration check error:', err);
       }

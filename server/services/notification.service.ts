@@ -499,11 +499,6 @@ export class NotificationService {
       errors.push('Firebase Cloud Messaging is not configured on this server.');
     }
 
-    if (devTokens.length > 0) {
-      failureCount += devTokens.length;
-      errors.push(`${devTokens.length} device(s) have not completed the live FCM handshake yet.`);
-    }
-
     return { successCount, failureCount, errors };
   }
 
@@ -615,17 +610,20 @@ export class NotificationService {
   // AUTOMATED EXPIRATION DETECTION ENGINE
   // ===========================================================================
 
+  private getExpiryThreshold(days: number): { key: string; label: string; isExpired: boolean } | null {
+    if (days <= 0) return { key: 'expired', label: 'Expired', isExpired: true };
+    if (days <= 7) return { key: `${days}d`, label: days === 1 ? 'Expiring Tomorrow' : `Expiring in ${days} Days`, isExpired: false };
+    return null;
+  }
+
   /**
    * Evaluates orders approaching expiration or expired.
-   * Dispatches push alerts to staff and order creator.
    */
   async checkExpiringOrders(force: boolean = false): Promise<{ processed: number; notificationsSent: number }> {
     await ordersRepo.reconcileSubscriptionStatuses();
 
-    // Fetch active, expiring, or expired orders within notification horizons
     const ordersRes = await query<any>(`
       SELECT o.id, o.order_number, o.status, o.end_date::text as end_date,
-             o.created_by_user_id,
              COALESCE(p.name, 'Product') as product_name,
              COALESCE(pl.name, 'Plan') as plan_name,
              COALESCE(c.name, 'Customer') as customer_name,
@@ -643,59 +641,28 @@ export class NotificationService {
     `);
 
     let sentCount = 0;
-    const staffRoles = ['owner', 'admin', 'manager', 'agent'];
-
     for (const order of ordersRes.rows) {
-      const days = order.days_remaining;
-      let thresholdKey: string | null = null;
-      let title = '';
-      let message = '';
-      let type = '';
+      const th = this.getExpiryThreshold(order.days_remaining);
+      if (!th) continue;
 
-      if (days <= 0) {
-        thresholdKey = 'expired';
-        type = 'ORDER_EXPIRED';
-        title = 'Subscription Expired';
-        message = `Order #${order.order_number} (${order.product_name} - ${order.plan_name}) for customer ${order.customer_name} has expired.`;
-      } else if (days === 1) {
-        thresholdKey = '1d';
-        type = 'ORDER_EXPIRING';
-        title = 'Subscription Expiring Tomorrow';
-        message = `Order #${order.order_number} (${order.product_name} - ${order.plan_name}) for customer ${order.customer_name} expires tomorrow!`;
-      } else if (days <= 7) {
-        thresholdKey = `${days}d`;
-        type = 'ORDER_EXPIRING';
-        title = `Subscription Expiring in ${days} Days`;
-        message = `Order #${order.order_number} (${order.product_name} - ${order.plan_name}) for customer ${order.customer_name} expires in ${days} days.`;
-      }
-
-      if (thresholdKey) {
-        const payload: PushPayload = {
-          type,
-          title,
-          message,
-          entityType: 'order',
-          entityId: order.id,
-          metadata: {
-            orderNumber: order.order_number,
-            productName: order.product_name,
-            planName: order.plan_name,
-            endDate: order.end_date,
-            daysRemaining: days
-          }
-        };
-
-        const dedupPrefix = `order:${order.id}:${thresholdKey}`;
-        let sent = await this.notifyStaffRoles(staffRoles, payload, dedupPrefix, force);
-
-        if (order.created_by_user_id) {
-          const creatorDedupKey = `${dedupPrefix}:user-${order.created_by_user_id}`;
-          const creatorResult = await this.notifyUser(order.created_by_user_id, payload, creatorDedupKey, force);
-          if (creatorResult) sent++;
+      const payload: PushPayload = {
+        type: th.isExpired ? 'ORDER_EXPIRED' : 'ORDER_EXPIRING',
+        title: `Subscription ${th.label}`,
+        message: th.isExpired
+          ? `Order #${order.order_number} (${order.product_name} - ${order.plan_name}) for customer ${order.customer_name} has expired.`
+          : `Order #${order.order_number} (${order.product_name} - ${order.plan_name}) for customer ${order.customer_name} expires ${th.key === '1d' ? 'tomorrow!' : `in ${order.days_remaining} days.`}`,
+        entityType: 'order',
+        entityId: order.id,
+        metadata: {
+          orderNumber: order.order_number,
+          productName: order.product_name,
+          planName: order.plan_name,
+          endDate: order.end_date,
+          daysRemaining: order.days_remaining
         }
+      };
 
-        sentCount += sent;
-      }
+      sentCount += await this.notifyStaffRoles(undefined, payload, `order:${order.id}:${th.key}`, force);
     }
 
     return { processed: ordersRes.rows.length, notificationsSent: sentCount };
@@ -721,52 +688,28 @@ export class NotificationService {
     `);
 
     let sentCount = 0;
-    const staffRoles = ['owner', 'admin', 'manager', 'agent'];
-
     for (const sa of accountsRes.rows) {
-      const days = sa.days_remaining;
-      let thresholdKey: string | null = null;
-      let title = '';
-      let message = '';
-      let type = '';
+      const th = this.getExpiryThreshold(sa.days_remaining);
+      if (!th) continue;
 
-      if (days <= 0) {
-        thresholdKey = 'expired';
-        type = 'SERVICE_ACCOUNT_EXPIRED';
-        title = 'Service Account Expired';
-        message = `${sa.provider} account (${sa.login}) for ${sa.product_name} has expired.`;
-      } else if (days === 1) {
-        thresholdKey = '1d';
-        type = 'SERVICE_ACCOUNT_EXPIRING';
-        title = 'Service Account Expiring Tomorrow';
-        message = `${sa.provider} account (${sa.login}) for ${sa.product_name} expires tomorrow!`;
-      } else if (days <= 7) {
-        thresholdKey = `${days}d`;
-        type = 'SERVICE_ACCOUNT_EXPIRING';
-        title = `Service Account Expiring in ${days} Days`;
-        message = `${sa.provider} account (${sa.login}) for ${sa.product_name} expires in ${days} days.`;
-      }
+      const payload: PushPayload = {
+        type: th.isExpired ? 'SERVICE_ACCOUNT_EXPIRED' : 'SERVICE_ACCOUNT_EXPIRING',
+        title: `Service Account ${th.label}`,
+        message: th.isExpired
+          ? `${sa.provider} account (${sa.login}) for ${sa.product_name} has expired.`
+          : `${sa.provider} account (${sa.login}) for ${sa.product_name} expires ${th.key === '1d' ? 'tomorrow!' : `in ${sa.days_remaining} days.`}`,
+        entityType: 'service_account',
+        entityId: sa.id,
+        metadata: {
+          provider: sa.provider,
+          login: sa.login,
+          productName: sa.product_name,
+          expiryDate: sa.expiry_date,
+          daysRemaining: sa.days_remaining
+        }
+      };
 
-      if (thresholdKey) {
-        const payload: PushPayload = {
-          type,
-          title,
-          message,
-          entityType: 'service_account',
-          entityId: sa.id,
-          metadata: {
-            provider: sa.provider,
-            login: sa.login,
-            productName: sa.product_name,
-            expiryDate: sa.expiry_date,
-            daysRemaining: days
-          }
-        };
-
-        const dedupPrefix = `sa:${sa.id}:${thresholdKey}`;
-        const sent = await this.notifyStaffRoles(staffRoles, payload, dedupPrefix, force);
-        sentCount += sent;
-      }
+      sentCount += await this.notifyStaffRoles(undefined, payload, `sa:${sa.id}:${th.key}`, force);
     }
 
     return { processed: accountsRes.rows.length, notificationsSent: sentCount };
@@ -792,50 +735,26 @@ export class NotificationService {
     `);
 
     let sentCount = 0;
-    const staffRoles = ['owner', 'admin', 'manager', 'agent'];
-
     for (const lk of keysRes.rows) {
-      const days = lk.days_remaining;
-      let thresholdKey: string | null = null;
-      let title = '';
-      let message = '';
-      let type = '';
+      const th = this.getExpiryThreshold(lk.days_remaining);
+      if (!th) continue;
 
-      if (days <= 0) {
-        thresholdKey = 'expired';
-        type = 'LICENSE_EXPIRED';
-        title = 'License Key Expired';
-        message = `License key for ${lk.product_name} has expired.`;
-      } else if (days === 1) {
-        thresholdKey = '1d';
-        type = 'LICENSE_EXPIRING';
-        title = 'License Key Expiring Tomorrow';
-        message = `License key for ${lk.product_name} expires tomorrow!`;
-      } else if (days <= 7) {
-        thresholdKey = `${days}d`;
-        type = 'LICENSE_EXPIRING';
-        title = `License Key Expiring in ${days} Days`;
-        message = `License key for ${lk.product_name} expires in ${days} days.`;
-      }
+      const payload: PushPayload = {
+        type: th.isExpired ? 'LICENSE_EXPIRED' : 'LICENSE_EXPIRING',
+        title: `License Key ${th.label}`,
+        message: th.isExpired
+          ? `License key for ${lk.product_name} has expired.`
+          : `License key for ${lk.product_name} expires ${th.key === '1d' ? 'tomorrow!' : `in ${lk.days_remaining} days.`}`,
+        entityType: 'license_key',
+        entityId: lk.id,
+        metadata: {
+          productName: lk.product_name,
+          expiryDate: lk.expiry_date,
+          daysRemaining: lk.days_remaining
+        }
+      };
 
-      if (thresholdKey) {
-        const payload: PushPayload = {
-          type,
-          title,
-          message,
-          entityType: 'license_key',
-          entityId: lk.id,
-          metadata: {
-            productName: lk.product_name,
-            expiryDate: lk.expiry_date,
-            daysRemaining: days
-          }
-        };
-
-        const dedupPrefix = `lk:${lk.id}:${thresholdKey}`;
-        const sent = await this.notifyStaffRoles(staffRoles, payload, dedupPrefix, force);
-        sentCount += sent;
-      }
+      sentCount += await this.notifyStaffRoles(undefined, payload, `lk:${lk.id}:${th.key}`, force);
     }
 
     return { processed: keysRes.rows.length, notificationsSent: sentCount };

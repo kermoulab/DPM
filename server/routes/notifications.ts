@@ -25,15 +25,13 @@ notificationsRouter.post(
       );
 
       // On device token registration, immediately retry pending pushes AND dispatch active alerts to the new device
-      setImmediate(async () => {
-        try {
-          await notificationService.retryPendingPushesForUser(req.user!.id);
-          await notificationService.checkExpiringOrders(true);
-          await notificationService.checkExpiringServiceAccounts(true);
-          await notificationService.checkExpiringLicenseKeys(true);
-        } catch (err) {
-          console.error('[Notifications] Auto-sync alert dispatch error:', err);
-        }
+      setImmediate(() => {
+        Promise.all([
+          notificationService.retryPendingPushesForUser(req.user!.id),
+          notificationService.checkExpiringOrders(true),
+          notificationService.checkExpiringServiceAccounts(true),
+          notificationService.checkExpiringLicenseKeys(true)
+        ]).catch(err => console.error('[Notifications] Auto-sync alert dispatch error:', err));
       });
 
       res.json({
@@ -109,17 +107,13 @@ notificationsRouter.post('/read-all', requireAuth, async (req: AuthenticatedRequ
 // POST /api/notifications/check-expirations (Admin / Manager manual or cron trigger)
 notificationsRouter.post('/check-expirations', requireAuth, requireRole('manager'), async (req: AuthenticatedRequest, res, next) => {
   try {
-    const force = req.body?.force !== false && req.query?.force !== 'false';
-    const orderResults = await notificationService.checkExpiringOrders(force);
-    const saResults = await notificationService.checkExpiringServiceAccounts(force);
-    const lkResults = await notificationService.checkExpiringLicenseKeys(force);
-
-    res.json({
-      success: true,
-      orders: orderResults,
-      serviceAccounts: saResults,
-      licenseKeys: lkResults
-    });
+    const force = req.body?.force ?? true;
+    const [orders, serviceAccounts, licenseKeys] = await Promise.all([
+      notificationService.checkExpiringOrders(force),
+      notificationService.checkExpiringServiceAccounts(force),
+      notificationService.checkExpiringLicenseKeys(force)
+    ]);
+    res.json({ success: true, orders, serviceAccounts, licenseKeys });
   } catch (err) {
     next(err);
   }
