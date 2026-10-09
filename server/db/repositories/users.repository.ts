@@ -11,6 +11,7 @@ export interface UserRow {
   status: 'active' | 'inactive' | 'suspended';
   avatar?: string | null;
   preferred_currency?: string;
+  token_version?: number;
   created_at: string;
   last_login?: string | null;
 }
@@ -31,21 +32,22 @@ export class UsersRepository {
 
   async findAll(): Promise<UserRow[]> {
     const res = await query<UserRow>(
-      'SELECT id, username, email, name, role, status, avatar, preferred_currency, created_at, last_login FROM users ORDER BY created_at ASC'
+      'SELECT id, username, email, name, role, status, avatar, preferred_currency, token_version, created_at, last_login FROM users ORDER BY created_at ASC'
     );
     return res.rows;
   }
 
   async create(user: Omit<UserRow, 'created_at' | 'last_login'>): Promise<UserRow> {
     const res = await query<UserRow>(
-      `INSERT INTO users (id, username, email, name, password_hash, password_salt, role, status, avatar, preferred_currency, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CURRENT_TIMESTAMP)
+      `INSERT INTO users (id, username, email, name, password_hash, password_salt, role, status, avatar, preferred_currency, token_version, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, CURRENT_TIMESTAMP)
        RETURNING *`,
       [
         user.id, user.username, user.email, user.name,
         user.password_hash, user.password_salt, user.role,
         user.status || 'active', user.avatar || null,
-        user.preferred_currency || 'USD'
+        user.preferred_currency || 'USD',
+        user.token_version ?? 1
       ]
     );
     return res.rows[0];
@@ -54,7 +56,7 @@ export class UsersRepository {
   async update(id: string, updates: Partial<UserRow>): Promise<UserRow | null> {
     const ALLOWED_COLUMNS = new Set([
       'username', 'email', 'name', 'password_hash', 'password_salt',
-      'role', 'status', 'avatar', 'preferred_currency'
+      'role', 'status', 'avatar', 'preferred_currency', 'token_version'
     ]);
 
     const fields: string[] = [];

@@ -784,10 +784,20 @@ export class NotificationService {
 
   /**
    * Dispatches push notification when a failed login attempt occurs on an existing user account.
+   * Throttled to 1 push alert per 5 minutes per user account to prevent FCM spam fan-out.
    */
+  private failedLoginAlertCooldown = new Map<string, number>();
+
   async notifyFailedLogin(username: string, ip: string): Promise<void> {
     const user = await usersRepo.findByUsernameOrEmail(username);
     if (!user) return; // Do not notify non-existent usernames
+
+    const now = Date.now();
+    const lastAlert = this.failedLoginAlertCooldown.get(user.id) || 0;
+    if (now - lastAlert < 5 * 60 * 1000) {
+      return; // Cooldown active, drop redundant push alert
+    }
+    this.failedLoginAlertCooldown.set(user.id, now);
 
     const payload: PushPayload = {
       type: 'LOGIN_FAILED',

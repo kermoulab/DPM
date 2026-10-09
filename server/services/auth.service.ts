@@ -41,7 +41,8 @@ export class AuthService {
       name: user.name,
       role: user.role,
       avatar: user.avatar,
-      preferred_currency: user.preferred_currency || 'USD'
+      preferred_currency: user.preferred_currency || 'USD',
+      token_version: user.token_version ?? 1
     };
 
     const token = createSessionToken(authUser);
@@ -131,13 +132,15 @@ export class AuthService {
       passwordChanged = true;
     }
 
+    const nextTokenVersion = passwordChanged ? (user.token_version || 1) + 1 : (user.token_version || 1);
     const updated = await usersRepo.update(userId, {
       name: cleanName,
       username: cleanUsername,
       email: cleanEmail,
       preferred_currency: payload.preferred_currency || user.preferred_currency || 'USD',
       password_hash: updatedHash,
-      password_salt: updatedSalt
+      password_salt: updatedSalt,
+      ...(passwordChanged ? { token_version: nextTokenVersion } : {})
     });
 
     const authUser: AuthUser = {
@@ -147,7 +150,8 @@ export class AuthService {
       name: cleanName,
       role: user.role,
       avatar: user.avatar,
-      preferred_currency: updated?.preferred_currency || 'USD'
+      preferred_currency: updated?.preferred_currency || 'USD',
+      token_version: nextTokenVersion
     };
 
     const token = createSessionToken(authUser);
@@ -193,7 +197,8 @@ export class AuthService {
     const { hash, salt } = hashPassword(newPass);
     await usersRepo.update(userId, {
       password_hash: hash,
-      password_salt: salt
+      password_salt: salt,
+      token_version: (user.token_version || 1) + 1
     });
 
     await auditRepo.log({ id: user.id, username: user.username }, 'PASSWORD_CHANGED', 'user', userId, {}, ip);

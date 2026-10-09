@@ -46,7 +46,7 @@ export async function importSqliteToPostgres(pool: pg.Pool, sqlitePath?: string)
       await client.query(
         `INSERT INTO system_settings (key, value, updated_at)
          VALUES ($1, $2, $3)
-         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at`,
+         ON CONFLICT (key) DO NOTHING`,
         [row.key, row.value, row.updated_at]
       );
     }
@@ -224,7 +224,7 @@ export async function importSqliteToPostgres(pool: pg.Pool, sqlitePath?: string)
       await client.query(
         `INSERT INTO currencies (code, symbol, name, exchange_rate, decimal_precision, is_base, updated_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7)
-         ON CONFLICT (code) DO UPDATE SET exchange_rate = EXCLUDED.exchange_rate, updated_at = EXCLUDED.updated_at`,
+         ON CONFLICT (code) DO NOTHING`,
         [
           row.code, row.symbol, row.name, row.exchange_rate,
           row.decimal_precision || 2, Boolean(row.is_base), row.updated_at

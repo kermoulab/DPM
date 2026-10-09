@@ -111,7 +111,8 @@ usersRouter.put('/:id', requireAuth, requireRole('admin'), async (req: Authentic
       status,
       preferred_currency,
       password_hash: passwordHash,
-      password_salt: passwordSalt
+      password_salt: passwordSalt,
+      ...(passwordHash ? { token_version: (existing.token_version || 1) + 1 } : {})
     });
 
     const safeUpdated = updated ? (({ password_hash, password_salt, ...rest }) => rest)(updated) : null;

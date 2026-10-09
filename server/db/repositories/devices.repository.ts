@@ -23,7 +23,7 @@ export class DevicesRepository {
       await query(`DELETE FROM paired_devices WHERE status = 'pending' AND (code_expires_at IS NULL OR code_expires_at <= CURRENT_TIMESTAMP)`);
     } catch {}
     const res = await query<PairedDeviceRow>(
-      `SELECT * FROM paired_devices WHERE status != 'revoked' ORDER BY created_at DESC`
+      `SELECT id, device_name, device_type, paired_by_user_id, status, last_seen, created_at FROM paired_devices WHERE status != 'revoked' ORDER BY created_at DESC`
     );
     return res.rows;
   }

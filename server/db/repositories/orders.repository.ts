@@ -233,9 +233,8 @@ export class OrdersRepository {
            fulfillment_data = CASE
              WHEN $12::jsonb IS NOT NULL THEN COALESCE(fulfillment_data, '{}'::jsonb) || $12::jsonb
              ELSE fulfillment_data
-           END,
-           created_at = COALESCE($13, created_at)
-       WHERE id = $14`,
+           END
+       WHERE id = $13`,
       [
         newStatus,
         updates.payment_status ?? null,
@@ -249,7 +248,6 @@ export class OrdersRepository {
         updates.product_id ?? null,
         updates.plan_id ?? null,
         notesJson,
-        updates.created_at ?? null,
         id
       ]
     );

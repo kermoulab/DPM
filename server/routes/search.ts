@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { query } from '../db/connection/pool.js';
-import { requireAuth } from '../middleware/auth.middleware.js';
+import { requireAuth, type AuthenticatedRequest } from '../middleware/auth.middleware.js';
+import { maskSecret } from '../utils/crypto.js';
 
 export const searchRouter = Router();
 
@@ -65,42 +66,45 @@ searchRouter.get('/', requireAuth, async (req, res, next) => {
       });
     }
 
-    // 4. Accounts
-    const accounts = await query<any>(
-      `SELECT sa.id, sa.login, sa.provider, p.name as product_name
-       FROM service_accounts sa
-       JOIN products p ON p.id = sa.product_id
-       WHERE sa.login ILIKE $1 OR sa.provider ILIKE $1
-       LIMIT 5`,
-      [term]
-    );
-    for (const a of accounts.rows) {
-      results.push({
-        id: a.id,
-        title: a.login,
-        subtitle: `${a.provider} • ${a.product_name}`,
-        type: 'account',
-        route: 'inventory'
-      });
-    }
+    // 4. Accounts & Licenses (restricted to managers and above)
+    const canAccessInventory = ['owner', 'admin', 'manager'].includes((req as AuthenticatedRequest).user?.role || '');
+    if (canAccessInventory) {
+      const accounts = await query<any>(
+        `SELECT sa.id, sa.login, sa.provider, p.name as product_name
+         FROM service_accounts sa
+         JOIN products p ON p.id = sa.product_id
+         WHERE sa.login ILIKE $1 OR sa.provider ILIKE $1
+         LIMIT 5`,
+        [term]
+      );
+      for (const a of accounts.rows) {
+        results.push({
+          id: a.id,
+          title: a.login,
+          subtitle: `${a.provider} • ${a.product_name}`,
+          type: 'account',
+          route: 'inventory'
+        });
+      }
 
-    // 5. License Keys
-    const licenses = await query<any>(
-      `SELECT lk.id, lk.license_key, lk.status, p.name as product_name
-       FROM license_keys lk
-       JOIN products p ON p.id = lk.product_id
-       WHERE lk.license_key ILIKE $1
-       LIMIT 5`,
-      [term]
-    );
-    for (const l of licenses.rows) {
-      results.push({
-        id: l.id,
-        title: l.license_key,
-        subtitle: `${l.product_name} (${l.status})`,
-        type: 'license',
-        route: 'inventory'
-      });
+      // 5. License Keys (masked)
+      const licenses = await query<any>(
+        `SELECT lk.id, lk.license_key, lk.status, p.name as product_name
+         FROM license_keys lk
+         JOIN products p ON p.id = lk.product_id
+         WHERE lk.license_key ILIKE $1
+         LIMIT 5`,
+        [term]
+      );
+      for (const l of licenses.rows) {
+        results.push({
+          id: l.id,
+          title: maskSecret(l.license_key),
+          subtitle: `${l.product_name} (${l.status})`,
+          type: 'license',
+          route: 'inventory'
+        });
+      }
     }
 
     res.json({ results: results.slice(0, 15) });

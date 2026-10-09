@@ -2,13 +2,14 @@ import { Router } from 'express';
 import crypto from 'crypto';
 import QRCode from 'qrcode';
 import { devicesRepo } from '../db/repositories/devices.repository.js';
+import { notificationsRepo } from '../db/repositories/notifications.repository.js';
 import { auditRepo } from '../db/repositories/audit.repository.js';
 import { requireAuth, requireRole, type AuthenticatedRequest } from '../middleware/auth.middleware.js';
 
 export const devicesRouter = Router();
 
 // GET /api/devices
-devicesRouter.get('/', requireAuth, async (req, res, next) => {
+devicesRouter.get('/', requireAuth, requireRole('manager'), async (req, res, next) => {
   try {
     const devices = await devicesRepo.findAll();
     res.json({ devices });
@@ -186,6 +187,7 @@ devicesRouter.delete('/:id', requireAuth, requireRole('manager'), async (req: Au
     } else {
       await devicesRepo.revoke(id);
     }
+    await notificationsRepo.deactivateDeviceTokens(id).catch(() => {});
     await auditRepo.log(req.user || null, 'REVOKE_DEVICE', 'device', id, { device_name: existing.device_name });
 
     res.json({

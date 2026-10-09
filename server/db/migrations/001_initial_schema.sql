@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS users (
                       CHECK (status IN ('active', 'inactive', 'suspended')),
   avatar              TEXT,
   preferred_currency  VARCHAR(10) DEFAULT 'USD',
+  token_version       INTEGER NOT NULL DEFAULT 1,
   created_at          TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   last_login          TIMESTAMPTZ
 );

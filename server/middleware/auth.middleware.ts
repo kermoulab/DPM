@@ -12,6 +12,7 @@ export interface AuthUser {
   role: 'owner' | 'admin' | 'manager' | 'agent' | 'viewer';
   avatar?: string | null;
   preferred_currency?: string;
+  token_version?: number;
 }
 
 export interface AuthenticatedRequest extends Request {
@@ -39,6 +40,7 @@ export function createSessionToken(user: AuthUser, expiresInHours = 24 * 30): st
     name: user.name,
     role: user.role,
     preferred_currency: user.preferred_currency || 'USD',
+    token_version: user.token_version ?? 1,
     exp: Math.floor(Date.now() / 1000) + expiresInHours * 3600
   };
   const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
@@ -85,6 +87,7 @@ export function verifySessionToken(token: string): (AuthUser & { exp?: number })
       name: payload.name,
       role: payload.role,
       preferred_currency: payload.preferred_currency || 'USD',
+      token_version: payload.token_version,
       exp: payload.exp
     };
   } catch {
@@ -128,10 +131,18 @@ export async function requireAuth(req: AuthenticatedRequest, res: Response, next
       return;
     }
 
+    const expectedVersion = dbUser.token_version ?? 1;
+    const tokenVersion = tokenUser.token_version ?? 1;
+    if (tokenVersion !== expectedVersion) {
+      res.status(401).json({ error: 'Session has expired due to a credential change. Please log in again.' });
+      return;
+    }
+
     req.user = {
       ...tokenUser,
       role: dbUser.role,
-      preferred_currency: dbUser.preferred_currency || 'USD'
+      preferred_currency: dbUser.preferred_currency || 'USD',
+      token_version: dbUser.token_version
     };
 
     // Sliding session refresh: if token has less than 15 days remaining, issue refreshed 30-day token

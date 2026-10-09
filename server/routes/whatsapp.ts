@@ -135,7 +135,7 @@ whatsappRouter.delete('/templates/:id', requireAuth, requireRole('manager'), asy
 });
 
 // POST /api/whatsapp/compose
-whatsappRouter.post('/compose', requireAuth, async (req: AuthenticatedRequest, res, next) => {
+whatsappRouter.post('/compose', requireAuth, requireRole('agent'), async (req: AuthenticatedRequest, res, next) => {
   try {
     const { order_id, template_id, language = 'en', event_type = 'order_created', phone, save_phone } = req.body;
     const order = await ordersRepo.findById(order_id);
@@ -143,6 +143,15 @@ whatsappRouter.post('/compose', requireAuth, async (req: AuthenticatedRequest, r
       res.status(404).json({ error: 'Order not found.' });
       return;
     }
+
+    const callerRole = req.user?.role;
+    const isPrivileged = callerRole === 'owner' || callerRole === 'admin' || callerRole === 'manager';
+    if (!isPrivileged && order.created_by_user_id !== req.user?.id) {
+      res.status(403).json({ error: 'Unauthorized to access order fulfillment credentials.' });
+      return;
+    }
+
+    await auditRepo.log(req.user || null, 'COMPOSE_WHATSAPP', 'order', order_id, { order_number: order.order_number });
 
     const lang = (language || 'en').toLowerCase();
 

@@ -330,6 +330,12 @@ export class OrderService {
         throw err;
       }
 
+      if (order.status === 'cancelled') {
+        const err = new Error('Cancelled orders cannot be renewed.');
+        (err as any).statusCode = 400;
+        throw err;
+      }
+
       const plan = await plansRepo.findById(order.plan_id);
       if (!plan) {
         const err = new Error('Subscription plan not found.');

@@ -107,8 +107,13 @@ function loadConfig(): AppConfig {
     if (isProduction) {
       jwtSecret = ensureEnvSecret('JWT_SECRET', 32);
     } else {
-      jwtSecret = DEV_FALLBACK_JWT_SECRET;
+      jwtSecret = crypto.randomBytes(32).toString('hex');
     }
+  }
+
+  if (isProduction && jwtSecret === DEV_FALLBACK_JWT_SECRET) {
+    console.error('FATAL: Production environment cannot use development fallback JWT_SECRET.');
+    process.exit(1);
   }
 
   // ENCRYPTION_KEY — generate secure random key and persist it across restarts
@@ -118,8 +123,13 @@ function loadConfig(): AppConfig {
     if (isProduction) {
       encKeyString = ensureEnvSecret('ENCRYPTION_KEY', 32);
     } else {
-      encKeyString = DEV_FALLBACK_ENCRYPTION_KEY;
+      encKeyString = crypto.randomBytes(32).toString('hex');
     }
+  }
+
+  if (isProduction && encKeyString === DEV_FALLBACK_ENCRYPTION_KEY) {
+    console.error('FATAL: Production environment cannot use development fallback ENCRYPTION_KEY.');
+    process.exit(1);
   }
   const encryptionKey = buildEncryptionKey(encKeyString);
 

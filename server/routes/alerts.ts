@@ -11,7 +11,8 @@ alertsRouter.get('/', requireAuth, async (req, res, next) => {
 
     // 1. Orders expiring in <= 7 days
     const expiringOrdersRes = await query<any>(
-      `SELECT o.*,
+      `SELECT o.id, o.order_number, o.status, o.customer_id, o.product_id, o.plan_id,
+              o.price, o.cost, o.currency, o.whatsapp_contacted_at, o.created_at,
               o.start_date::text as start_date,
               o.end_date::text as end_date,
               c.name as customer_name, c.whatsapp as customer_whatsapp, c.email as customer_email,
@@ -30,7 +31,8 @@ alertsRouter.get('/', requireAuth, async (req, res, next) => {
 
     // 2. Expired orders
     const expiredOrdersRes = await query<any>(
-      `SELECT o.*,
+      `SELECT o.id, o.order_number, o.status, o.customer_id, o.product_id, o.plan_id,
+              o.price, o.cost, o.currency, o.whatsapp_contacted_at, o.created_at,
               o.start_date::text as start_date,
               o.end_date::text as end_date,
               c.name as customer_name, c.whatsapp as customer_whatsapp, c.email as customer_email,
@@ -47,14 +49,15 @@ alertsRouter.get('/', requireAuth, async (req, res, next) => {
 
     // 3. Low stock accounts (available profiles <= 1)
     const lowStockAccountsRes = await query<any>(
-      `SELECT sa.*, p.name as product_name,
+      `SELECT sa.id, sa.product_id, sa.provider, sa.login, sa.capacity, sa.status, sa.expiry_date, sa.created_at,
+              p.name as product_name,
               COUNT(sp.id)::int as total_profiles,
               COUNT(CASE WHEN sp.status = 'available' THEN 1 END)::int as available_profiles
        FROM service_accounts sa
        JOIN products p ON p.id = sa.product_id
        LEFT JOIN service_profiles sp ON sp.service_account_id = sa.id
        WHERE sa.status = 'active'
-       GROUP BY sa.id, p.name
+       GROUP BY sa.id, sa.product_id, sa.provider, sa.login, sa.capacity, sa.status, sa.expiry_date, sa.created_at, p.name
        HAVING COUNT(CASE WHEN sp.status = 'available' THEN 1 END) <= 1`
     );
 

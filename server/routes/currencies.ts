@@ -28,13 +28,34 @@ currenciesRouter.put('/:code', requireAuth, requireRole('admin'), async (req: Au
       return;
     }
 
+    if (exchange_rate !== undefined) {
+      const numRate = Number(exchange_rate);
+      if (!Number.isFinite(numRate) || numRate < 0.000001) {
+        res.status(400).json({ error: 'Exchange rate must be a valid positive number (minimum 0.000001).' });
+        return;
+      }
+    }
+
+    if (decimal_precision !== undefined) {
+      const prec = Number(decimal_precision);
+      if (!Number.isInteger(prec) || prec < 0 || prec > 8) {
+        res.status(400).json({ error: 'Decimal precision must be an integer between 0 and 8.' });
+        return;
+      }
+    }
+
+    if (is_base !== undefined && typeof is_base !== 'boolean') {
+      res.status(400).json({ error: 'is_base must be a boolean.' });
+      return;
+    }
+
     const updated = await currenciesRepo.upsert({
       code: code.toUpperCase(),
-      symbol: symbol || existing.symbol,
-      name: name || existing.name,
-      exchange_rate: exchange_rate !== undefined ? parseFloat(exchange_rate) : existing.exchange_rate,
-      decimal_precision: decimal_precision !== undefined ? parseInt(decimal_precision, 10) : existing.decimal_precision,
-      is_base: is_base !== undefined ? Boolean(is_base) : existing.is_base
+      symbol: symbol?.trim() || existing.symbol,
+      name: name?.trim() || existing.name,
+      exchange_rate: exchange_rate !== undefined ? Number(exchange_rate) : existing.exchange_rate,
+      decimal_precision: decimal_precision !== undefined ? Number(decimal_precision) : existing.decimal_precision,
+      is_base: is_base !== undefined ? is_base : existing.is_base
     });
 
     await auditRepo.log(req.user || null, 'UPDATE_CURRENCY_RATE', 'currency', code.toUpperCase(), { exchange_rate });

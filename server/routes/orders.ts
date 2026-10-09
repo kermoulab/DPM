@@ -120,12 +120,35 @@ ordersRouter.post('/:id/cancel', requireAuth, requireRole('manager'), async (req
 ordersRouter.put('/:id', requireAuth, requireRole('manager'), async (req: AuthenticatedRequest, res, next) => {
   try {
     const { id } = req.params;
-    const updated = await ordersRepo.update(id, req.body);
-    if (!updated) {
+    const existing = await ordersRepo.findById(id);
+    if (!existing) {
       res.status(404).json({ error: 'Order not found.' });
       return;
     }
-    await auditRepo.log(req.user || null, 'UPDATE_ORDER', 'order', id, req.body);
+
+    const {
+      status, payment_status, payment_method, notes,
+      start_date, end_date, price, cost, whatsapp_contacted_at
+    } = req.body || {};
+
+    if (existing.status === 'cancelled' && status && status !== 'cancelled') {
+      res.status(400).json({ error: 'Cancelled orders cannot be reactivated directly.' });
+      return;
+    }
+
+    const cleanUpdates: Partial<typeof existing> = {};
+    if (status !== undefined) cleanUpdates.status = status;
+    if (payment_status !== undefined) cleanUpdates.payment_status = payment_status;
+    if (payment_method !== undefined) cleanUpdates.payment_method = payment_method;
+    if (notes !== undefined) (cleanUpdates as any).notes = notes;
+    if (start_date !== undefined) cleanUpdates.start_date = start_date;
+    if (end_date !== undefined) cleanUpdates.end_date = end_date;
+    if (price !== undefined) cleanUpdates.price = Number(price);
+    if (cost !== undefined) cleanUpdates.cost = Number(cost);
+    if (whatsapp_contacted_at !== undefined) cleanUpdates.whatsapp_contacted_at = whatsapp_contacted_at;
+
+    const updated = await ordersRepo.update(id, cleanUpdates);
+    await auditRepo.log(req.user || null, 'UPDATE_ORDER', 'order', id, cleanUpdates);
     setImmediate(() => {
       notificationService.checkExpiringOrders().catch(err => console.error('[Notification] Expiration check error:', err));
     });
