@@ -57,7 +57,20 @@ async function runAuditVerification() {
   const parsedV2 = verifySessionToken(tokenV2);
   assert.strictEqual(parsedV2?.token_version, 2, 'Rotated token embeds incremented version');
   assert.notStrictEqual(parsed?.token_version, parsedV2?.token_version, 'Pre-rotation and post-rotation token versions differ');
-  console.log('  ✅ PASS: Credential rotation differentiates token versions');
+  // 3. Single-Owner Migration Invariant
+  console.log('\n--- 3. Single-Owner Database Index Invariant ---');
+  const fs = await import('fs');
+  const migration005 = fs.readFileSync('server/db/migrations/005_single_owner_unique_index.sql', 'utf8');
+  assert.ok(migration005.includes("idx_users_single_owner"), 'Migration 005 defines idx_users_single_owner');
+  assert.ok(migration005.includes("WHERE role = 'owner'"), 'Migration 005 enforces single owner partial index');
+  console.log('  ✅ PASS: Migration 005 enforces single-owner constraint at database schema level');
+
+  // 4. Installer Transaction-Scoped Lock Invariant
+  console.log('\n--- 4. Installer Advisory Lock Scoping Invariant ---');
+  const installSrc = fs.readFileSync('server/routes/install.ts', 'utf8');
+  assert.ok(!installSrc.includes('getPool().query(\'SELECT pg_advisory_lock'), 'No pooled connection-leaking advisory locks in install.ts');
+  assert.ok(installSrc.includes('pg_advisory_xact_lock'), 'Uses transaction-bound pg_advisory_xact_lock on dedicated client');
+  console.log('  ✅ PASS: Setup handlers enforce client-bound transaction-scoped advisory lock');
 
   console.log('\n======================================================');
   console.log('SECURITY AUDIT CHECKS COMPLETED: ALL INVARIANTS PASSED');

@@ -812,7 +812,10 @@ export class NotificationService {
       }
     };
 
-    await this.notifyUser(user.id, payload);
+    const windowSlot = Math.floor(now / (5 * 60 * 1000));
+    const dedupKey = `LOGIN_FAILED_${user.id}_${windowSlot}`;
+
+    await this.notifyUser(user.id, payload, dedupKey);
   }
 
   // ===========================================================================

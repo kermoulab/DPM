@@ -7,10 +7,30 @@ import { validateBody, v } from '../middleware/validation.middleware.js';
 
 export const authRouter = Router();
 
-// In-memory rate limiting
+// In-memory rate limiting (keyed by IP and target username)
 const loginAttempts: Record<string, { count: number; lastAttempt: number }> = {};
 const LOGIN_MAX_ATTEMPTS = 5;
 const LOGIN_WINDOW_MS = 60 * 1000;
+
+function checkRateLimit(key: string, now: number): boolean {
+  const attempt = loginAttempts[key];
+  if (!attempt) return true;
+  if (now - attempt.lastAttempt > LOGIN_WINDOW_MS) {
+    attempt.count = 0;
+    return true;
+  }
+  return attempt.count < LOGIN_MAX_ATTEMPTS;
+}
+
+function recordFailure(key: string, now: number): void {
+  const attempt = loginAttempts[key] || { count: 0, lastAttempt: now };
+  if (now - attempt.lastAttempt > LOGIN_WINDOW_MS) {
+    attempt.count = 0;
+  }
+  attempt.count += 1;
+  attempt.lastAttempt = now;
+  loginAttempts[key] = attempt;
+}
 
 // POST /api/auth/login
 authRouter.post('/login', validateBody({
@@ -18,28 +38,24 @@ authRouter.post('/login', validateBody({
   password: v.required('Password is required.')
 }), async (req, res, next) => {
   const ip = req.ip || '127.0.0.1';
+  const { username, password } = req.body;
+  const userKey = `user:${String(username).trim().toLowerCase()}`;
+  const ipKey = `ip:${ip}`;
   const now = Date.now();
-  const attempt = loginAttempts[ip] || { count: 0, lastAttempt: now };
 
-  if (now - attempt.lastAttempt > LOGIN_WINDOW_MS) {
-    attempt.count = 0;
-  }
-
-  if (attempt.count >= LOGIN_MAX_ATTEMPTS && now - attempt.lastAttempt < LOGIN_WINDOW_MS) {
+  if (!checkRateLimit(ipKey, now) || !checkRateLimit(userKey, now)) {
     res.status(429).json({ error: 'Too many failed login attempts. Please wait 1 minute.' });
     return;
   }
 
-  const { username, password } = req.body;
-
   try {
     const result = await authService.login(username, password, ip);
-    delete loginAttempts[ip];
+    delete loginAttempts[ipKey];
+    delete loginAttempts[userKey];
     res.json({ success: true, ...result });
   } catch (err: any) {
-    attempt.count += 1;
-    attempt.lastAttempt = now;
-    loginAttempts[ip] = attempt;
+    recordFailure(ipKey, now);
+    recordFailure(userKey, now);
     res.status(err.statusCode || 401).json({ error: err.message || 'Invalid credentials.' });
   }
 });

@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_single_owner ON users(role) WHERE role = 'owner';
 CREATE INDEX IF NOT EXISTS idx_users_status ON users(status);
 
 -- 3. Product Categories

@@ -477,108 +477,78 @@ installRouter.post('/create-admin', validateBody({
     return;
   }
 
+  const client = await getPool().connect();
+  let adminId: string;
   try {
-    // Advisory lock prevents race if two browsers submit simultaneously
-    await getPool().query('SELECT pg_advisory_lock(424242)');
-    try {
-      // Idempotency: check if admin already exists
-      const existingOwner = await usersRepo.findByRole('owner').catch(() => null);
-      if (existingOwner) {
-        res.status(409).json({
-          success: false,
-          error: 'An administrator account already exists.'
-        });
-        return;
-      }
+    await client.query('BEGIN');
+    // Transaction-scoped advisory lock strictly serialized on dedicated client
+    await client.query('SELECT pg_advisory_xact_lock(424242)');
 
-      const adminId = crypto.randomUUID();
-      const { hash, salt } = hashPassword(pwd);
-      const currency = (baseCurrency?.trim().toUpperCase()) || 'USD';
-      const symbol = (currencySymbol?.trim()) || (currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : '$');
-
-      // All inserts in a single transaction
-      const client = await getPool().connect();
-      try {
-        await client.query('BEGIN');
-
-        // 1. Create owner user
-        await client.query(
-          `INSERT INTO users (id, username, email, name, password_hash, password_salt, role, status, preferred_currency, created_at)
-           VALUES ($1, $2, $3, $4, $5, $6, 'owner', 'active', $7, CURRENT_TIMESTAMP)`,
-          [
-            adminId,
-            adminUsername.trim(),
-            adminEmail.trim().toLowerCase(),
-            (adminName?.trim()) || adminUsername.trim(),
-            hash,
-            salt,
-            currency
-          ]
-        );
-
-        // 2. System settings
-        const settings: [string, string][] = [
-          ['company_name', (companyName?.trim()) || 'Vectis'],
-          ['base_currency', currency],
-          ['currency_symbol', symbol],
-          ['support_phone', (supportPhone?.trim()) || '']
-        ];
-
-        if (firebaseServiceAccount && typeof firebaseServiceAccount === 'string' && firebaseServiceAccount.trim()) {
-          try {
-            const parsed = JSON.parse(firebaseServiceAccount);
-            if (parsed.project_id && parsed.client_email && parsed.private_key) {
-              settings.push(['firebase_service_account_json', JSON.stringify(parsed)]);
-            }
-          } catch {
-            // Non-fatal if malformed during install
-          }
-        }
-
-        for (const [k, val] of settings) {
-          await client.query(
-            `INSERT INTO system_settings (key, value, updated_at)
-             VALUES ($1, $2, CURRENT_TIMESTAMP)
-             ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP`,
-            [k, val]
-          );
-        }
-
-        // 3. Seed base currencies
-        await seedBaseCurrencies(client, currency);
-
-        await client.query('COMMIT');
-      } catch (err) {
-        await client.query('ROLLBACK');
-        throw err;
-      } finally {
-        client.release();
-      }
-
-      console.log(`[Install] Administrator "${adminUsername.trim()}" created successfully.`);
-
-      // Set install state to INSTALLING (admin created, awaiting finalize)
-      await systemSettingsRepo.setInstallState('installing');
-
-      // Audit (best-effort — table may not be ready yet in all edge cases)
-      try {
-        await auditRepo.log(
-          { id: adminId, username: adminUsername.trim() } as any,
-          'ADMIN_CREATED',
-          'system',
-          adminId,
-          { companyName: companyName?.trim() || 'Vectis' }
-        );
-      } catch { /* non-fatal */ }
-
-      res.json({
-        success: true,
-        message: 'Administrator account created successfully.'
+    // Idempotency: check if owner already exists within serialized transaction
+    const existingOwner = await client.query("SELECT id FROM users WHERE role = 'owner' LIMIT 1");
+    if (existingOwner.rows.length > 0) {
+      await client.query('ROLLBACK');
+      res.status(409).json({
+        success: false,
+        error: 'An administrator account already exists.'
       });
-    } finally {
-      await getPool().query('SELECT pg_advisory_unlock(424242)').catch(() => {});
+      return;
     }
+
+    adminId = crypto.randomUUID();
+    const { hash, salt } = hashPassword(pwd);
+    const currency = (baseCurrency?.trim().toUpperCase()) || 'USD';
+    const symbol = (currencySymbol?.trim()) || (currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : '$');
+
+    // 1. Create owner user
+    await client.query(
+      `INSERT INTO users (id, username, email, name, password_hash, password_salt, role, status, preferred_currency, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, 'owner', 'active', $7, CURRENT_TIMESTAMP)`,
+      [
+        adminId,
+        adminUsername.trim(),
+        adminEmail.trim().toLowerCase(),
+        (adminName?.trim()) || adminUsername.trim(),
+        hash,
+        salt,
+        currency
+      ]
+    );
+
+    // 2. System settings
+    const settings: [string, string][] = [
+      ['company_name', (companyName?.trim()) || 'Vectis'],
+      ['base_currency', currency],
+      ['currency_symbol', symbol],
+      ['support_phone', (supportPhone?.trim()) || '']
+    ];
+
+    if (firebaseServiceAccount && typeof firebaseServiceAccount === 'string' && firebaseServiceAccount.trim()) {
+      try {
+        const parsed = JSON.parse(firebaseServiceAccount);
+        if (parsed.project_id && parsed.client_email && parsed.private_key) {
+          settings.push(['firebase_service_account_json', JSON.stringify(parsed)]);
+        }
+      } catch {
+        // Non-fatal if malformed during install
+      }
+    }
+
+    for (const [k, val] of settings) {
+      await client.query(
+        `INSERT INTO system_settings (key, value, updated_at)
+         VALUES ($1, $2, CURRENT_TIMESTAMP)
+         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP`,
+        [k, val]
+      );
+    }
+
+    // 3. Seed base currencies
+    await seedBaseCurrencies(client, currency);
+
+    await client.query('COMMIT');
   } catch (err: any) {
+    await client.query('ROLLBACK').catch(() => {});
     if (err.code === '23505') {
       res.status(409).json({
         success: false,
@@ -591,7 +561,31 @@ installRouter.post('/create-admin', validateBody({
       success: false,
       error: 'Failed to create administrator account. Please check server logs.'
     });
+    return;
+  } finally {
+    client.release();
   }
+
+  console.log(`[Install] Administrator "${adminUsername.trim()}" created successfully.`);
+
+  // Set install state to INSTALLING (admin created, awaiting finalize)
+  await systemSettingsRepo.setInstallState('installing');
+
+  // Audit (best-effort — table may not be ready yet in all edge cases)
+  try {
+    await auditRepo.log(
+      { id: adminId, username: adminUsername.trim() } as any,
+      'ADMIN_CREATED',
+      'system',
+      adminId,
+      { companyName: companyName?.trim() || 'Vectis' }
+    );
+  } catch { /* non-fatal */ }
+
+  res.json({
+    success: true,
+    message: 'Administrator account created successfully.'
+  });
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -733,54 +727,61 @@ installRouter.post('/setup', validateBody({
       return;
     }
 
-    await getPool().query('SELECT pg_advisory_lock(424242)');
-    try {
-      const existingOwner = await usersRepo.findByRole('owner').catch(() => null);
-      if (existingOwner) {
-        res.status(409).json({ success: false, error: 'An administrator account already exists.' });
-        return;
+    const { adminUsername, adminEmail, adminName, adminPassword, companyName, baseCurrency, currencySymbol, supportPhone } = req.body;
+    const adminId = crypto.randomUUID();
+    const { hash, salt } = hashPassword(adminPassword);
+
+    await (await import('../db/connection/pool.js')).transaction(async (client) => {
+      // Transaction-scoped lock serializing concurrent callers on the transaction's own client
+      await client.query('SELECT pg_advisory_xact_lock(424242)');
+
+      const existingOwnerRes = await client.query("SELECT id FROM users WHERE role = 'owner' LIMIT 1");
+      if (existingOwnerRes.rows.length > 0) {
+        const err = new Error('An administrator account already exists.');
+        (err as any).statusCode = 409;
+        throw err;
       }
 
-      const { adminUsername, adminEmail, adminName, adminPassword, companyName, baseCurrency, currencySymbol, supportPhone } = req.body;
-      const adminId = crypto.randomUUID();
-      const { hash, salt } = hashPassword(adminPassword);
-
-      await (await import('../db/connection/pool.js')).transaction(async (client) => {
+      await client.query(
+        `INSERT INTO users (id, username, email, name, password_hash, password_salt, role, status, preferred_currency, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, 'owner', 'active', $7, CURRENT_TIMESTAMP)`,
+        [adminId, adminUsername.trim(), adminEmail.trim().toLowerCase(), (adminName?.trim()) || 'Administrator', hash, salt, (baseCurrency?.trim().toUpperCase()) || 'USD']
+      );
+      const settings = [
+        ['installed', 'true'], ['install_state', 'installed'],
+        ['company_name', (companyName?.trim()) || 'Vectis'],
+        ['base_currency', (baseCurrency?.trim().toUpperCase()) || 'USD'],
+        ['currency_symbol', (currencySymbol?.trim()) || '$'],
+        ['support_phone', (supportPhone?.trim()) || '']
+      ];
+      for (const [k, v] of settings) {
         await client.query(
-          `INSERT INTO users (id, username, email, name, password_hash, password_salt, role, status, preferred_currency, created_at)
-           VALUES ($1, $2, $3, $4, $5, $6, 'owner', 'active', $7, CURRENT_TIMESTAMP)`,
-          [adminId, adminUsername.trim(), adminEmail.trim().toLowerCase(), (adminName?.trim()) || 'Administrator', hash, salt, (baseCurrency?.trim().toUpperCase()) || 'USD']
+          `INSERT INTO system_settings (key, value, updated_at) VALUES ($1, $2, CURRENT_TIMESTAMP)
+           ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP`,
+          [k, v]
         );
-        const settings = [
-          ['installed', 'true'], ['install_state', 'installed'],
-          ['company_name', (companyName?.trim()) || 'Vectis'],
-          ['base_currency', (baseCurrency?.trim().toUpperCase()) || 'USD'],
-          ['currency_symbol', (currencySymbol?.trim()) || '$'],
-          ['support_phone', (supportPhone?.trim()) || '']
-        ];
-        for (const [k, v] of settings) {
-          await client.query(
-            `INSERT INTO system_settings (key, value, updated_at) VALUES ($1, $2, CURRENT_TIMESTAMP)
-             ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP`,
-            [k, v]
-          );
-        }
-        await seedBaseCurrencies(client, baseCurrency);
-      });
+      }
+      await seedBaseCurrencies(client, baseCurrency);
+    });
 
-      const jwtSecret = ensureEnvSecret('JWT_SECRET', 32);
-      const encKeyHex  = ensureEnvSecret('ENCRYPTION_KEY', 32);
-      updateConfig({ jwtSecret, encryptionKey: Buffer.from(encKeyHex, 'hex') });
+    const jwtSecret = ensureEnvSecret('JWT_SECRET', 32);
+    const encKeyHex  = ensureEnvSecret('ENCRYPTION_KEY', 32);
+    updateConfig({ jwtSecret, encryptionKey: Buffer.from(encKeyHex, 'hex') });
 
-      const authUser = { id: adminId, username: adminUsername.trim(), email: adminEmail.trim().toLowerCase(), name: (adminName?.trim()) || 'Administrator', role: 'owner' as const, preferred_currency: (baseCurrency?.trim().toUpperCase()) || 'USD' };
-      const token = createSessionToken(authUser);
-      await auditRepo.log(authUser, 'SYSTEM_INSTALLED', 'system', null, { companyName }).catch(() => {});
+    const authUser = { id: adminId, username: adminUsername.trim(), email: adminEmail.trim().toLowerCase(), name: (adminName?.trim()) || 'Administrator', role: 'owner' as const, preferred_currency: (baseCurrency?.trim().toUpperCase()) || 'USD' };
+    const token = createSessionToken(authUser);
+    await auditRepo.log(authUser, 'SYSTEM_INSTALLED', 'system', null, { companyName }).catch(() => {});
 
-      res.json({ success: true, token, user: authUser });
-    } finally {
-      await getPool().query('SELECT pg_advisory_unlock(424242)').catch(() => {});
-    }
+    res.json({ success: true, token, user: authUser });
   } catch (err: any) {
+    if (err.code === '23505') {
+      res.status(409).json({ success: false, error: 'An administrator account already exists.' });
+      return;
+    }
+    if (err.statusCode) {
+      res.status(err.statusCode).json({ success: false, error: err.message });
+      return;
+    }
     next(err);
   }
 });
