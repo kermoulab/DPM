@@ -100,7 +100,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="h-16 flex items-center justify-between px-4 border-b border-slate-800/80">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-slate-800/80 border border-slate-700/60 flex items-center justify-center shadow-lg shadow-blue-600/10 shrink-0 p-1">
-                <img src="/logo.png" alt="Vectis" className="w-full h-full object-contain" />
+                <img src="/logo.png?v=latest" alt="Vectis" className="w-full h-full object-contain" />
               </div>
               <div>
                 <h1 className="font-semibold text-white text-sm tracking-tight">
@@ -174,7 +174,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="h-16 flex items-center justify-between px-3 border-b border-slate-800/80">
             <div className="flex items-center gap-2.5 overflow-hidden">
               <div className="w-9 h-9 rounded-xl bg-slate-800/80 border border-slate-700/60 flex items-center justify-center shadow-lg shadow-blue-600/10 shrink-0 p-1">
-                <img src="/logo.png" alt="Vectis" className="w-full h-full object-contain" />
+                <img src="/logo.png?v=latest" alt="Vectis" className="w-full h-full object-contain" />
               </div>
               {!collapsed && (
                 <div className="truncate">

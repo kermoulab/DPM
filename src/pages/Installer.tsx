@@ -461,7 +461,7 @@ export const Installer: React.FC<InstallerProps> = ({ onInstallComplete, onInsta
         <div className="bg-slate-900 px-8 py-5 text-white flex items-center justify-between">
           <div className="flex items-center gap-3.5">
             <div className="w-11 h-11 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center shadow-lg shadow-blue-600/20 p-1.5 shrink-0">
-              <img src="/logo.png" alt="Vectis" className="w-full h-full object-contain" />
+              <img src="/logo.png?v=latest" alt="Vectis" className="w-full h-full object-contain" />
             </div>
             <div>
               <h1 className="text-sm font-bold tracking-tight">Vectis Installation</h1>

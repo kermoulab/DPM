@@ -48,7 +48,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           className="p-8 space-y-4"
         >
           <div className="flex flex-col items-center justify-center pt-1 pb-3 text-center">
-            <img src="/logo.png" alt="Vectis" className="w-16 h-16 object-contain mb-2 drop-shadow-md" />
+            <img src="/logo.png?v=latest" alt="Vectis" className="w-16 h-16 object-contain mb-2 drop-shadow-md" />
             <h2 className="text-xl font-bold text-slate-900 tracking-tight">Vectis ERP</h2>
             <p className="text-xs text-slate-500 font-medium">Universal Digital Products Reseller</p>
           </div>
