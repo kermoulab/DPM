@@ -38,3 +38,7 @@ Thumbs.db
 *.tmp
 *.swp
 
+# AI Agent Workspace Config (not for client distribution)
+GEMINI.md
+.cursorrules
+.aider*

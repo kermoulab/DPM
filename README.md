@@ -93,13 +93,13 @@ Vectis includes a typed database management CLI at [`server/db/cli.ts`](file:///
 
 ## Testing & Quality Assurance
 
-The codebase includes full static analysis and an automated 75-assertion end-to-end regression test suite:
+The codebase includes full static analysis and an automated 80-assertion end-to-end regression test suite:
 
 ```bash
 # Type-check TypeScript codebase (0 errors)
 npm run lint
 
-# Run full regression test suite (75 passed, 0 failed)
+# Run full regression test suite (80 passed, 0 failed)
 npm test
 
 # Cross-platform build artifact cleanup
