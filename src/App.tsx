@@ -24,6 +24,10 @@ import { SettingsView } from './pages/SettingsView';
 import { AlertsView } from './pages/AlertsView';
 
 export default function App() {
+  React.useEffect(() => {
+    document.title = 'Vectis - Universal Digital Products Reseller';
+  }, []);
+
   // App initialization state
   const [checkingInstall, setCheckingInstall] = React.useState(true);
   const [isInstalled, setIsInstalled] = React.useState<boolean | null>(null);
