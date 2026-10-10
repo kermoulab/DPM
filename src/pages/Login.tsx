@@ -47,6 +47,12 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           method="POST"
           className="p-8 space-y-4"
         >
+          <div className="flex flex-col items-center justify-center pt-1 pb-3 text-center">
+            <img src="/logo.png" alt="Vectis" className="w-16 h-16 object-contain mb-2 drop-shadow-md" />
+            <h2 className="text-xl font-bold text-slate-900 tracking-tight">Vectis ERP</h2>
+            <p className="text-xs text-slate-500 font-medium">Universal Digital Products Reseller</p>
+          </div>
+
           {error && (
             <div className="p-3.5 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
               <AlertCircle size={16} className="shrink-0 text-red-600" />
