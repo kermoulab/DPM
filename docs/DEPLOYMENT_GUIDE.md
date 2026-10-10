@@ -114,6 +114,21 @@ This guide covers deployment instructions for all major hosting platforms and Po
    ```
 4. Configure Nginx reverse proxy passing to `http://127.0.0.1:3000`.
 
+### H. Vercel
+1. Import the repository into your Vercel Dashboard.
+2. In Project Settings → **Environment Variables**, configure:
+   - `DATABASE_URL`: PostgreSQL connection string (use a pooled connection like Supabase/Neon).
+   - `JWT_SECRET`: Minimum 32-character secret.
+   - `ENCRYPTION_KEY`: 64-hex-character AES key.
+   - `NODE_ENV`: `production`
+3. Vercel automatically detects [`vercel.json`](../vercel.json), builds the frontend SPA into `dist/`, and mounts `/api/*` requests to the serverless function adapter in [`api/index.ts`](../api/index.ts).
+
+### I. Netlify
+1. Connect the repository in the Netlify Dashboard.
+2. Under Site configuration → **Environment variables**, set:
+   - `DATABASE_URL`, `JWT_SECRET`, `ENCRYPTION_KEY`, and `NODE_ENV=production`.
+3. Netlify automatically reads [`netlify.toml`](../netlify.toml), builds the static assets to `dist/`, and routes `/api/*` requests to [`netlify/functions/api.ts`](../netlify/functions/api.ts).
+
 ---
 
 ## 3. PostgreSQL Provider Portability
