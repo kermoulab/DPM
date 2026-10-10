@@ -95,14 +95,21 @@ export async function runMigrations(pool: pg.Pool): Promise<MigrationResult> {
   const applied: string[] = [];
 
   try {
-    // 1. Acquire advisory lock — prevents concurrent migration runs
-    const { rows: lockRows } = await client.query<{ acquired: boolean }>(
-      'SELECT pg_try_advisory_lock($1) AS acquired',
-      [MIGRATION_LOCK_KEY]
-    );
-    if (!lockRows[0]?.acquired) {
-      console.warn('[Migrator] Another migration process is already running (advisory lock held).');
-      return { applied: [], alreadyUpToDate: false, alreadyRunning: true };
+    let hasAdvisoryLock = false;
+    try {
+      const { rows: lockRows } = await client.query<{ acquired: boolean }>(
+        'SELECT pg_try_advisory_lock($1) AS acquired',
+        [MIGRATION_LOCK_KEY]
+      );
+      if (!lockRows[0]?.acquired) {
+        console.warn('[Migrator] Another migration process is already running (advisory lock held).');
+        return { applied: [], alreadyUpToDate: false, alreadyRunning: true };
+      }
+      hasAdvisoryLock = true;
+    } catch (lockErr: any) {
+      // In PgBouncer transaction-pooling mode (e.g., Supabase port 6543), session-level advisory locks are prohibited.
+      // Fallback gracefully without failing: individual migration transactions will rely on table-level serialization.
+      console.warn('[Migrator] Advisory lock unavailable in this pooler configuration; falling back to transactional table locking.');
     }
 
     try {
@@ -181,8 +188,14 @@ export async function runMigrations(pool: pg.Pool): Promise<MigrationResult> {
         alreadyUpToDate: applied.length === 0
       };
     } finally {
-      // Always release advisory lock
-      await client.query('SELECT pg_advisory_unlock($1)', [MIGRATION_LOCK_KEY]);
+      // Always release advisory lock if acquired
+      if (hasAdvisoryLock) {
+        try {
+          await client.query('SELECT pg_advisory_unlock($1)', [MIGRATION_LOCK_KEY]);
+        } catch {
+          // Ignore unlock errors on connection drop or pooler disconnect
+        }
+      }
     }
   } finally {
     client.release();

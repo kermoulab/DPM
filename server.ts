@@ -2,7 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import path from 'path';
 import { config } from './server/config/index.js';
-import { getPool, testConnection } from './server/db/connection/pool.js';
+import { getPool, testConnection, closePool } from './server/db/connection/pool.js';
 import { runMigrations } from './server/db/migrator.js';
 import { errorHandler, NotFoundError } from './server/middleware/error.middleware.js';
 
@@ -177,9 +177,33 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`Universal Digital Products Reseller ERP running at http://localhost:${PORT}`);
   });
+
+  // Graceful shutdown handler for container/cloud platforms (Render, Railway, Fly.io, Cloud Run, K8s)
+  const shutdown = async (signal: string) => {
+    console.log(`[Server] Received ${signal}. Initiating graceful shutdown...`);
+    server.close(async () => {
+      console.log('[Server] HTTP connections closed.');
+      try {
+        await closePool();
+        console.log('[DB] PostgreSQL pool terminated.');
+      } catch (err) {
+        console.error('[DB] Error during pool termination:', err);
+      }
+      process.exit(0);
+    });
+
+    // Force terminate if graceful cleanup exceeds timeout
+    setTimeout(() => {
+      console.error('[Server] Graceful shutdown timeout exceeded. Forcing exit.');
+      process.exit(1);
+    }, 10000).unref();
+  };
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
 startServer().catch(err => {

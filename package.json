@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx server.ts",
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=esm --packages=external --sourcemap --outfile=dist/server.js && node scripts/copy-assets.js",
-    "prestart": "test -f dist/server.js || npm run build || true",
+    "prestart": "node -e \"if (!require('fs').existsSync('dist/server.js')) process.exit(1)\" || npm run build",
     "start": "node dist/server.js",
     "preview": "vite preview",
     "clean": "node scripts/clean.js",
