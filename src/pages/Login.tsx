@@ -120,6 +120,15 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
               )}
             </button>
           </div>
+
+          <div className="pt-2 text-center">
+            <a
+              href="/install"
+              className="text-[11px] text-slate-400 hover:text-blue-600 font-medium transition"
+            >
+              Need to configure or install database? Run Setup Wizard →
+            </a>
+          </div>
         </form>
       </div>
     </div>

@@ -97,6 +97,10 @@ export default function App() {
       }
     } catch (err) {
       console.error('Failed checking initialization', err);
+      // If API check fails or times out, default to not-installed so the user can see the Installer setup wizard
+      if (!signal?.cancelled) {
+        setIsInstalled(false);
+      }
     } finally {
       if (!signal?.cancelled) {
         setCheckingInstall(false);
@@ -255,8 +259,9 @@ export default function App() {
     );
   }
 
-  // 2. Installer screen (if not installed)
-  if (isInstalled === false) {
+  // 2. Installer screen (if explicitly on /install URL or database is not installed)
+  const isInstallRoute = typeof window !== 'undefined' && window.location.pathname.startsWith('/install');
+  if (isInstalled === false || (isInstallRoute && !currentUser)) {
     return (
       <Installer
         onInstallComplete={(user, token) => {
@@ -264,11 +269,17 @@ export default function App() {
           if (token) api.setToken(token);
           setIsInstalled(true);
           setCurrentUser(user as any);
+          if (typeof window !== 'undefined' && window.location.pathname.startsWith('/install')) {
+            window.history.replaceState({}, '', '/');
+          }
           setActiveTab('dashboard');
           loadAppData();
         }}
         onInstalled={() => {
           setIsInstalled(true);
+          if (typeof window !== 'undefined' && window.location.pathname.startsWith('/install')) {
+            window.history.replaceState({}, '', '/');
+          }
           checkInitialState();
         }}
       />
