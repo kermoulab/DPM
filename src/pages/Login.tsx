@@ -54,9 +54,21 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
           </div>
 
           {error && (
-            <div className="p-3.5 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
-              <AlertCircle size={16} className="shrink-0 text-red-600" />
-              <span className="font-semibold">{error}</span>
+            <div className="p-3.5 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-xs space-y-2">
+              <div className="flex items-center gap-2">
+                <AlertCircle size={16} className="shrink-0 text-red-600" />
+                <span className="font-semibold">{error}</span>
+              </div>
+              {(error.includes('DATABASE_URL') || error.includes('ECONNREFUSED') || error.includes('Database is not configured')) && (
+                <div className="pt-1 flex justify-end">
+                  <a
+                    href="/install"
+                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-[11px] transition shadow-xs"
+                  >
+                    Open Database Installer →
+                  </a>
+                </div>
+              )}
             </div>
           )}
 

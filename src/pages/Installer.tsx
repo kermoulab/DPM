@@ -681,6 +681,13 @@ export const Installer: React.FC<InstallerProps> = ({ onInstallComplete, onInsta
                     </div>
                   )}
 
+                  <div className="p-3.5 rounded-xl bg-blue-50/70 border border-blue-100 text-[11px] text-blue-900 flex items-start gap-2">
+                    <span className="shrink-0 text-blue-600 font-bold">💡 Netlify / Serverless:</span>
+                    <span>
+                      Because serverless platforms have ephemeral storage, add your database URL as <code>DATABASE_URL</code> in your Netlify dashboard under <strong>Site configuration &gt; Environment variables</strong> to ensure permanent connectivity.
+                    </span>
+                  </div>
+
                 </>
               )}
 

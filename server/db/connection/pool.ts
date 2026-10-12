@@ -11,9 +11,9 @@ export function getPool(): pg.Pool {
     return pool;
   }
 
-  const connectionString = config.databaseUrl;
+  const connectionString = (config.databaseUrl || process.env.DATABASE_URL || '').trim();
   if (!connectionString) {
-    console.warn('[DB] WARNING: DATABASE_URL is not configured.');
+    throw new Error('Database is not configured. On Netlify or Vercel, please add DATABASE_URL in your hosting platform dashboard under Site configuration > Environment variables.');
   }
 
   pool = new Pool({
