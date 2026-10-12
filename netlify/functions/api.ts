@@ -1,6 +1,14 @@
 import serverless from 'serverless-http';
 import { createApp } from '../../server/app.js';
 
+// Prevent background promise rejections from abruptly exiting the Lambda runtime
+process.on('unhandledRejection', (reason) => {
+  console.error('[Netlify Function] Unhandled promise rejection:', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('[Netlify Function] Uncaught exception:', err);
+});
+
 const app = createApp();
 const serverlessHandler = serverless(app);
 
@@ -20,5 +28,19 @@ export const handler = async (event: any, context: any) => {
       }
     }
   }
-  return serverlessHandler(event, context);
+  try {
+    return await serverlessHandler(event, context);
+  } catch (err: any) {
+    console.error('[Netlify Function] Handler execution error:', err);
+    return {
+      statusCode: 500,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        success: false,
+        error: 'Internal server error. Please try again.',
+        details: err?.message
+      })
+    };
+  }
 };
+

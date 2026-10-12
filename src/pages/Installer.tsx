@@ -506,8 +506,19 @@ export const Installer: React.FC<InstallerProps> = ({ onInstallComplete, onInsta
 
         {/* Error banner */}
         {error && (
-          <div className="mx-8 mt-5">
+          <div className="mx-8 mt-5 space-y-2">
             <Alert type="error">{error}</Alert>
+            {error.toLowerCase().includes('administrator account already exists') && (
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => { if (onInstalled) onInstalled(); else window.location.href = '/login'; }}
+                  className="px-4 py-2 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  Go to Login →
+                </button>
+              </div>
+            )}
           </div>
         )}
 

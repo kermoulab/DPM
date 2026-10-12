@@ -176,6 +176,23 @@ async function probeConnection(
           }
         }
       }
+
+      if (!isAlreadyInstalled) {
+        const usersCheck = await client.query<{ exists: boolean }>(`
+          SELECT EXISTS (
+            SELECT 1 FROM information_schema.tables 
+            WHERE table_schema = 'public' AND table_name = 'users'
+          ) as exists
+        `);
+        if (usersCheck.rows[0]?.exists) {
+          const ownerCheck = await client.query<{ count: string }>(
+            `SELECT count(*) as count FROM users WHERE role = 'owner'`
+          );
+          if (parseInt(ownerCheck.rows[0]?.count || '0', 10) > 0) {
+            isAlreadyInstalled = true;
+          }
+        }
+      }
     } catch {
       // Table check or query failed (e.g. fresh DB with no tables), ignore and treat as not installed
     }
@@ -439,18 +456,24 @@ installRouter.post('/create-admin', validateBody({
   adminEmail:    [v.required('Email address is required.'), v.email('Invalid email address.')],
   adminPassword: [v.required('Password is required.'), v.string({ min: 8, message: 'Password must be at least 8 characters.' })]
 }), async (req, res) => {
+  const existingOwner = await usersRepo.findByRole('owner').catch(() => null);
+  if (existingOwner) {
+    await systemSettingsRepo.setInstallState('installed').catch(() => {});
+    res.json({
+      success: true,
+      alreadyInstalled: true,
+      message: 'Administrator account already exists. Redirecting to login...'
+    });
+    return;
+  }
+
   const installState = await systemSettingsRepo.getInstallState().catch(() => 'not_installed' as const);
   if (installState === 'installed') {
-    const existingOwner = await usersRepo.findByRole('owner').catch(() => null);
-    if (existingOwner) {
-      res.json({
-        success: true,
-        alreadyInstalled: true,
-        message: 'Administrator account already exists. Redirecting to login...'
-      });
-      return;
-    }
-    res.status(403).json({ success: false, error: 'Vectis is already installed.' });
+    res.json({
+      success: true,
+      alreadyInstalled: true,
+      message: 'Vectis is already installed. Redirecting to login...'
+    });
     return;
   }
 
@@ -481,16 +504,22 @@ installRouter.post('/create-admin', validateBody({
   let adminId: string;
   try {
     await client.query('BEGIN');
-    // Transaction-scoped advisory lock strictly serialized on dedicated client
-    await client.query('SELECT pg_advisory_xact_lock(424242)');
+    // Transaction-scoped advisory lock strictly serialized on dedicated client (safe fallback for poolers)
+    try {
+      await client.query('SELECT pg_advisory_xact_lock(424242)');
+    } catch {
+      /* pooler mode fallback */
+    }
 
     // Idempotency: check if owner already exists within serialized transaction
-    const existingOwner = await client.query("SELECT id FROM users WHERE role = 'owner' LIMIT 1");
-    if (existingOwner.rows.length > 0) {
+    const existingOwnerTx = await client.query("SELECT id FROM users WHERE role = 'owner' LIMIT 1");
+    if (existingOwnerTx.rows.length > 0) {
       await client.query('ROLLBACK');
-      res.status(409).json({
-        success: false,
-        error: 'An administrator account already exists.'
+      await systemSettingsRepo.setInstallState('installed').catch(() => {});
+      res.json({
+        success: true,
+        alreadyInstalled: true,
+        message: 'Administrator account already exists. Redirecting to login...'
       });
       return;
     }

@@ -87,13 +87,10 @@ function loadConfig(): AppConfig {
   const nodeEnv = (process.env.NODE_ENV || 'development') as 'development' | 'production' | 'test';
   const isProduction = nodeEnv === 'production';
 
-  // PORT — the only truly fatal misconfiguration (invalid port means the server can't bind)
+  // PORT — default to 3000 if invalid or unset
   const rawPort = process.env.PORT || '3000';
-  const port = parseInt(rawPort, 10);
-  if (isNaN(port) || port < 1 || port > 65535) {
-    console.error(`FATAL: Invalid PORT specified: "${rawPort}". Must be an integer between 1 and 65535.`);
-    process.exit(1);
-  }
+  const parsedPort = parseInt(rawPort, 10);
+  const port = (!isNaN(parsedPort) && parsedPort >= 1 && parsedPort <= 65535) ? parsedPort : 3000;
 
   // DATABASE_URL — optional at startup (installer will configure it)
   const databaseUrl = (process.env.DATABASE_URL || '').trim();
@@ -106,33 +103,29 @@ function loadConfig(): AppConfig {
   // JWT_SECRET — generate secure random secret and persist it across restarts
   const rawJwtSecret = (process.env.JWT_SECRET || '').trim();
   let jwtSecret = rawJwtSecret;
-  if (!jwtSecret || jwtSecret.length < 32) {
+  if (!jwtSecret || jwtSecret.length < 32 || jwtSecret === DEV_FALLBACK_JWT_SECRET) {
     if (isProduction) {
       jwtSecret = ensureEnvSecret('JWT_SECRET', 32);
+      if (jwtSecret === DEV_FALLBACK_JWT_SECRET) {
+        jwtSecret = crypto.randomBytes(32).toString('hex');
+      }
     } else {
       jwtSecret = crypto.randomBytes(32).toString('hex');
     }
   }
 
-  if (isProduction && jwtSecret === DEV_FALLBACK_JWT_SECRET) {
-    console.error('FATAL: Production environment cannot use development fallback JWT_SECRET.');
-    process.exit(1);
-  }
-
   // ENCRYPTION_KEY — generate secure random key and persist it across restarts
   const rawEncKey = (process.env.ENCRYPTION_KEY || '').trim();
   let encKeyString = rawEncKey;
-  if (!encKeyString || encKeyString.length < 32) {
+  if (!encKeyString || encKeyString.length < 32 || encKeyString === DEV_FALLBACK_ENCRYPTION_KEY) {
     if (isProduction) {
       encKeyString = ensureEnvSecret('ENCRYPTION_KEY', 32);
+      if (encKeyString === DEV_FALLBACK_ENCRYPTION_KEY) {
+        encKeyString = crypto.randomBytes(32).toString('hex');
+      }
     } else {
       encKeyString = crypto.randomBytes(32).toString('hex');
     }
-  }
-
-  if (isProduction && encKeyString === DEV_FALLBACK_ENCRYPTION_KEY) {
-    console.error('FATAL: Production environment cannot use development fallback ENCRYPTION_KEY.');
-    process.exit(1);
   }
   const encryptionKey = buildEncryptionKey(encKeyString);
 
