@@ -303,7 +303,9 @@ async function runTests() {
         { path: '/api/dashboard/stats', method: 'GET' },
         { path: '/api/whatsapp/templates', method: 'GET' },
         { path: '/api/inventory/accounts', method: 'GET' },
-        { path: '/api/inventory/licenses', method: 'GET' }
+        { path: '/api/inventory/licenses', method: 'GET' },
+        { path: '/api/inventory/licenses/lic-test-123', method: 'PUT' },
+        { path: '/api/inventory/licenses/lic-test-123', method: 'DELETE' }
       ];
 
       for (const route of routes) {

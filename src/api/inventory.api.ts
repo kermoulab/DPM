@@ -54,6 +54,13 @@ export const inventoryApi = {
     });
   },
 
+  updateLicense(id: string, payload: any) {
+    return request<{ success: boolean; license?: LicenseKey }>(`/api/inventory/licenses/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload)
+    });
+  },
+
   deleteLicense(id: string) {
     return request<{ success: boolean }>(`/api/inventory/licenses/${id}`, { method: 'DELETE' });
   }

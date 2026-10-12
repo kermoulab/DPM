@@ -157,6 +157,24 @@ inventoryRouter.post('/licenses', requireAuth, requireRole('manager'), validateB
   }
 });
 
+// PUT /api/inventory/licenses/:id
+inventoryRouter.put('/licenses/:id', requireAuth, requireRole('manager'), async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const { id } = req.params;
+    const lic = await query<{ status: string }>('SELECT status FROM license_keys WHERE id = $1', [id]);
+    if (!lic.rows[0]) {
+      res.status(404).json({ error: 'License key not found.' });
+      return;
+    }
+    const updates = { ...req.body };
+    const updated = await inventoryRepo.updateLicense(id, updates);
+    await auditRepo.log(req.user || null, 'UPDATE_LICENSE', 'license_key', id, updates);
+    res.json({ success: true, license: updated });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // DELETE /api/inventory/licenses/:id
 inventoryRouter.delete('/licenses/:id', requireAuth, requireRole('manager'), async (req: AuthenticatedRequest, res, next) => {
   try {

@@ -87,6 +87,23 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ highlightId }) => 
   const [accountToDelete, setAccountToDelete] = React.useState<ServiceAccount | null>(null);
   const [deletingAccount, setDeletingAccount] = React.useState(false);
 
+  // 3-dots dropdown menu state for licenses
+  const [openMenuLicenseId, setOpenMenuLicenseId] = React.useState<string | null>(null);
+  const licenseMenuTriggerRef = React.useRef<HTMLButtonElement | null>(null);
+
+  // Edit License Key modal state
+  const [editLicense, setEditLicense] = React.useState<LicenseKey | null>(null);
+  const [editLicKey, setEditLicKey] = React.useState('');
+  const [editLicProductId, setEditLicProductId] = React.useState('');
+  const [editLicStatus, setEditLicStatus] = React.useState<string>('available');
+  const [editLicExpiry, setEditLicExpiry] = React.useState('');
+  const [editLicNotes, setEditLicNotes] = React.useState('');
+  const [savingEditLic, setSavingEditLic] = React.useState(false);
+
+  // Delete License Key Confirmation Modal
+  const [licenseToDelete, setLicenseToDelete] = React.useState<LicenseKey | null>(null);
+  const [deletingLicense, setDeletingLicense] = React.useState(false);
+
   // Modals state
   const [showAddAccount, setShowAddAccount] = React.useState(false);
   const [accProductId, setAccProductId] = React.useState('');
@@ -262,6 +279,65 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ highlightId }) => 
       loadData(false);
     } catch (err: any) {
       showToast(err.message || 'Failed to add license keys.', true);
+    }
+  };
+
+  const handleOpenEditLicense = (lic: LicenseKey) => {
+    setEditLicense(lic);
+    setEditLicKey(lic.license_key);
+    setEditLicProductId(lic.product_id);
+    setEditLicStatus(lic.status);
+    setEditLicExpiry(lic.expiry_date ? lic.expiry_date.split('T')[0] : '');
+    setEditLicNotes(lic.notes || '');
+  };
+
+  const handleSaveEditLicense = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editLicense || !editLicKey.trim()) return;
+    setSavingEditLic(true);
+    try {
+      await api.updateLicense(editLicense.id, {
+        product_id: editLicProductId,
+        license_key: editLicKey.trim(),
+        status: editLicStatus,
+        expiry_date: editLicExpiry || null,
+        notes: editLicNotes || null
+      });
+      setEditLicense(null);
+      showToast('License key updated successfully in database.');
+      window.dispatchEvent(new CustomEvent('app:data-mutated'));
+      await loadData(false);
+    } catch (err: any) {
+      showToast(err.message || 'Failed to update license key.', true);
+    } finally {
+      setSavingEditLic(false);
+    }
+  };
+
+  const handleDeleteLicense = (lic: LicenseKey) => {
+    if (lic.status === 'assigned' || lic.assigned_order_id) {
+      showToast(
+        `Cannot delete license key "${lic.license_key}". It is assigned to an active customer order.`,
+        true
+      );
+      return;
+    }
+    setLicenseToDelete(lic);
+  };
+
+  const handleConfirmDeleteLicense = async () => {
+    if (!licenseToDelete) return;
+    setDeletingLicense(true);
+    try {
+      await api.deleteLicense(licenseToDelete.id);
+      showToast(`License key removed from database.`);
+      setLicenseToDelete(null);
+      window.dispatchEvent(new CustomEvent('app:data-mutated'));
+      await loadData(false);
+    } catch (err: any) {
+      showToast(err.message || 'Failed to delete license key.', true);
+    } finally {
+      setDeletingLicense(false);
     }
   };
 
@@ -564,7 +640,8 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ highlightId }) => 
                     <th className="py-3 px-4 font-semibold">Product</th>
                     <th className="py-3 px-4 font-semibold">Status</th>
                     <th className="py-3 px-4 font-semibold">Assigned To</th>
-                    <th className="py-3 px-5 font-semibold text-right">Date Added</th>
+                    <th className="py-3 px-4 font-semibold">Date Added</th>
+                    <th className="py-3 px-5 font-semibold text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -585,7 +662,9 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ highlightId }) => 
                           className={`px-2 py-0.5 rounded-full font-semibold text-[10px] ${
                             lic.status === 'available'
                               ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                              : 'bg-purple-50 text-purple-700'
+                              : lic.status === 'assigned'
+                              ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                              : 'bg-slate-100 text-slate-600'
                           }`}
                         >
                           {lic.status}
@@ -594,8 +673,30 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ highlightId }) => 
                       <td className="py-3.5 px-4 text-slate-600">
                         {lic.customer_name || '—'}
                       </td>
-                      <td className="py-3.5 px-5 text-right text-slate-400">
+                      <td className="py-3.5 px-4 text-slate-400">
                         {lic.created_at?.split('T')[0]}
+                      </td>
+                      <td className="py-3.5 px-5 text-right">
+                        <div className="flex items-center justify-end">
+                          <button
+                            type="button"
+                            id={`license-menu-btn-${lic.id}`}
+                            ref={openMenuLicenseId === lic.id ? licenseMenuTriggerRef : null}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              licenseMenuTriggerRef.current = e.currentTarget;
+                              setOpenMenuLicenseId(openMenuLicenseId === lic.id ? null : lic.id);
+                            }}
+                            className={`p-1.5 rounded-lg border transition cursor-pointer ${
+                              openMenuLicenseId === lic.id
+                                ? 'border-purple-500 bg-purple-50 text-purple-600'
+                                : 'border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-800'
+                            }`}
+                            title="More Options"
+                          >
+                            <MoreVertical size={14} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -605,6 +706,74 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ highlightId }) => 
           )}
         </div>
       )}
+
+      {/* 3-Dots License Key Action Menu Portal */}
+      {(() => {
+        const activeLic = licenses.find((l) => l.id === openMenuLicenseId);
+        if (!activeLic) return null;
+
+        const isAssigned = activeLic.status === 'assigned' || Boolean(activeLic.assigned_order_id);
+
+        return (
+          <PortalDropdown
+            isOpen={Boolean(activeLic)}
+            onClose={() => setOpenMenuLicenseId(null)}
+            triggerRef={licenseMenuTriggerRef}
+            width={200}
+            className="divide-y divide-slate-100"
+          >
+            <div className="py-1">
+              {/* Edit License Key */}
+              <button
+                type="button"
+                id={`menu-edit-lic-${activeLic.id}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setOpenMenuLicenseId(null);
+                  handleOpenEditLicense(activeLic);
+                }}
+                className="w-full px-3.5 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition font-medium cursor-pointer"
+              >
+                <Pencil size={14} className="text-purple-600 shrink-0" />
+                <span>Edit Key</span>
+              </button>
+            </div>
+
+            {/* Delete License Key */}
+            <div className="py-1">
+              <button
+                type="button"
+                id={`menu-delete-lic-${activeLic.id}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setOpenMenuLicenseId(null);
+                  handleDeleteLicense(activeLic);
+                }}
+                title={
+                  isAssigned
+                    ? 'Cannot delete: assigned to active order'
+                    : 'Delete License Key'
+                }
+                className={`w-full px-3.5 py-2 text-xs flex items-center justify-between transition font-medium ${
+                  isAssigned
+                    ? 'text-slate-400 hover:bg-slate-50 cursor-not-allowed opacity-75'
+                    : 'text-rose-600 hover:bg-rose-50 cursor-pointer'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Trash2 size={14} className={isAssigned ? 'text-slate-400 shrink-0' : 'text-rose-600 shrink-0'} />
+                  <span>Delete Key</span>
+                </div>
+                {isAssigned && (
+                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 font-semibold border border-purple-200/70">
+                    Assigned
+                  </span>
+                )}
+              </button>
+            </div>
+          </PortalDropdown>
+        );
+      })()}
 
       {/* Modal: Add Service Account */}
       {showAddAccount && (
@@ -1045,6 +1214,162 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ highlightId }) => 
                 className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-semibold shadow-xs disabled:opacity-50 transition"
               >
                 {deletingAccount ? 'Deleting...' : 'Delete Account'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit License Key Modal */}
+      {editLicense && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600">
+                  <Key size={16} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900">Edit License Key</h3>
+                  <p className="text-[11px] text-slate-400">Modify serial key, product mapping, or notes</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditLicense(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-50 cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditLicense} className="space-y-4 pt-1">
+              <div>
+                <label className="text-xs font-semibold text-slate-700 block mb-1">License Key Code *</label>
+                <input
+                  type="text"
+                  required
+                  value={editLicKey}
+                  onChange={(e) => setEditLicKey(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-semibold"
+                  placeholder="XXXXX-XXXXX-XXXXX-XXXXX"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">Product *</label>
+                  <select
+                    value={editLicProductId}
+                    onChange={(e) => setEditLicProductId(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs"
+                  >
+                    {products.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">Status</label>
+                  <select
+                    value={editLicStatus}
+                    onChange={(e) => setEditLicStatus(e.target.value)}
+                    disabled={editLicense.status === 'assigned'}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs disabled:opacity-60"
+                  >
+                    <option value="available">available</option>
+                    <option value="assigned">assigned</option>
+                    <option value="expired">expired</option>
+                    <option value="blocked">blocked</option>
+                  </select>
+                  {editLicense.status === 'assigned' && (
+                    <p className="text-[10px] text-amber-600 mt-0.5">Status locked while assigned to order</p>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-700 block mb-1">Expiry Date (Optional)</label>
+                <input
+                  type="date"
+                  value={editLicExpiry}
+                  onChange={(e) => setEditLicExpiry(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-700 block mb-1">Internal Notes (Optional)</label>
+                <textarea
+                  rows={2}
+                  placeholder="Supplier batch, activation notes, or restrictions..."
+                  value={editLicNotes}
+                  onChange={(e) => setEditLicNotes(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setEditLicense(null)}
+                  className="px-4 py-2 border border-slate-200 rounded-xl text-xs text-slate-600 hover:bg-slate-50 transition cursor-pointer"
+                  disabled={savingEditLic}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingEditLic}
+                  className="px-5 py-2 bg-purple-600 text-white rounded-xl text-xs font-semibold hover:bg-purple-500 disabled:opacity-50 transition cursor-pointer"
+                >
+                  {savingEditLic ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete License Key Confirmation Modal */}
+      {licenseToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-2xl bg-rose-50 flex items-center justify-center text-rose-600 shrink-0">
+                <Trash2 size={20} />
+              </div>
+              <div>
+                <h3 className="font-bold text-sm text-slate-900">Delete License Key</h3>
+                <p className="text-xs text-slate-500">
+                  Are you sure you want to delete <span className="font-mono font-semibold text-slate-800">{licenseToDelete.license_key}</span>?
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-500 bg-slate-50 p-3 rounded-2xl border border-slate-100">
+              This unassigned license key will be permanently removed from inventory stock. This action cannot be undone.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setLicenseToDelete(null)}
+                disabled={deletingLicense}
+                className="px-4 py-2 border border-slate-200 rounded-xl text-xs text-slate-600 hover:bg-slate-50 transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteLicense}
+                disabled={deletingLicense}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-semibold shadow-xs disabled:opacity-50 transition cursor-pointer"
+              >
+                {deletingLicense ? 'Deleting...' : 'Delete Key'}
               </button>
             </div>
           </div>

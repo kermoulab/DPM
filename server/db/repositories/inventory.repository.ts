@@ -231,6 +231,28 @@ export class InventoryRepository {
     return res.rows[0];
   }
 
+  async updateLicense(id: string, updates: Partial<LicenseKeyRow>): Promise<LicenseKeyRow | null> {
+    const res = await query<LicenseKeyRow>(
+      `UPDATE license_keys
+       SET product_id = COALESCE($1, product_id),
+           license_key = COALESCE($2, license_key),
+           status = COALESCE($3, status),
+           expiry_date = COALESCE($4, expiry_date),
+           notes = COALESCE($5, notes)
+       WHERE id = $6
+       RETURNING *`,
+      [
+        updates.product_id ?? null,
+        updates.license_key ?? null,
+        updates.status ?? null,
+        updates.expiry_date ?? null,
+        updates.notes ?? null,
+        id
+      ]
+    );
+    return res.rows[0] || null;
+  }
+
   async deleteLicense(id: string): Promise<boolean> {
     const res = await query('DELETE FROM license_keys WHERE id = $1', [id]);
     return (res.rowCount ?? 0) > 0;
