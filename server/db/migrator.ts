@@ -12,16 +12,24 @@ const __dirname = path.dirname(__filename);
 const MIGRATION_LOCK_KEY = 1874952739;
 
 function resolveMigrationsDir(): string | null {
-  const candidateDirs = [
-    path.join(__dirname, 'migrations'),
-    path.join(__dirname, '..', 'server', 'db', 'migrations'),
-    path.join(process.cwd(), 'server', 'db', 'migrations'),
-    path.join(process.cwd(), 'dist', 'migrations'),
-  ];
+  const candidateDirs: string[] = [];
+  try {
+    candidateDirs.push(path.join(__dirname, 'migrations'));
+    candidateDirs.push(path.join(__dirname, '..', 'server', 'db', 'migrations'));
+  } catch {}
+
+  const cwd = process.cwd ? process.cwd() : '.';
+  if (cwd) {
+    candidateDirs.push(path.join(cwd, 'server', 'db', 'migrations'));
+    candidateDirs.push(path.join(cwd, 'dist', 'migrations'));
+  }
+
   for (const dir of candidateDirs) {
-    if (fs.existsSync(dir)) {
-      return dir;
-    }
+    try {
+      if (fs.existsSync(dir)) {
+        return dir;
+      }
+    } catch {}
   }
   return null;
 }

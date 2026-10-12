@@ -31,8 +31,11 @@ export function getEnvPaths(): string[] {
 
   if (process.env.Vectis_CONFIG_PATH) paths.push(process.env.Vectis_CONFIG_PATH);
   if (process.env.DATA_DIR) paths.push(path.join(process.env.DATA_DIR, '.env'));
-  paths.push(path.join(process.cwd(), '.env'));
-  paths.push(path.join(process.cwd(), 'data', '.env'));
+  const cwd = process.cwd ? process.cwd() : '.';
+  if (cwd) {
+    paths.push(path.join(cwd, '.env'));
+    paths.push(path.join(cwd, 'data', '.env'));
+  }
 
   if (process.platform !== 'win32') {
     paths.push('/data/.env');

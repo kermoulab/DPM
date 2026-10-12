@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express, { Express } from 'express';
 import path from 'path';
+import fs from 'fs';
 import { config } from './config/index.js';
 import { getPool, testConnection } from './db/connection/pool.js';
 import { runMigrations } from './db/migrator.js';
@@ -113,9 +114,17 @@ export function createApp(): Express {
 
   // Dedicated robots.txt handler to prevent AI scraping and cloning
   app.get('/robots.txt', (req, res) => {
-    const robotsPath = path.join(process.cwd(), 'public', 'robots.txt');
-    res.type('text/plain');
-    res.sendFile(robotsPath);
+    try {
+      const robotsPath = path.join(process.cwd(), 'public', 'robots.txt');
+      if (fs.existsSync(robotsPath)) {
+        res.type('text/plain');
+        res.sendFile(robotsPath);
+        return;
+      }
+    } catch {
+      // Fallback if filesystem is virtual/packaged
+    }
+    res.type('text/plain').send("User-agent: *\nDisallow: /\n");
   });
 
   // API Routes

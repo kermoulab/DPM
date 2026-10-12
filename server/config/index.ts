@@ -36,8 +36,11 @@ function loadUniversalDotenv(): void {
 
   if (process.env.Vectis_CONFIG_PATH) candidatePaths.push(process.env.Vectis_CONFIG_PATH);
   if (process.env.DATA_DIR) candidatePaths.push(path.join(process.env.DATA_DIR, '.env'));
-  candidatePaths.push(path.join(process.cwd(), '.env'));
-  candidatePaths.push(path.join(process.cwd(), 'data', '.env'));
+  const cwd = process.cwd ? process.cwd() : '.';
+  if (cwd) {
+    candidatePaths.push(path.join(cwd, '.env'));
+    candidatePaths.push(path.join(cwd, 'data', '.env'));
+  }
 
   if (process.platform !== 'win32') {
     candidatePaths.push('/data/.env');

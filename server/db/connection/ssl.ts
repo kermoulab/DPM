@@ -27,14 +27,15 @@
  *     DATABASE_SSL=true
  *     DATABASE_SSL_REJECT_UNAUTHORIZED=false
  */
-export function resolveSslConfig(connectionString: string): false | { rejectUnauthorized: boolean } {
+export function resolveSslConfig(connectionString?: string): false | { rejectUnauthorized: boolean } {
+  const connStr = connectionString || '';
   // 1. Explicit disable in URL always wins
-  if (connectionString.includes('sslmode=disable')) {
+  if (connStr.includes('sslmode=disable')) {
     return false;
   }
 
   // 2. Explicit require in URL
-  const urlRequiresSsl = connectionString.includes('sslmode=require');
+  const urlRequiresSsl = connStr.includes('sslmode=require');
 
   // 3. DATABASE_SSL environment variable
   const envSsl = (process.env.DATABASE_SSL ?? '').toLowerCase().trim();
