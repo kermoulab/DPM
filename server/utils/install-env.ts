@@ -158,11 +158,17 @@ export function persistDatabaseUrl(databaseUrl: string): void {
  */
 export function sanitizeDbError(err: unknown): string {
   const raw = err instanceof Error ? err.message : String(err);
-  return raw
+  let cleaned = raw
     .replace(/postgresql?:\/\/[^\s"'<>]*/gi, 'postgresql://***')
     .replace(/password[^=\s]*\s*=\s*\S+/gi, 'password=***')
     .replace(/pwd[^=\s]*\s*=\s*\S+/gi, 'pwd=***')
     .slice(0, 300);
+
+  if (cleaned.includes('ENOTFOUND') && cleaned.includes('supabase.co')) {
+    cleaned += ' (Tip: Direct Supabase connections are IPv6-only. On serverless hosting like Netlify or Vercel, copy the "Connection Pooler" string from Supabase: Project Settings -> Database -> Connection string -> Session mode).';
+  }
+
+  return cleaned;
 }
 
 /**
