@@ -111,15 +111,15 @@ export class OrderService {
 
           if (profileRes.rows.length === 0) {
             // Self-healing: if an active account exists for this product with capacity not yet created as profiles, create next profile
-            const unalloc = await client.query<{ id: string; capacity: number; count: string }>(
-              `SELECT sa.id, sa.capacity, COUNT(sp.id)::int as count
+            const unalloc = await client.query<{ id: string; capacity: number; count: number }>(
+              `SELECT sa.id, sa.capacity,
+                      (SELECT COUNT(*)::int FROM service_profiles sp WHERE sp.service_account_id = sa.id) as count
                FROM service_accounts sa
-               LEFT JOIN service_profiles sp ON sp.service_account_id = sa.id
-               WHERE sa.product_id = $1 AND sa.status = 'active'
-               GROUP BY sa.id, sa.capacity
-               HAVING COUNT(sp.id) < sa.capacity
+               WHERE sa.product_id = $1
+                 AND sa.status = 'active'
+                 AND (SELECT COUNT(*) FROM service_profiles sp WHERE sp.service_account_id = sa.id) < sa.capacity
                LIMIT 1
-               FOR UPDATE OF sa`,
+               FOR UPDATE SKIP LOCKED`,
               [product.id]
             );
 
