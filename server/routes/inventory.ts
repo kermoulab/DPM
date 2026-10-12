@@ -55,10 +55,10 @@ inventoryRouter.post('/accounts', requireAuth, requireRole('manager'), validateB
   password: v.required('Password/credential is required.')
 }), async (req: AuthenticatedRequest, res, next) => {
   try {
-    const { product_id, provider, login, password, capacity, expiry_date, notes, create_profiles, profile_names } = req.body;
+    const { product_id, provider, login, password, capacity, expiry_date, notes, create_profiles, profile_names, profile_pins, profiles } = req.body;
 
     const account = await inventoryService.createAccount(
-      { product_id, provider, login, password, capacity, expiry_date, notes, create_profiles, profile_names },
+      { product_id, provider, login, password, capacity, expiry_date, notes, create_profiles, profile_names, profile_pins, profiles },
       req.user
     );
 

@@ -33,6 +33,8 @@ export class InventoryService {
     notes?: string;
     create_profiles?: boolean;
     profile_names?: string[];
+    profile_pins?: string[];
+    profiles?: { profile_name?: string; pin?: string }[];
   }, user?: any): Promise<ServiceAccountRow> {
     const enc = encryptCredential(payload.password);
     const accountId = 'acc-' + crypto.randomUUID().slice(0, 8);
@@ -54,12 +56,16 @@ export class InventoryService {
       // Auto-create initial profiles atomically (defaulting to true)
       if (payload.create_profiles !== false) {
         const profileNames = payload.profile_names || [];
+        const profilePins = payload.profile_pins || [];
+        const explicitProfiles = payload.profiles || [];
         for (let i = 1; i <= capacity; i++) {
-          const pName = profileNames[i - 1] || `Profile ${i}`;
+          const item = explicitProfiles[i - 1];
+          const pName = item?.profile_name?.trim() || profileNames[i - 1]?.trim() || `Profile ${i}`;
+          const pPin = item?.pin?.trim() || profilePins[i - 1]?.trim() || null;
           await client.query(
-            `INSERT INTO service_profiles (id, service_account_id, profile_name, status, created_at)
-             VALUES ($1, $2, $3, 'available', CURRENT_TIMESTAMP)`,
-            ['prof-' + crypto.randomUUID().slice(0, 8), accountId, pName]
+            `INSERT INTO service_profiles (id, service_account_id, profile_name, pin, status, created_at)
+             VALUES ($1, $2, $3, $4, 'available', CURRENT_TIMESTAMP)`,
+            ['prof-' + crypto.randomUUID().slice(0, 8), accountId, pName, pPin]
           );
         }
       }

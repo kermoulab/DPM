@@ -156,6 +156,9 @@ export const WhatsAppView: React.FC = () => {
     customer_name: 'Alex Johnson',
     product_name: 'Netflix Premium 4K UHD',
     plan_name: '1 Month Shared Profile',
+    profile_name: 'Profile 2',
+    pin: '4821',
+    credentials: '📧 Email/Login: user@premium.com\n🔑 Password: pass123\n👤 Profile: Profile 2\n🔒 PIN: 4821',
     start_date: '2026-09-14',
     end_date: '2026-10-14',
     price: '$9.99',
@@ -352,6 +355,10 @@ export const WhatsAppView: React.FC = () => {
     text = text.replace(/{customer_name}/g, previewVars.customer_name);
     text = text.replace(/{product_name}/g, previewVars.product_name);
     text = text.replace(/{plan_name}/g, previewVars.plan_name);
+    text = text.replace(/{profile_name}/g, previewVars.profile_name);
+    text = text.replace(/{profile}/g, previewVars.profile_name);
+    text = text.replace(/{pin}/g, previewVars.pin);
+    text = text.replace(/{credentials}/g, previewVars.credentials);
     text = text.replace(/{start_date}/g, previewVars.start_date);
     text = text.replace(/{end_date}/g, previewVars.end_date);
     text = text.replace(/{price}/g, previewVars.price);
@@ -498,6 +505,9 @@ export const WhatsAppView: React.FC = () => {
                 '{customer_name}',
                 '{product_name}',
                 '{plan_name}',
+                '{profile_name}',
+                '{pin}',
+                '{credentials}',
                 '{start_date}',
                 '{end_date}',
                 '{price}',
