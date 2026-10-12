@@ -6,6 +6,26 @@ const { Pool } = pg;
 
 let pool: pg.Pool | null = null;
 
+function getPoolConfig(connectionString: string): pg.PoolConfig {
+  const isServerless = Boolean(
+    process.env.NETLIFY ||
+    process.env.VERCEL ||
+    process.env.AWS_LAMBDA_FUNCTION_NAME ||
+    process.env.LAMBDA_TASK_ROOT
+  );
+  // Default to 2 on serverless to avoid exhausting Supabase's 15-connection ceiling; 5 on dedicated server.
+  const defaultMax = isServerless ? 2 : 5;
+  const max = Math.max(1, parseInt(process.env.DATABASE_POOL_MAX || process.env.DB_POOL_MAX || String(defaultMax), 10));
+
+  return {
+    connectionString,
+    max,
+    idleTimeoutMillis: isServerless ? 1000 : 5000,
+    connectionTimeoutMillis: 10000,
+    ssl: resolveSslConfig(connectionString)
+  };
+}
+
 export function getPool(): pg.Pool {
   if (pool) {
     return pool;
@@ -16,13 +36,7 @@ export function getPool(): pg.Pool {
     throw new Error('Database is not configured. On Netlify or Vercel, please add DATABASE_URL in your hosting platform dashboard under Site configuration > Environment variables.');
   }
 
-  pool = new Pool({
-    connectionString,
-    max: parseInt(process.env.DATABASE_POOL_MAX || process.env.DB_POOL_MAX || '20', 10),
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 10000,
-    ssl: resolveSslConfig(connectionString)
-  });
+  pool = new Pool(getPoolConfig(connectionString));
 
   pool.on('error', (err) => {
     console.error('[DB] Unexpected error on idle PostgreSQL client:', err);
@@ -148,13 +162,7 @@ export async function reinitializePool(connectionString: string): Promise<void> 
     pool = null;
   }
 
-  const newPool = new Pool({
-    connectionString,
-    max: parseInt(process.env.DATABASE_POOL_MAX || process.env.DB_POOL_MAX || '20', 10),
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 10000,
-    ssl: resolveSslConfig(connectionString)
-  });
+  const newPool = new Pool(getPoolConfig(connectionString));
 
   newPool.on('error', (err) => {
     console.error('[DB] Unexpected error on idle PostgreSQL client:', err);

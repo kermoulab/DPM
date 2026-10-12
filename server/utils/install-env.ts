@@ -166,6 +166,8 @@ export function sanitizeDbError(err: unknown): string {
 
   if (cleaned.includes('ENOTFOUND') && cleaned.includes('supabase.co')) {
     cleaned += ' (Tip: Direct Supabase connections are IPv6-only. On serverless hosting like Netlify or Vercel, copy the "Connection Pooler" string from Supabase: Project Settings -> Database -> Connection string -> Session mode).';
+  } else if (cleaned.includes('EMAXCONNSESSION') || cleaned.includes('max clients reached')) {
+    cleaned += ' (Tip: Supabase session pool limit reached. In Supabase > Project Settings > Database > Connection string, switch to Transaction mode [port 6543] or wait 10 seconds for idle connections to release).';
   }
 
   return cleaned;
