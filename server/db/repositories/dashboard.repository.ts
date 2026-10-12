@@ -3,7 +3,15 @@ import { ordersRepo } from './orders.repository.js';
 
 export class DashboardRepository {
   async getStats(): Promise<any> {
-    await ordersRepo.reconcileSubscriptionStatuses();
+    // Non-blocking best-effort reconcile to avoid stalling query batch
+    ordersRepo.reconcileSubscriptionStatuses().catch((err) => {
+      console.warn('[Dashboard] Subscription reconcile non-fatal:', err.message);
+    });
+
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const currentYear = new Date().getFullYear();
+    const prevYear = currentYear - 1;
+    const years = [prevYear, currentYear];
 
     const [
       revRes,
@@ -18,7 +26,13 @@ export class DashboardRepository {
       dailyOrdersRes,
       accountsCount,
       profilesStats,
-      licensesStats
+      licensesStats,
+      saleStatsRow,
+      topProducts,
+      yearMonthlyRes,
+      catRowsRes,
+      trendsRes,
+      recentOrdersRes
     ] = await Promise.all([
       query<{ total_rev: string; total_cost: string }>(
         `SELECT COALESCE(SUM(price), 0)::text as total_rev,
@@ -97,6 +111,108 @@ export class DashboardRepository {
                 COUNT(CASE WHEN status = 'available' THEN 1 END)::text as available,
                 COUNT(CASE WHEN status = 'assigned' THEN 1 END)::text as assigned
          FROM license_keys`
+      ),
+      query<{ total: string; completed: string; returned: string }>(
+        `SELECT COUNT(*)::text as total,
+                COUNT(CASE WHEN status IN ('active', 'completed') THEN 1 END)::text as completed,
+                COUNT(CASE WHEN payment_status = 'refunded' THEN 1 END)::text as returned
+         FROM orders`
+      ),
+      query<any>(
+        `SELECT p.id, p.name, COALESCE(p.slug, LOWER(REPLACE(p.name, ' ', '-'))) as slug,
+                p.brand, p.icon, p.fulfillment_type,
+                COUNT(o.id)::int as "orderCount",
+                COUNT(o.id)::int as sales_count,
+                COALESCE(SUM(o.price), 0)::float as "totalRevenue",
+                COALESCE(SUM(o.price), 0)::float as revenue
+         FROM products p
+         LEFT JOIN orders o ON o.product_id = p.id AND o.payment_status != 'refunded'
+         GROUP BY p.id
+         ORDER BY "orderCount" DESC, "totalRevenue" DESC, p.name ASC
+         LIMIT 20`
+      ),
+      query<{
+        yr: number;
+        month_num: number;
+        order_count: string;
+        rev: string;
+        cost: string;
+      }>(
+        `SELECT EXTRACT(YEAR FROM start_date)::int as yr,
+                EXTRACT(MONTH FROM start_date)::int as month_num,
+                COUNT(*)::text as order_count,
+                COALESCE(SUM(price), 0)::text as rev,
+                COALESCE(SUM(cost), 0)::text as cost
+         FROM orders
+         WHERE EXTRACT(YEAR FROM start_date)::int IN ($1, $2)
+           AND payment_status != 'refunded'
+         GROUP BY yr, month_num`,
+        [prevYear, currentYear]
+      ),
+      query<{
+        id: string;
+        name: string;
+        total_orders: string;
+        total_revenue: string;
+      }>(
+        `SELECT c.id, c.name,
+                COUNT(o.id)::text as total_orders,
+                COALESCE(SUM(o.price), 0)::text as total_revenue
+         FROM categories c
+         LEFT JOIN products p ON p.category_id = c.id
+         LEFT JOIN orders o ON o.product_id = p.id AND o.payment_status != 'refunded'
+         GROUP BY c.id
+         ORDER BY COUNT(o.id) DESC, COALESCE(SUM(o.price), 0) DESC, c.name ASC`
+      ),
+      query<{
+        yr: number;
+        month_num: number;
+        category_id: string;
+        order_count: string;
+        rev: string;
+      }>(
+        `SELECT EXTRACT(YEAR FROM o.start_date)::int as yr,
+                EXTRACT(MONTH FROM o.start_date)::int as month_num,
+                p.category_id,
+                COUNT(o.id)::text as order_count,
+                COALESCE(SUM(o.price), 0)::text as rev
+         FROM orders o
+         JOIN products p ON p.id = o.product_id
+         WHERE EXTRACT(YEAR FROM o.start_date)::int IN ($1, $2)
+           AND o.payment_status != 'refunded'
+         GROUP BY yr, month_num, p.category_id`,
+        [prevYear, currentYear]
+      ),
+      query<{
+        id: string;
+        order_number: string;
+        start_date: string;
+        end_date: string;
+        price: number;
+        currency: string;
+        status: string;
+        created_at: string;
+        customer_name: string;
+        product_name: string;
+        plan_name: string;
+      }>(
+        `SELECT o.id,
+                o.order_number,
+                o.start_date::text as start_date,
+                o.end_date::text as end_date,
+                o.price,
+                o.currency,
+                o.status,
+                o.created_at,
+                c.name as customer_name,
+                p.name as product_name,
+                pl.name as plan_name
+         FROM orders o
+         JOIN customers c ON c.id = o.customer_id
+         JOIN products p ON p.id = o.product_id
+         JOIN plans pl ON pl.id = o.plan_id
+         ORDER BY o.created_at DESC
+         LIMIT 5`
       )
     ]);
 
@@ -170,95 +286,50 @@ export class DashboardRepository {
     const totalAvailable = availableProfiles + availableLicenses;
     const totalAssigned = assignedProfiles + assignedLicenses;
 
-    // Stock Status % = available inventory items / total inventory items (0% if none)
     const stockStatus = totalInventory > 0
       ? Math.round((totalAvailable / totalInventory) * 100)
       : 0;
 
-    // Turnover % = allocated/assigned items / total inventory items (0% if none)
     const turnoverRate = totalInventory > 0
       ? Math.round((totalAssigned / totalInventory) * 100)
       : 0;
 
-    // Ordered % = active orders / total orders (0% if none)
     const productsOrdered = totalOrdersCount > 0
       ? Math.round((activeOrdersCount / totalOrdersCount) * 100)
       : 0;
 
-    // Assigned Profiles % = assigned / total profiles (0% if none)
     const assignedProfilesPercent = totalProfiles > 0
       ? Math.round((assignedProfiles / totalProfiles) * 100)
       : 0;
 
-    // Unallocated Keys % = available / total licenses (0% if none)
     const unallocatedKeysPercent = totalLicenses > 0
       ? Math.round((availableLicenses / totalLicenses) * 100)
       : 0;
 
     // 6. Sale analytics
-    const saleStatsRow = await query<{ total: string; completed: string; returned: string }>(
-      `SELECT COUNT(*)::text as total,
-              COUNT(CASE WHEN status IN ('active', 'completed') THEN 1 END)::text as completed,
-              COUNT(CASE WHEN payment_status = 'refunded' THEN 1 END)::text as returned
-       FROM orders`
-    );
     const completedOrders = parseInt(saleStatsRow.rows[0]?.completed || '0', 10);
     const returnedOrders = parseInt(saleStatsRow.rows[0]?.returned || '0', 10);
     const totalCompletedRate = totalOrdersCount > 0 ? Math.round((completedOrders / totalOrdersCount) * 100) : 0;
 
-    // 7. Top products
-    const topProducts = await query<any>(
-      `SELECT p.id, p.name, COALESCE(p.slug, LOWER(REPLACE(p.name, ' ', '-'))) as slug,
-              p.brand, p.icon, p.fulfillment_type,
-              COUNT(o.id)::int as "orderCount",
-              COUNT(o.id)::int as sales_count,
-              COALESCE(SUM(o.price), 0)::float as "totalRevenue",
-              COALESCE(SUM(o.price), 0)::float as revenue
-       FROM products p
-       LEFT JOIN orders o ON o.product_id = p.id AND o.payment_status != 'refunded'
-       GROUP BY p.id
-       ORDER BY "orderCount" DESC, "totalRevenue" DESC, p.name ASC
-       LIMIT 20`
-    );
-
-    // 8. Orders overview by year & month (currentYear and currentYear - 1)
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const currentYear = new Date().getFullYear();
-    const prevYear = currentYear - 1;
-    const years = [prevYear, currentYear];
-
+    // 8. Orders overview by year & month
     const ordersOverviewByYear: Record<string, Array<{ month: string; orders: number; profit: number; revenue: number }>> = {};
+    const mapByYearMonth: Record<number, Record<number, { count: number; rev: number; cost: number }>> = {
+      [prevYear]: {},
+      [currentYear]: {}
+    };
+    for (const r of yearMonthlyRes.rows) {
+      if (!mapByYearMonth[r.yr]) mapByYearMonth[r.yr] = {};
+      mapByYearMonth[r.yr][r.month_num] = {
+        count: parseInt(r.order_count, 10),
+        rev: parseFloat(r.rev),
+        cost: parseFloat(r.cost)
+      };
+    }
 
     for (const yr of years) {
       const yearStr = String(yr);
       ordersOverviewByYear[yearStr] = [];
-
-      const yearMonthlyRes = await query<{
-        month_num: number;
-        order_count: string;
-        rev: string;
-        cost: string;
-      }>(
-        `SELECT EXTRACT(MONTH FROM start_date)::int as month_num,
-                COUNT(*)::text as order_count,
-                COALESCE(SUM(price), 0)::text as rev,
-                COALESCE(SUM(cost), 0)::text as cost
-         FROM orders
-         WHERE EXTRACT(YEAR FROM start_date)::int = $1
-           AND payment_status != 'refunded'
-         GROUP BY month_num`,
-        [yr]
-      );
-
-      const mapByMonth: Record<number, { count: number; rev: number; cost: number }> = {};
-      for (const r of yearMonthlyRes.rows) {
-        mapByMonth[r.month_num] = {
-          count: parseInt(r.order_count, 10),
-          rev: parseFloat(r.rev),
-          cost: parseFloat(r.cost)
-        };
-      }
-
+      const mapByMonth = mapByYearMonth[yr] || {};
       for (let m = 1; m <= 12; m++) {
         const item = mapByMonth[m] || { count: 0, rev: 0, cost: 0 };
         ordersOverviewByYear[yearStr].push({
@@ -272,25 +343,8 @@ export class DashboardRepository {
 
     const ordersOverview = ordersOverviewByYear[String(currentYear)] || [];
 
-    // 9. Category Analytics (Purchase Analytics - Monthly Category Trends)
+    // 9. Category Analytics
     const categoryPalette = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#ec4899', '#06b6d4', '#64748b'];
-
-    const catRowsRes = await query<{
-      id: string;
-      name: string;
-      total_orders: string;
-      total_revenue: string;
-    }>(
-      `SELECT c.id, c.name,
-              COUNT(o.id)::text as total_orders,
-              COALESCE(SUM(o.price), 0)::text as total_revenue
-       FROM categories c
-       LEFT JOIN products p ON p.category_id = c.id
-       LEFT JOIN orders o ON o.product_id = p.id AND o.payment_status != 'refunded'
-       GROUP BY c.id
-       ORDER BY COUNT(o.id) DESC, COALESCE(SUM(o.price), 0) DESC, c.name ASC`
-    );
-
     const grandTotalCatOrders = catRowsRes.rows.reduce(
       (sum, r) => sum + parseInt(r.total_orders || '0', 10),
       0
@@ -318,38 +372,23 @@ export class DashboardRepository {
       }>
     > = {};
 
+    const trendsByYearMonth: Record<number, Record<number, Record<string, { orders: number; revenue: number }>>> = {
+      [prevYear]: {},
+      [currentYear]: {}
+    };
+    for (const r of trendsRes.rows) {
+      if (!trendsByYearMonth[r.yr]) trendsByYearMonth[r.yr] = {};
+      if (!trendsByYearMonth[r.yr][r.month_num]) trendsByYearMonth[r.yr][r.month_num] = {};
+      trendsByYearMonth[r.yr][r.month_num][r.category_id] = {
+        orders: parseInt(r.order_count, 10),
+        revenue: parseFloat(r.rev)
+      };
+    }
+
     for (const yr of years) {
       const yearStr = String(yr);
       monthlyTrendsByYear[yearStr] = [];
-
-      const trendsRes = await query<{
-        month_num: number;
-        category_id: string;
-        order_count: string;
-        rev: string;
-      }>(
-        `SELECT EXTRACT(MONTH FROM o.start_date)::int as month_num,
-                p.category_id,
-                COUNT(o.id)::text as order_count,
-                COALESCE(SUM(o.price), 0)::text as rev
-         FROM orders o
-         JOIN products p ON p.id = o.product_id
-         WHERE EXTRACT(YEAR FROM o.start_date)::int = $1
-           AND o.payment_status != 'refunded'
-         GROUP BY month_num, p.category_id`,
-        [yr]
-      );
-
-      const trendsMap: Record<number, Record<string, { orders: number; revenue: number }>> = {};
-      for (const r of trendsRes.rows) {
-        if (!trendsMap[r.month_num]) {
-          trendsMap[r.month_num] = {};
-        }
-        trendsMap[r.month_num][r.category_id] = {
-          orders: parseInt(r.order_count, 10),
-          revenue: parseFloat(r.rev)
-        };
-      }
+      const trendsMap = trendsByYearMonth[yr] || {};
 
       for (let m = 1; m <= 12; m++) {
         const byCat = trendsMap[m] || {};
@@ -384,38 +423,6 @@ export class DashboardRepository {
       purchased: Math.round(o.revenue)
     }));
 
-    // 11. Recent Orders (Latest 6 orders)
-    const recentOrdersRes = await query<{
-      id: string;
-      order_number: string;
-      customer_name: string;
-      product_name: string;
-      plan_name: string;
-      status: string;
-      start_date: string;
-      end_date: string;
-      price: number;
-      currency: string;
-      created_at: string;
-    }>(
-      `SELECT o.id,
-              o.order_number,
-              o.start_date::text as start_date,
-              o.end_date::text as end_date,
-              o.price,
-              o.currency,
-              o.status,
-              o.created_at,
-              c.name as customer_name,
-              p.name as product_name,
-              pl.name as plan_name
-       FROM orders o
-       JOIN customers c ON c.id = o.customer_id
-       JOIN products p ON p.id = o.product_id
-       JOIN plans pl ON pl.id = o.plan_id
-       ORDER BY o.created_at DESC
-       LIMIT 5`
-    );
 
     return {
       financial: {

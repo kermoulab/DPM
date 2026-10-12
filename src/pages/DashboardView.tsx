@@ -20,6 +20,8 @@ interface DashboardViewProps {
   stats: DashboardStats | null;
   onOpenOrderBuilder: () => void;
   onNavigate: (tab: string) => void;
+  error?: string | null;
+  onRetry?: () => void;
 }
 
 const formatDateOnly = (d?: string | null) => {
@@ -30,7 +32,9 @@ const formatDateOnly = (d?: string | null) => {
 export const DashboardView: React.FC<DashboardViewProps> = ({
   stats,
   onOpenOrderBuilder,
-  onNavigate
+  onNavigate,
+  error,
+  onRetry
 }) => {
   const { format: formatMoney } = useCurrency();
   const currentYearNum = new Date().getFullYear();
@@ -42,8 +46,41 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   if (!stats) {
     return (
-      <div className="p-12 text-center text-xs text-slate-400">
-        Loading analytics engine and ACID metrics...
+      <div className="p-12 text-center space-y-4 max-w-lg mx-auto">
+        {error ? (
+          <div className="p-6 rounded-3xl bg-red-50 border border-red-200 text-red-700 space-y-3 shadow-xs">
+            <div className="w-10 h-10 rounded-2xl bg-red-100 flex items-center justify-center mx-auto text-red-600 font-bold">
+              ✕
+            </div>
+            <p className="text-xs font-semibold">{error}</p>
+            {onRetry && (
+              <button
+                type="button"
+                onClick={onRetry}
+                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-md shadow-blue-600/20 cursor-pointer"
+              >
+                Retry Loading Dashboard
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="w-9 h-9 border-3 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto" />
+            <p className="text-xs text-slate-500 font-medium">Loading analytics engine and ACID metrics...</p>
+            {onRetry && (
+              <p className="text-[11px] text-slate-400">
+                Taking longer than expected?{' '}
+                <button
+                  type="button"
+                  onClick={onRetry}
+                  className="text-blue-600 hover:underline font-semibold cursor-pointer"
+                >
+                  Click here to retry
+                </button>
+              </p>
+            )}
+          </div>
+        )}
       </div>
     );
   }

@@ -63,6 +63,8 @@ export default function App() {
 
   // App metrics & badges
   const [stats, setStats] = React.useState<DashboardStats | null>(null);
+  const [statsError, setStatsError] = React.useState<string | null>(null);
+  const [loadingStats, setLoadingStats] = React.useState(false);
   const [alertCount, setAlertCount] = React.useState(0);
   const [currencies, setCurrencies] = React.useState<Currency[]>([]);
   const [selectedCurrency, setSelectedCurrency] = React.useState<string>('USD');
@@ -151,33 +153,44 @@ export default function App() {
     return () => window.removeEventListener('app:data-mutated', handleDataMutated);
   }, [currentUser]);
 
-  // Always revalidate dashboard stats when user navigates to the dashboard tab
+  // Revalidate dashboard stats when user navigates to the dashboard tab
   React.useEffect(() => {
-    if (activeTab === 'dashboard' && currentUser) {
-      api.getDashboardStats().then((freshStats) => {
-        setStats(freshStats);
-      }).catch((err) => {
-        console.error('Failed revalidating dashboard stats:', err);
-      });
+    if (activeTab === 'dashboard' && currentUser && !stats && !loadingStats) {
+      loadAppData();
     }
   }, [activeTab, currentUser]);
 
   const loadAppData = async () => {
+    setLoadingStats(true);
+    setStatsError(null);
     try {
-      const [statsRes, alertsRes, currRes] = await Promise.all([
+      const [statsResult, alertsResult, currResult] = await Promise.allSettled([
         api.getDashboardStats(),
         api.getAlerts(),
         api.getCurrencies()
       ]);
-      setStats(statsRes);
-      const totalAlerts = typeof alertsRes.badgeCount === 'number'
-        ? alertsRes.badgeCount
-        : (alertsRes.expiringOrders?.length || 0) +
-          (alertsRes.expiredOrders?.length || 0);
-      setAlertCount(totalAlerts);
-      setCurrencies(currRes.currencies);
-    } catch (err) {
-      console.error('Failed loading app data', err);
+
+      if (statsResult.status === 'fulfilled') {
+        setStats(statsResult.value);
+        setStatsError(null);
+      } else {
+        console.error('Failed loading dashboard stats:', statsResult.reason);
+        setStatsError(statsResult.reason?.message || 'Failed to load analytics metrics.');
+      }
+
+      if (alertsResult.status === 'fulfilled') {
+        const val = alertsResult.value;
+        const totalAlerts = typeof val.badgeCount === 'number'
+          ? val.badgeCount
+          : (val.expiringOrders?.length || 0) + (val.expiredOrders?.length || 0);
+        setAlertCount(totalAlerts);
+      }
+
+      if (currResult.status === 'fulfilled') {
+        setCurrencies(currResult.value.currencies || []);
+      }
+    } finally {
+      setLoadingStats(false);
     }
   };
 
@@ -358,6 +371,8 @@ export default function App() {
               stats={stats}
               onOpenOrderBuilder={() => setOrderBuilderOpen(true)}
               onNavigate={(tab) => setActiveTab(tab)}
+              error={statsError}
+              onRetry={loadAppData}
             />
           )}
 
