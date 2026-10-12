@@ -3,6 +3,9 @@
   publish = "dist"
   functions = "netlify/functions"
 
+[functions]
+  included_files = ["server/db/migrations/**"]
+
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/api/:splat"

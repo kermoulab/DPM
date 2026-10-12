@@ -127,6 +127,22 @@ export function createApp(): Express {
     res.type('text/plain').send("User-agent: *\nDisallow: /\n");
   });
 
+  // Support requests whether prefixed with /api or stripped by serverless proxies
+  app.use((req, res, next) => {
+    if (req.url && !req.url.startsWith('/api') && !req.url.startsWith('/robots.txt')) {
+      const knownApiPrefixes = [
+        '/install', '/auth', '/dashboard', '/categories', '/products',
+        '/plans', '/customers', '/inventory', '/orders', '/renewals',
+        '/alerts', '/whatsapp', '/currencies', '/users', '/devices',
+        '/audit', '/settings', '/search', '/notifications', '/health'
+      ];
+      if (knownApiPrefixes.some(p => req.url === p || req.url.startsWith(p + '/') || req.url.startsWith(p + '?'))) {
+        req.url = '/api' + req.url;
+      }
+    }
+    next();
+  });
+
   // API Routes
   app.use('/api/install', installRouter);
   app.use('/api/auth', authRouter);

@@ -4,8 +4,26 @@ import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import type pg from 'pg';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+function getDirname(): string {
+  try {
+    if (typeof __dirname !== 'undefined' && __dirname) {
+      return __dirname;
+    }
+  } catch {}
+  try {
+    if (typeof import.meta !== 'undefined' && typeof import.meta.url === 'string' && import.meta.url) {
+      return path.dirname(fileURLToPath(import.meta.url));
+    }
+  } catch {}
+  try {
+    if (typeof process !== 'undefined' && typeof process.cwd === 'function') {
+      return process.cwd();
+    }
+  } catch {}
+  return '.';
+}
+
+const currentDir = getDirname();
 
 // Advisory lock key for migrations — prevents concurrent execution across processes.
 // This is a stable application-level constant: hash('vectis_migrations') clamped to int32.
@@ -14,14 +32,17 @@ const MIGRATION_LOCK_KEY = 1874952739;
 function resolveMigrationsDir(): string | null {
   const candidateDirs: string[] = [];
   try {
-    candidateDirs.push(path.join(__dirname, 'migrations'));
-    candidateDirs.push(path.join(__dirname, '..', 'server', 'db', 'migrations'));
+    if (currentDir && currentDir !== '.') {
+      candidateDirs.push(path.join(currentDir, 'migrations'));
+      candidateDirs.push(path.join(currentDir, '..', 'server', 'db', 'migrations'));
+    }
   } catch {}
 
-  const cwd = process.cwd ? process.cwd() : '.';
+  const cwd = typeof process !== 'undefined' && typeof process.cwd === 'function' ? process.cwd() : '.';
   if (cwd) {
     candidateDirs.push(path.join(cwd, 'server', 'db', 'migrations'));
     candidateDirs.push(path.join(cwd, 'dist', 'migrations'));
+    candidateDirs.push(path.join(cwd, 'migrations'));
   }
 
   for (const dir of candidateDirs) {
