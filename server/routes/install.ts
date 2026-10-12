@@ -84,6 +84,12 @@ function checkRateLimit(ip: string): boolean {
 }
 
 function rateLimitMiddleware(req: any, res: any, next: any): void {
+  // Never rate-limit GET /status — it is a benign query executed on every page reload/init
+  if (req.method === 'GET' && (req.path === '/status' || req.path === '/')) {
+    next();
+    return;
+  }
+
   const ip = req.ip || '127.0.0.1';
   if (!checkRateLimit(ip)) {
     res.status(429).json({

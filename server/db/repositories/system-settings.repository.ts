@@ -69,9 +69,18 @@ export class SystemSettingsRepository {
       // Prefer the new install_state key
       const stateVal = await this.get('install_state');
       if (stateVal === 'installed') return 'installed';
-      if (stateVal === 'installing') return 'installing';
       if (stateVal === 'upgrade_required') return 'upgrade_required';
-      if (stateVal === 'not_installed') return 'not_installed';
+
+      // Check if an administrator already exists in the database.
+      // If an owner account exists, Vectis is operational and installed.
+      const ownerCheck = await query<{ count: string }>(
+        `SELECT count(*) as count FROM users WHERE role = 'owner'`
+      ).catch(() => null);
+
+      if (ownerCheck && parseInt(ownerCheck.rows[0]?.count || '0', 10) > 0) {
+        await this.set('install_state', 'installed').catch(() => {});
+        return 'installed';
+      }
 
       // Legacy fallback: check old boolean 'installed' key
       const legacyVal = await this.get('installed');
@@ -81,6 +90,7 @@ export class SystemSettingsRepository {
         return 'installed';
       }
 
+      if (stateVal === 'installing') return 'installing';
       return 'not_installed';
     } catch {
       // Table doesn't exist yet → not installed

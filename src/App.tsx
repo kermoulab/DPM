@@ -73,12 +73,28 @@ export default function App() {
   const checkInitialState = React.useCallback(async (signal?: { cancelled: boolean }) => {
     setCheckingInstall(true);
     try {
+      // If a session token already exists in localStorage, verify session directly first
+      if (api.hasSession()) {
+        try {
+          const userRes = await api.getMe();
+          if (signal?.cancelled) return;
+          setIsInstalled(true);
+          setCurrentUser(userRes.user);
+          loadAppData();
+          return;
+        } catch (authErr: any) {
+          if (authErr?.message?.includes('401') || authErr?.message?.includes('Unauthorized')) {
+            api.clearToken();
+            setCurrentUser(null);
+          }
+        }
+      }
+
       const installRes = await api.getInstallStatus();
       if (signal?.cancelled) return;
       setIsInstalled(installRes.installed);
 
       if (installRes.installed) {
-        // Only attempt session verification if a token exists in storage
         if (api.hasSession()) {
           try {
             const userRes = await api.getMe();
@@ -88,20 +104,18 @@ export default function App() {
           } catch {
             if (signal?.cancelled) return;
             api.clearToken();
-            setCurrentUser((prev) => (prev ? prev : null));
+            setCurrentUser(null);
           }
         } else {
-          // No active session: show login screen first (never overwrite an already logged-in session)
           if (!signal?.cancelled) {
-            setCurrentUser((prev) => (prev ? prev : null));
+            setCurrentUser(null);
           }
         }
       }
     } catch (err) {
       console.error('Failed checking initialization', err);
-      // If API check fails or times out, default to not-installed so the user can see the Installer setup wizard
       if (!signal?.cancelled) {
-        setIsInstalled(false);
+        setIsInstalled((prev) => (prev !== null ? prev : false));
       }
     } finally {
       if (!signal?.cancelled) {
@@ -272,9 +286,13 @@ export default function App() {
     );
   }
 
-  // 2. Installer screen (if explicitly on /install URL or database is not installed)
+  // 2. Installer screen (strictly ONLY when system is not yet installed)
   const isInstallRoute = typeof window !== 'undefined' && window.location.pathname.startsWith('/install');
-  if (isInstalled === false || (isInstallRoute && !currentUser)) {
+  if (isInstalled === true && isInstallRoute) {
+    window.history.replaceState({}, '', '/');
+  }
+
+  if (isInstalled === false) {
     return (
       <Installer
         onInstallComplete={(user, token) => {
