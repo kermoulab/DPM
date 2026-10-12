@@ -810,11 +810,6 @@ export const Installer: React.FC<InstallerProps> = ({ onInstallComplete, onInsta
                   )}
                 </div>
               </div>
-
-              <Alert type="warning">
-                <ShieldCheck size={13} className="inline mr-1" />
-                Passwords are hashed with PBKDF2-SHA512 (100,000 iterations). They are never stored in plain text.
-              </Alert>
             </div>
           )}
 
