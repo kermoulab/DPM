@@ -174,14 +174,7 @@ export const AlertsView: React.FC<AlertsViewProps> = ({
       const total = expiring.length + expired.length;
       onAlertCountChange?.(total);
 
-      // Populate contacted orders directly from PostgreSQL record
-      const serverContacted = new Set<string>();
-      [...expiring, ...expired].forEach((o: any) => {
-        if (o.whatsapp_contacted_at) {
-          serverContacted.add(o.id);
-        }
-      });
-      setContactedOrderIds((prev) => new Set([...prev, ...serverContacted]));
+      // Only show contacted label after the operator triggers Send in the action center
     } catch (err) {
       console.error(err);
     } finally {
@@ -539,8 +532,8 @@ export const AlertsView: React.FC<AlertsViewProps> = ({
                           </button>
                         )}
 
-                        {/* Contacted Check Icon near Send Button */}
-                        {(o.whatsapp_contacted_at || contactedOrderIds.has(o.id)) && (
+                        {/* Contacted Check Icon near Send Button (visible only after sending in session) */}
+                        {contactedOrderIds.has(o.id) && (
                           <span
                             id={`contacted-check-expiring-${o.id}`}
                             className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium shadow-2xs transition animate-in fade-in duration-200"
@@ -631,8 +624,8 @@ export const AlertsView: React.FC<AlertsViewProps> = ({
                           </button>
                         )}
 
-                        {/* Contacted Check Icon near Send Button */}
-                        {(o.whatsapp_contacted_at || contactedOrderIds.has(o.id)) && (
+                        {/* Contacted Check Icon near Send Button (visible only after sending in session) */}
+                        {contactedOrderIds.has(o.id) && (
                           <span
                             id={`contacted-check-expired-${o.id}`}
                             className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium shadow-2xs transition animate-in fade-in duration-200"
