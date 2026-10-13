@@ -56,6 +56,10 @@ export async function query<T extends pg.QueryResultRow = any>(
   const start = Date.now();
   try {
     const res = await p.query<T>(text, params);
+    const duration = Date.now() - start;
+    if (duration > 1000) {
+      console.warn(`[DB Slow Query] ${duration}ms\nQuery: ${text.slice(0, 120)}...`);
+    }
     return res;
   } catch (err: any) {
     console.error(`[DB Query Error] ${err.message}\nQuery: ${text}\nParams:`, params);
