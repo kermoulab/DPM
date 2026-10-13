@@ -83,7 +83,10 @@ export async function request<T>(endpoint: string, options: RequestOptions = {})
         window.dispatchEvent(new CustomEvent('auth:unauthorized'));
       }
     }
-    throw new Error(data?.error || `Request failed with status ${res.status}`);
+    const err = new Error(data?.error || `Request failed with status ${res.status}`) as any;
+    err.status = res.status;
+    err.data = data;
+    throw err;
   }
 
   return data;

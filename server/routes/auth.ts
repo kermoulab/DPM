@@ -7,29 +7,67 @@ import { validateBody, v } from '../middleware/validation.middleware.js';
 
 export const authRouter = Router();
 
-// In-memory rate limiting (keyed by IP and target username)
-const loginAttempts: Record<string, { count: number; lastAttempt: number }> = {};
-const LOGIN_MAX_ATTEMPTS = 5;
-const LOGIN_WINDOW_MS = 60 * 1000;
-
-function checkRateLimit(key: string, now: number): boolean {
-  const attempt = loginAttempts[key];
-  if (!attempt) return true;
-  if (now - attempt.lastAttempt > LOGIN_WINDOW_MS) {
-    attempt.count = 0;
-    return true;
-  }
-  return attempt.count < LOGIN_MAX_ATTEMPTS;
+// Rate limiting with attempt count and progressive lockout (keyed by IP and target username)
+interface AttemptState {
+  count: number;
+  firstAttempt: number;
+  lastAttempt: number;
+  lockedUntil?: number;
 }
 
-function recordFailure(key: string, now: number): void {
-  const attempt = loginAttempts[key] || { count: 0, lastAttempt: now };
-  if (now - attempt.lastAttempt > LOGIN_WINDOW_MS) {
+const loginAttempts: Record<string, AttemptState> = {};
+const LOGIN_MAX_ATTEMPTS = 5;
+const LOGIN_WINDOW_MS = 15 * 60 * 1000; // 15-minute sliding window
+const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15-minute lockout
+
+function getRateLimitState(key: string, now: number): { isLocked: boolean; retryAfterSeconds: number; remainingAttempts: number } {
+  const attempt = loginAttempts[key];
+  if (!attempt) {
+    return { isLocked: false, retryAfterSeconds: 0, remainingAttempts: LOGIN_MAX_ATTEMPTS };
+  }
+
+  // Check if currently locked
+  if (attempt.lockedUntil && attempt.lockedUntil > now) {
+    const retryAfter = Math.ceil((attempt.lockedUntil - now) / 1000);
+    return { isLocked: true, retryAfterSeconds: retryAfter, remainingAttempts: 0 };
+  }
+
+  // Check if window has expired
+  if (now - attempt.firstAttempt > LOGIN_WINDOW_MS) {
+    delete loginAttempts[key];
+    return { isLocked: false, retryAfterSeconds: 0, remainingAttempts: LOGIN_MAX_ATTEMPTS };
+  }
+
+  if (attempt.count >= LOGIN_MAX_ATTEMPTS) {
+    attempt.lockedUntil = now + LOCKOUT_DURATION_MS;
+    const retryAfter = Math.ceil(LOCKOUT_DURATION_MS / 1000);
+    return { isLocked: true, retryAfterSeconds: retryAfter, remainingAttempts: 0 };
+  }
+
+  return {
+    isLocked: false,
+    retryAfterSeconds: 0,
+    remainingAttempts: Math.max(0, LOGIN_MAX_ATTEMPTS - attempt.count)
+  };
+}
+
+function recordFailure(key: string, now: number): { count: number; remaining: number; lockedUntil?: number } {
+  const attempt = loginAttempts[key] || { count: 0, firstAttempt: now, lastAttempt: now };
+  if (now - attempt.firstAttempt > LOGIN_WINDOW_MS) {
     attempt.count = 0;
+    attempt.firstAttempt = now;
+    delete attempt.lockedUntil;
   }
   attempt.count += 1;
   attempt.lastAttempt = now;
+
+  if (attempt.count >= LOGIN_MAX_ATTEMPTS) {
+    attempt.lockedUntil = now + LOCKOUT_DURATION_MS;
+  }
+
   loginAttempts[key] = attempt;
+  const remaining = Math.max(0, LOGIN_MAX_ATTEMPTS - attempt.count);
+  return { count: attempt.count, remaining, lockedUntil: attempt.lockedUntil };
 }
 
 // POST /api/auth/login
@@ -39,12 +77,23 @@ authRouter.post('/login', validateBody({
 }), async (req, res, next) => {
   const ip = req.ip || '127.0.0.1';
   const { username, password } = req.body;
-  const userKey = `user:${String(username).trim().toLowerCase()}`;
+  const cleanUsername = String(username).trim().toLowerCase();
+  const userKey = `user:${cleanUsername}`;
   const ipKey = `ip:${ip}`;
   const now = Date.now();
 
-  if (!checkRateLimit(ipKey, now) || !checkRateLimit(userKey, now)) {
-    res.status(429).json({ error: 'Too many failed login attempts. Please wait 1 minute.' });
+  const ipState = getRateLimitState(ipKey, now);
+  const userState = getRateLimitState(userKey, now);
+
+  if (ipState.isLocked || userState.isLocked) {
+    const retryAfter = Math.max(ipState.retryAfterSeconds, userState.retryAfterSeconds);
+    const minutesLeft = Math.ceil(retryAfter / 60);
+    res.setHeader('Retry-After', String(retryAfter));
+    res.status(429).json({
+      error: `Too many failed login attempts. Account temporarily locked for security. Please try again in ${minutesLeft} minute${minutesLeft === 1 ? '' : 's'}.`,
+      locked: true,
+      retry_after_seconds: retryAfter
+    });
     return;
   }
 
@@ -54,9 +103,33 @@ authRouter.post('/login', validateBody({
     delete loginAttempts[userKey];
     res.json({ success: true, ...result });
   } catch (err: any) {
-    recordFailure(ipKey, now);
-    recordFailure(userKey, now);
-    res.status(err.statusCode || 401).json({ error: err.message || 'Invalid credentials.' });
+    const ipFail = recordFailure(ipKey, now);
+    const userFail = recordFailure(userKey, now);
+    const minRemaining = Math.min(ipFail.remaining, userFail.remaining);
+
+    // Audit failed attempt
+    try {
+      await auditRepo.log(null, 'LOGIN_FAILED', 'auth', cleanUsername, { ip, remaining_attempts: minRemaining });
+    } catch (_auditErr) {}
+
+    if (ipFail.lockedUntil || userFail.lockedUntil) {
+      const retryAfter = Math.ceil(LOCKOUT_DURATION_MS / 1000);
+      const minutesLeft = Math.ceil(retryAfter / 60);
+      res.setHeader('Retry-After', String(retryAfter));
+      res.status(429).json({
+        error: `Too many failed login attempts. Account temporarily locked for security. Please try again in ${minutesLeft} minutes.`,
+        locked: true,
+        retry_after_seconds: retryAfter,
+        remaining_attempts: 0
+      });
+      return;
+    }
+
+    res.status(err.statusCode || 401).json({
+      error: err.message || 'Invalid credentials.',
+      remaining_attempts: minRemaining,
+      max_attempts: LOGIN_MAX_ATTEMPTS
+    });
   }
 });
 
